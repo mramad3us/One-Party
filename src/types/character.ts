@@ -1,0 +1,133 @@
+import type {
+  Ability,
+  ConditionType,
+  Coordinate,
+  DieType,
+  Entity,
+  EntityId,
+  Skill,
+} from './core';
+
+/** All six ability scores mapped to their values */
+export type AbilityScores = Record<Ability, number>;
+
+/** Race identifier (e.g. 'human', 'elf', 'dwarf') */
+export type RaceId = string;
+
+/** Class identifier (e.g. 'fighter', 'wizard', 'rogue') */
+export type ClassId = string;
+
+/** Armor categories */
+export type ArmorType = 'light' | 'medium' | 'heavy' | 'shield';
+
+/** Weapon proficiency categories */
+export type WeaponCategory = 'simple' | 'martial';
+
+/** A single feature or trait granted by race, class, or feat */
+export type FeatureInstance = {
+  id: string;
+  name: string;
+  description: string;
+  source: string;
+  usesRemaining?: number;
+  usesMax?: number;
+  rechargeOn?: 'shortRest' | 'longRest';
+};
+
+/** A condition currently affecting a creature */
+export type ActiveCondition = {
+  type: ConditionType;
+  duration?: number;
+  source?: EntityId;
+};
+
+/** Epic boon gained at levels beyond 20 */
+export type EpicBoon = {
+  id: string;
+  name: string;
+  description: string;
+  level: number;
+};
+
+/** Equipment slots a character can wear/wield */
+export type EquipmentSlots = {
+  mainHand: EntityId | null;
+  offHand: EntityId | null;
+  armor: EntityId | null;
+  helmet: EntityId | null;
+  cloak: EntityId | null;
+  gloves: EntityId | null;
+  boots: EntityId | null;
+  ring1: EntityId | null;
+  ring2: EntityId | null;
+  amulet: EntityId | null;
+  belt: EntityId | null;
+};
+
+/** A single inventory stack */
+export type InventoryEntry = {
+  itemId: EntityId;
+  quantity: number;
+};
+
+/** Full inventory state */
+export type Inventory = {
+  items: InventoryEntry[];
+  capacity: number;
+  currentWeight: number;
+  gold: number;
+  silver: number;
+  copper: number;
+};
+
+/** Spellcasting state for caster classes */
+export type SpellcastingState = {
+  ability: Ability;
+  spellSlots: Record<number, { current: number; max: number }>;
+  knownSpells: string[];
+  preparedSpells: string[];
+  concentration: string | null;
+  cantripsKnown: string[];
+};
+
+/** The player character */
+export interface Character extends Entity {
+  type: 'character';
+  name: string;
+  race: RaceId;
+  class: ClassId;
+  level: number;
+  xp: number;
+  abilityScores: AbilityScores;
+  maxHp: number;
+  currentHp: number;
+  tempHp: number;
+  hitDice: {
+    current: number;
+    max: number;
+    die: DieType;
+  };
+  armorClass: number;
+  speed: number;
+  proficiencyBonus: number;
+  proficiencies: {
+    skills: Skill[];
+    savingThrows: Ability[];
+    armor: ArmorType[];
+    weapons: (WeaponCategory | string)[];
+    tools: string[];
+    languages: string[];
+  };
+  features: FeatureInstance[];
+  inventory: Inventory;
+  equipment: EquipmentSlots;
+  spellcasting: SpellcastingState | null;
+  conditions: ActiveCondition[];
+  deathSaves: {
+    successes: number;
+    failures: number;
+  };
+  position: Coordinate | null;
+  initiative: number | null;
+  epicBoons: EpicBoon[];
+}

@@ -1,0 +1,538 @@
+/* ============================================================
+   ONE PARTY — Character Creation Screen
+   ============================================================ */
+
+.creation-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(200, 168, 78, 0.03) 0%, transparent 60%),
+    var(--bg-darkest);
+}
+
+/* ── Header ── */
+.creation-header {
+  padding: var(--space-lg) var(--space-xl);
+  border-bottom: 1px solid var(--border-gold);
+  background: var(--bg-dark);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.creation-header-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  color: var(--gold);
+  text-align: center;
+  letter-spacing: 0.06em;
+}
+
+/* ── Step Indicator ── */
+.creation-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-xl);
+  flex-shrink: 0;
+}
+
+.creation-step-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--border-gold);
+  background: transparent;
+  transition: all var(--duration-normal) var(--ease-out-back);
+  position: relative;
+}
+
+.creation-step-dot.active {
+  background: var(--gold);
+  border-color: var(--gold-light);
+  transform: scale(1.2);
+  box-shadow: 0 0 10px rgba(200, 168, 78, 0.4);
+}
+
+.creation-step-dot.completed {
+  background: var(--gold-dark);
+  border-color: var(--gold);
+}
+
+.creation-step-connector {
+  width: 32px;
+  height: 2px;
+  background: var(--border-gold);
+  transition: background var(--duration-normal) var(--ease-smooth);
+}
+
+.creation-step-connector.completed {
+  background: var(--gold-dark);
+}
+
+.creation-step-label {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: center;
+  margin-top: var(--space-xs);
+}
+
+.creation-step-label.active {
+  color: var(--gold);
+}
+
+.creation-step-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Content Area ── */
+.creation-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-xl);
+  overflow-y: auto;
+  position: relative;
+}
+
+.creation-step-panel {
+  width: 100%;
+  max-width: 700px;
+  opacity: 0;
+}
+
+.creation-step-panel.active {
+  animation: slideInRight var(--duration-slow) var(--ease-out-back) both;
+}
+
+.creation-step-panel.exit-left {
+  animation: slideOutLeft var(--duration-normal) var(--ease-smooth) both;
+}
+
+.creation-step-panel.exit-right {
+  animation: slideOutRight var(--duration-normal) var(--ease-smooth) both;
+}
+
+/* ── Step Title ── */
+.creation-step-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-3xl);
+  color: var(--text-primary);
+  text-align: center;
+  margin-bottom: var(--space-sm);
+  letter-spacing: 0.04em;
+}
+
+.creation-step-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: var(--space-xl);
+  font-style: italic;
+}
+
+/* ── Selection Grid ── */
+.creation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-md);
+  width: 100%;
+}
+
+.creation-option {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out-back);
+  box-shadow: var(--shadow-sm);
+}
+
+.creation-option:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-gold-hover);
+  box-shadow: var(--shadow-hover);
+  background: var(--bg-surface);
+}
+
+.creation-option:active {
+  transform: translateY(-1px) scale(0.98);
+  transition-duration: var(--duration-fast);
+}
+
+.creation-option.selected {
+  border-color: var(--gold);
+  box-shadow: var(--shadow-glow);
+  background: linear-gradient(
+    180deg,
+    rgba(200, 168, 78, 0.08) 0%,
+    var(--bg-panel) 100%
+  );
+}
+
+.creation-option.selected::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold-dark), var(--gold-light), var(--gold-dark));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.creation-option {
+  position: relative;
+  overflow: hidden;
+}
+
+.creation-option-name {
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.creation-option-desc {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-relaxed);
+}
+
+.creation-option-detail {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  margin-top: var(--space-sm);
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* ── Ability Scores ── */
+.ability-scores-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.ability-score-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  text-align: center;
+  transition: all var(--duration-normal) var(--ease-smooth);
+  box-shadow: var(--shadow-sm);
+}
+
+.ability-score-card:hover {
+  border-color: var(--border-gold-hover);
+  box-shadow: var(--shadow-hover);
+}
+
+.ability-score-name {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.ability-score-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1;
+  margin-bottom: var(--space-xs);
+  transition: color var(--duration-fast) var(--ease-smooth);
+}
+
+.ability-score-modifier {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.ability-score-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.ability-score-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out-back);
+}
+
+.ability-score-btn:hover {
+  background: var(--gold);
+  color: var(--bg-darkest);
+  transform: scale(1.1);
+}
+
+.ability-score-btn:active {
+  transform: scale(0.9);
+}
+
+.ability-score-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Roll button */
+.roll-stats-btn {
+  margin: var(--space-lg) auto;
+  display: block;
+}
+
+.roll-stats-btn .icon {
+  transition: transform var(--duration-normal) var(--ease-bounce);
+}
+
+.roll-stats-btn:hover .icon {
+  transform: rotate(360deg);
+}
+
+/* ── Skills Selection ── */
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+.skill-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-smooth);
+  background: var(--bg-panel);
+  user-select: none;
+}
+
+.skill-option:hover {
+  border-color: var(--border-gold);
+  background: var(--bg-surface);
+}
+
+.skill-option.selected {
+  border-color: var(--gold);
+  background: rgba(200, 168, 78, 0.08);
+}
+
+.skill-option.selected .checkbox-box {
+  background: var(--gold);
+  border-color: var(--gold-light);
+}
+
+.skill-option.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.skill-option-name {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.skill-option.selected .skill-option-name {
+  color: var(--text-primary);
+}
+
+.skill-option-ability {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  margin-left: auto;
+  text-transform: uppercase;
+}
+
+/* ── Skills remaining counter ── */
+.skills-remaining {
+  text-align: center;
+  margin-bottom: var(--space-md);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.skills-remaining-count {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* ── Character Summary Card ── */
+.character-summary {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  max-width: 480px;
+  margin: 0 auto;
+  box-shadow: var(--shadow-lg), var(--shadow-inset-glow);
+  position: relative;
+  overflow: hidden;
+}
+
+.character-summary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold-dark), var(--gold-light), var(--gold-dark));
+}
+
+.character-summary-name {
+  font-family: var(--font-heading);
+  font-size: var(--text-3xl);
+  color: var(--gold);
+  text-align: center;
+  margin-bottom: var(--space-xs);
+}
+
+.character-summary-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  text-align: center;
+  margin-bottom: var(--space-lg);
+}
+
+.character-summary-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.character-summary-stat {
+  text-align: center;
+}
+
+.character-summary-abilities {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.summary-ability {
+  text-align: center;
+  padding: var(--space-sm);
+  background: var(--bg-dark);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.summary-ability-label {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.summary-ability-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1.2;
+}
+
+.summary-ability-mod {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.character-summary-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+/* ── Name Input ── */
+.name-input-wrapper {
+  max-width: 400px;
+  margin: 0 auto var(--space-xl);
+  text-align: center;
+}
+
+.name-input-wrapper .input {
+  text-align: center;
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  padding: var(--space-md);
+  letter-spacing: 0.04em;
+}
+
+/* ── Navigation ── */
+.creation-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-lg) var(--space-xl);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-dark);
+  flex-shrink: 0;
+}
+
+.creation-nav-spacer {
+  width: 120px;
+}
+
+/* ── Screen transitions ── */
+.creation-screen.exiting {
+  animation: fadeOut var(--duration-normal) var(--ease-smooth) both;
+}
+
+.creation-screen.mounted .creation-header {
+  animation: slideInDown var(--duration-slow) var(--ease-out-back) both;
+}
+
+.creation-screen.mounted .creation-steps {
+  animation: fadeIn var(--duration-slow) var(--ease-smooth) 200ms both;
+}
+
+.creation-screen.mounted .creation-nav {
+  animation: slideInUp var(--duration-slow) var(--ease-out-back) 300ms both;
+}

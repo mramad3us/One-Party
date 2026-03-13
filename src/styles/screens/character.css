@@ -1,0 +1,580 @@
+/* ============================================================
+   ONE PARTY — Character Sheet Screen
+   ============================================================ */
+
+.character-screen {
+  z-index: var(--z-modal-backdrop);
+}
+
+.character-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  width: 90%;
+  max-width: 720px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scale(0.8);
+  opacity: 0;
+  transition: transform var(--duration-slow) var(--ease-out-back),
+              opacity var(--duration-normal) var(--ease-smooth);
+}
+
+.character-screen.mounted .character-dialog {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.character-screen.exiting .character-dialog {
+  transform: scale(0.8) !important;
+  opacity: 0 !important;
+}
+
+/* ── Header ── */
+.character-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.character-title {
+  font-size: var(--text-xl);
+  color: var(--gold);
+}
+
+/* ── Body ── */
+.character-body {
+  overflow-y: auto;
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ── Identity ── */
+.char-identity {
+  text-align: center;
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.char-name {
+  font-size: var(--text-3xl);
+  color: var(--gold);
+  margin-bottom: var(--space-xs);
+}
+
+.char-race-class {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.char-xp {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* ── Core Stats ── */
+.char-core-stats {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-xl);
+}
+
+.char-stat-block {
+  text-align: center;
+  padding: var(--space-md);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  min-width: 80px;
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+
+.char-stat-block:hover {
+  border-color: var(--border-gold-hover);
+  box-shadow: var(--shadow-sm), var(--shadow-inset-glow);
+}
+
+.char-stat-block .stat-value {
+  margin-bottom: var(--space-xs);
+}
+
+/* ── HP Section ── */
+.char-hp-section {
+  text-align: center;
+}
+
+.char-hp-title {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.char-hp-bar {
+  max-width: 400px;
+  margin: 0 auto var(--space-sm);
+}
+
+.char-hp-bar .hp-bar {
+  height: 24px;
+}
+
+.char-temp-hp {
+  font-size: var(--text-sm);
+  color: var(--blue-light);
+  margin-bottom: var(--space-xs);
+}
+
+.char-hit-dice {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* ── Ability Scores ── */
+.char-abilities {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-sm);
+}
+
+.char-ability-card {
+  text-align: center;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+
+.char-ability-card:hover {
+  border-color: var(--border-gold-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.char-ability-label {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-xs);
+}
+
+.char-ability-score {
+  font-size: var(--text-xl) !important;
+  margin-bottom: 2px;
+}
+
+.char-ability-mod {
+  margin-bottom: var(--space-xs);
+}
+
+.char-ability-save {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.char-ability-save--prof {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* ── Section Title ── */
+.char-section-title {
+  font-size: var(--text-base);
+  color: var(--gold);
+  letter-spacing: 0.05em;
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-sm);
+}
+
+/* ── Skills ── */
+.char-skills-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px var(--space-lg);
+}
+
+.char-skill-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 2px var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-smooth);
+}
+
+.char-skill-row:hover {
+  background: var(--bg-hover);
+}
+
+.char-skill-prof {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-dim);
+  flex-shrink: 0;
+}
+
+.char-skill-prof--active {
+  background: var(--gold);
+  border-color: var(--gold-light);
+  box-shadow: 0 0 4px rgba(200, 168, 78, 0.3);
+}
+
+.char-skill-name {
+  flex: 1;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.char-skill-mod {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  min-width: 24px;
+  text-align: right;
+}
+
+/* ── Features ── */
+.char-features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.char-feature {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.char-feature-name {
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.char-feature-desc {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-relaxed);
+}
+
+.char-feature-uses {
+  font-size: var(--text-xs);
+  color: var(--gold-dim);
+  margin-top: var(--space-xs);
+}
+
+/* ── Proficiencies ── */
+.char-proficiencies {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.char-prof-row {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.char-prof-label {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.char-prof-list {
+  color: var(--text-secondary);
+}
+
+/* ── Spellcasting ── */
+.char-spellcasting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.char-spell-info {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.char-spell-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.char-spell-slot {
+  text-align: center;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  min-width: 50px;
+}
+
+.char-spell-slot-level {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.char-spell-slot-count {
+  font-size: var(--text-sm);
+  color: var(--purple-light);
+  font-weight: 700;
+}
+
+.char-spell-list-label {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-top: var(--space-sm);
+}
+
+.char-spell-list {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+/* ── Dice Display Widget ── */
+.dice-display {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-notification);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg) var(--space-2xl);
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  pointer-events: none;
+}
+
+.dice-display-icon {
+  font-size: 32px;
+  color: var(--text-primary);
+}
+
+.dice-display-die {
+  width: 32px;
+  height: 32px;
+  animation: rollIn var(--duration-slow) var(--ease-out-back);
+}
+
+.dice-display-rolls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.dice-display-roll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--bg-medium);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 700;
+  animation: popIn var(--duration-normal) var(--ease-out-back) both;
+}
+
+.dice-display-modifier {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.dice-display-total {
+  font-family: var(--font-mono);
+  font-size: var(--text-3xl);
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+.dice-display-total--crit {
+  color: var(--gold);
+  text-shadow: 0 0 16px rgba(200, 168, 78, 0.6), 0 0 32px rgba(200, 168, 78, 0.3);
+}
+
+.dice-display-total--fumble {
+  color: var(--red);
+  text-shadow: 0 0 16px rgba(200, 64, 64, 0.6);
+}
+
+.dice-display-crit-label {
+  color: var(--gold);
+  font-size: var(--text-lg);
+  letter-spacing: 0.2em;
+  animation: textGlow 1s ease-in-out infinite;
+}
+
+.dice-display-fumble-label {
+  color: var(--red);
+  font-size: var(--text-lg);
+  letter-spacing: 0.2em;
+}
+
+.dice-display--crit-flash {
+  animation: critFlash 0.3s ease-out;
+}
+
+.dice-display--fumble-flash {
+  animation: fumbleFlash 0.3s ease-out;
+}
+
+@keyframes critFlash {
+  0% { box-shadow: var(--shadow-lg), 0 0 40px rgba(200, 168, 78, 0.8); }
+  100% { box-shadow: var(--shadow-lg), var(--shadow-glow); }
+}
+
+@keyframes fumbleFlash {
+  0% { box-shadow: var(--shadow-lg), 0 0 40px rgba(200, 64, 64, 0.8); }
+  100% { box-shadow: var(--shadow-lg), var(--shadow-glow); }
+}
+
+.dice-display-desc {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.dice-display-adv {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.dice-display-adv--adv { color: var(--green-light); }
+.dice-display-adv--dis { color: var(--red-light); }
+
+/* ── Stat Block Widget ── */
+.stat-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  max-width: 400px;
+  box-shadow: var(--shadow-md);
+}
+
+.stat-block-name {
+  font-size: var(--text-xl);
+  color: var(--gold);
+  margin-bottom: 2px;
+}
+
+.stat-block-meta {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: var(--space-sm);
+}
+
+.stat-block-divider {
+  border: none;
+  height: 2px;
+  background: linear-gradient(90deg, var(--red-dim), var(--red), var(--red-dim));
+  margin: var(--space-sm) 0;
+}
+
+.stat-block-prop {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.stat-block-prop-label {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-block-abilities {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.stat-block-ability {
+  text-align: center;
+  flex: 1;
+}
+
+.stat-block-ability-label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.stat-block-ability-score {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.stat-block-section-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.stat-block-feature,
+.stat-block-attack {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+  line-height: var(--leading-relaxed);
+}
+
+.stat-block-feature-name,
+.stat-block-attack-name {
+  font-weight: 700;
+  font-style: italic;
+  color: var(--text-primary);
+}

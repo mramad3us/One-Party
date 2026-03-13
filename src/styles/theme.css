@@ -1,0 +1,121 @@
+/* ============================================================
+   ONE PARTY — Fantasy Dark Parchment Theme
+   ============================================================ */
+
+:root {
+  /* ── Backgrounds ── */
+  --bg-darkest: #0d0b08;
+  --bg-dark: #1a1410;
+  --bg-medium: #2a2018;
+  --bg-panel: #1e1a14;
+  --bg-surface: #252017;
+  --bg-hover: #322a1e;
+  --bg-active: #3a3028;
+
+  /* ── Text ── */
+  --text-primary: #e8dcc8;
+  --text-secondary: #b8a888;
+  --text-muted: #8a7a68;
+  --text-dim: #6a5e50;
+  --text-inverse: #0d0b08;
+
+  /* ── Gold / Amber Accent ── */
+  --gold: #c8a84e;
+  --gold-light: #dbb860;
+  --gold-dark: #a88a3e;
+  --gold-dim: #8a7238;
+  --gold-glow: rgba(200, 168, 78, 0.15);
+  --gold-glow-strong: rgba(200, 168, 78, 0.35);
+
+  /* ── Status Colors ── */
+  --red: #c84040;
+  --red-light: #e85050;
+  --red-dim: #8a2e2e;
+  --green: #4caf50;
+  --green-light: #66bb6a;
+  --green-dim: #2e6e30;
+  --blue: #4488cc;
+  --blue-light: #5599dd;
+  --blue-dim: #2e5580;
+  --purple: #9966cc;
+  --purple-light: #aa77dd;
+  --orange: #cc8844;
+  --orange-light: #dd9955;
+
+  /* ── Borders ── */
+  --border-gold: rgba(200, 168, 78, 0.3);
+  --border-gold-hover: rgba(200, 168, 78, 0.6);
+  --border-gold-active: rgba(200, 168, 78, 0.8);
+  --border-subtle: rgba(200, 168, 78, 0.12);
+  --border-dark: rgba(0, 0, 0, 0.5);
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.7);
+  --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 12px rgba(200, 168, 78, 0.15);
+  --shadow-glow: 0 0 20px rgba(200, 168, 78, 0.2), 0 0 40px rgba(200, 168, 78, 0.1);
+  --shadow-inset-glow: inset 0 0 20px rgba(200, 168, 78, 0.05);
+  --shadow-inset-dark: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+
+  /* ── Spacing ── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* ── Border Radius ── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ── Animation Curves ── */
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+
+  /* ── Durations ── */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --duration-extra-slow: 800ms;
+
+  /* ── Typography ── */
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'Crimson Text', serif;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* ── Font Sizes ── */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+  --text-6xl: 3.75rem;
+
+  /* ── Line Heights ── */
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* ── Z-index ── */
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal-backdrop: 500;
+  --z-modal: 510;
+  --z-tooltip: 600;
+  --z-notification: 700;
+}

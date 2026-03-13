@@ -1,0 +1,286 @@
+/* ============================================================
+   ONE PARTY — Menu Screen
+   ============================================================ */
+
+.menu-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-xl);
+  position: relative;
+  overflow: hidden;
+
+  /* Layered dark background with subtle warmth */
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(200, 168, 78, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 20% 80%, rgba(200, 100, 40, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(200, 168, 78, 0.02) 0%, transparent 50%),
+    linear-gradient(180deg, var(--bg-darkest) 0%, #0f0d0a 50%, var(--bg-darkest) 100%);
+}
+
+/* ── Ember Particles (CSS-only) ── */
+.menu-embers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.menu-ember {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200, 168, 78, 0.8) 0%, rgba(200, 120, 40, 0.4) 50%, transparent 100%);
+  box-shadow: 0 0 6px rgba(200, 168, 78, 0.4);
+  opacity: 0;
+}
+
+@keyframes emberFloat {
+  0% {
+    opacity: 0;
+    transform: translateY(0) translateX(0) scale(0.5);
+  }
+  10% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-100vh) translateX(30px) scale(0.2);
+  }
+}
+
+.menu-ember:nth-child(1) {
+  left: 15%;
+  bottom: -10px;
+  animation: emberFloat 8s ease-out 0s infinite;
+}
+
+.menu-ember:nth-child(2) {
+  left: 35%;
+  bottom: -10px;
+  animation: emberFloat 10s ease-out 1.5s infinite;
+  width: 2px;
+  height: 2px;
+}
+
+.menu-ember:nth-child(3) {
+  left: 55%;
+  bottom: -10px;
+  animation: emberFloat 7s ease-out 3s infinite;
+}
+
+.menu-ember:nth-child(4) {
+  left: 75%;
+  bottom: -10px;
+  animation: emberFloat 9s ease-out 0.8s infinite;
+  width: 2px;
+  height: 2px;
+}
+
+.menu-ember:nth-child(5) {
+  left: 45%;
+  bottom: -10px;
+  animation: emberFloat 11s ease-out 2.5s infinite;
+  width: 4px;
+  height: 4px;
+}
+
+.menu-ember:nth-child(6) {
+  left: 25%;
+  bottom: -10px;
+  animation: emberFloat 8.5s ease-out 4s infinite;
+  width: 2px;
+  height: 2px;
+}
+
+.menu-ember:nth-child(7) {
+  left: 65%;
+  bottom: -10px;
+  animation: emberFloat 9.5s ease-out 5.5s infinite;
+}
+
+.menu-ember:nth-child(8) {
+  left: 85%;
+  bottom: -10px;
+  animation: emberFloat 12s ease-out 1s infinite;
+  width: 2px;
+  height: 2px;
+}
+
+/* ── Ambient background shift ── */
+@keyframes ambientShift {
+  0%, 100% {
+    background-position: 50% 0%, 20% 80%, 80% 70%, 0% 0%;
+  }
+  33% {
+    background-position: 45% 5%, 25% 75%, 75% 72%, 0% 0%;
+  }
+  66% {
+    background-position: 55% 3%, 18% 82%, 82% 68%, 0% 0%;
+  }
+}
+
+.menu-screen {
+  animation: ambientShift 20s ease-in-out infinite;
+  background-size: 100% 100%;
+}
+
+/* ── Logo Area ── */
+.menu-logo {
+  text-align: center;
+  margin-bottom: var(--space-3xl);
+  position: relative;
+  z-index: 1;
+}
+
+.menu-title {
+  font-family: var(--font-heading);
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  background: linear-gradient(
+    180deg,
+    #f0d878 0%,
+    #c8a84e 40%,
+    #a88a3e 70%,
+    #c8a84e 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+  animation: textGlow 3s ease-in-out infinite, breathe 6s ease-in-out infinite;
+  margin-bottom: var(--space-md);
+}
+
+.menu-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+  font-style: italic;
+  letter-spacing: 0.03em;
+  margin-bottom: var(--space-sm);
+}
+
+.menu-version {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+
+/* ── Decorative Line ── */
+.menu-ornament {
+  width: 200px;
+  height: 1px;
+  margin: var(--space-lg) auto;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--gold-dim) 30%,
+    var(--gold) 50%,
+    var(--gold-dim) 70%,
+    transparent 100%
+  );
+  position: relative;
+}
+
+.menu-ornament::before {
+  content: '\2666'; /* diamond */
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--gold);
+  font-size: 10px;
+  background: var(--bg-darkest);
+  padding: 0 8px;
+}
+
+/* ── Menu Buttons ── */
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: 100%;
+  max-width: 320px;
+  position: relative;
+  z-index: 1;
+}
+
+.menu-actions .btn {
+  width: 100%;
+  padding: var(--space-md) var(--space-xl);
+  font-size: var(--text-sm);
+  letter-spacing: 0.12em;
+}
+
+.menu-actions .btn-primary {
+  padding: var(--space-md) var(--space-xl);
+  font-size: var(--text-base);
+}
+
+/* Stagger animation on mount */
+.menu-actions .btn {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.menu-screen.mounted .menu-actions .btn {
+  animation: slideInUp var(--duration-slow) var(--ease-out-back) both;
+}
+
+.menu-screen.mounted .menu-actions .btn:nth-child(1) {
+  animation-delay: 200ms;
+}
+.menu-screen.mounted .menu-actions .btn:nth-child(2) {
+  animation-delay: 350ms;
+}
+.menu-screen.mounted .menu-actions .btn:nth-child(3) {
+  animation-delay: 500ms;
+}
+.menu-screen.mounted .menu-actions .btn:nth-child(4) {
+  animation-delay: 650ms;
+}
+
+/* Logo entrance */
+.menu-logo {
+  opacity: 0;
+}
+
+.menu-screen.mounted .menu-logo {
+  animation: fadeIn var(--duration-extra-slow) var(--ease-smooth) both;
+}
+
+.menu-screen.mounted .menu-title {
+  animation:
+    bounceIn var(--duration-extra-slow) var(--ease-spring) both,
+    textGlow 3s ease-in-out 1s infinite;
+}
+
+/* ── Footer ── */
+.menu-footer {
+  position: absolute;
+  bottom: var(--space-xl);
+  text-align: center;
+  z-index: 1;
+}
+
+.menu-footer-text {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ── Exit transition ── */
+.menu-screen.exiting {
+  animation: fadeOut var(--duration-normal) var(--ease-smooth) both;
+}

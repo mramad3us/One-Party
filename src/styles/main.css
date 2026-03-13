@@ -1,0 +1,86 @@
+/* ============================================================
+   ONE PARTY — Master Stylesheet
+   ============================================================ */
+
+/* ── Theme (custom properties) ── */
+@import './theme.css';
+
+/* ── Typography (fonts + base text styles) ── */
+@import './typography.css';
+
+/* ── Keyframes & animation utilities ── */
+@import './animations.css';
+
+/* ── Shared components ── */
+@import './components.css';
+
+/* ── Screen-specific styles ── */
+@import './screens/menu.css';
+@import './screens/creation.css';
+
+/* ============================================================
+   CSS Reset & Global Base
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+/* ── Selection Color ── */
+::selection {
+  background: rgba(200, 168, 78, 0.3);
+  color: var(--text-primary);
+}
+
+::-moz-selection {
+  background: rgba(200, 168, 78, 0.3);
+  color: var(--text-primary);
+}
+
+/* ── App Container ── */
+#app {
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Reduced Motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

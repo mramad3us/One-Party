@@ -1,0 +1,105 @@
+import type { GameEngine } from '@/engine/GameEngine';
+import type { DiceRollResult } from '@/types';
+import { Component } from '@/ui/Component';
+import { AnimationSystem } from '@/ui/AnimationSystem';
+import { IconSystem } from '@/ui/IconSystem';
+import { el } from '@/utils/dom';
+
+/**
+ * Animated dice roll display.
+ * Pops in, shows dice tumbling, reveals result, then fades out.
+ */
+export class DiceDisplay extends Component {
+  private result: DiceRollResult;
+
+  constructor(parent: HTMLElement, engine: GameEngine, result: DiceRollResult) {
+    super(parent, engine);
+    this.result = result;
+  }
+
+  protected createElement(): HTMLElement {
+    const { result } = this;
+    const wrapper = el('div', { class: 'dice-display' });
+
+    // Dice icon with roll animation
+    const iconWrap = el('div', { class: 'dice-display-icon' });
+    const diceIcon = IconSystem.icon('d20');
+    diceIcon.classList.add('dice-display-die');
+    iconWrap.appendChild(diceIcon);
+    wrapper.appendChild(iconWrap);
+
+    // Individual dice results
+    if (result.rolls.length > 0) {
+      const rollsRow = el('div', { class: 'dice-display-rolls' });
+      for (const roll of result.rolls) {
+        const dieEl = el('span', { class: 'dice-display-roll' }, [String(roll)]);
+        rollsRow.appendChild(dieEl);
+      }
+      if (result.modifier !== 0) {
+        const modStr = result.modifier > 0 ? `+${result.modifier}` : String(result.modifier);
+        rollsRow.appendChild(el('span', { class: 'dice-display-modifier' }, [modStr]));
+      }
+      wrapper.appendChild(rollsRow);
+    }
+
+    // Total
+    const totalClasses = ['dice-display-total'];
+    if (result.isCritical) totalClasses.push('dice-display-total--crit');
+    if (result.isFumble) totalClasses.push('dice-display-total--fumble');
+
+    const totalEl = el('div', { class: totalClasses.join(' ') }, [String(result.total)]);
+    wrapper.appendChild(totalEl);
+
+    // Critical/fumble label
+    if (result.isCritical) {
+      wrapper.appendChild(el('div', { class: 'dice-display-crit-label font-heading' }, ['CRITICAL!']));
+    } else if (result.isFumble) {
+      wrapper.appendChild(el('div', { class: 'dice-display-fumble-label font-heading' }, ['FUMBLE!']));
+    }
+
+    // Description
+    if (result.description) {
+      wrapper.appendChild(el('div', { class: 'dice-display-desc' }, [result.description]));
+    }
+
+    // Advantage/disadvantage indicator
+    if (result.advantage || result.disadvantage) {
+      const advLabel = result.advantage ? 'Advantage' : 'Disadvantage';
+      wrapper.appendChild(el('div', {
+        class: `dice-display-adv ${result.advantage ? 'dice-display-adv--adv' : 'dice-display-adv--dis'}`,
+      }, [advLabel]));
+    }
+
+    return wrapper;
+  }
+
+  /**
+   * Static helper: show a dice roll, wait, then auto-remove.
+   */
+  static async showRoll(parent: HTMLElement, result: DiceRollResult, engine: GameEngine): Promise<void> {
+    const display = new DiceDisplay(parent, engine, result);
+    display.mount();
+
+    // Pop in
+    await AnimationSystem.popIn(display.el);
+
+    // Critical gets extra flash
+    if (result.isCritical) {
+      display.el.classList.add('dice-display--crit-flash');
+    } else if (result.isFumble) {
+      display.el.classList.add('dice-display--fumble-flash');
+    }
+
+    // Hold for a moment
+    await new Promise<void>((r) => setTimeout(r, result.isCritical || result.isFumble ? 2000 : 1200));
+
+    // Fade out
+    await display.animateEl(display.el, [
+      { opacity: '1', transform: 'scale(1)' },
+      { opacity: '0', transform: 'scale(0.8) translateY(-10px)' },
+    ], { duration: 300 });
+
+    display.destroy();
+    display.el.remove();
+  }
+}

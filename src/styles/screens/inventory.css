@@ -1,0 +1,306 @@
+/* ============================================================
+   ONE PARTY — Inventory Screen
+   ============================================================ */
+
+.inventory-screen {
+  z-index: var(--z-modal-backdrop);
+}
+
+.inventory-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  width: 90%;
+  max-width: 900px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scale(0.8);
+  opacity: 0;
+  transition: transform var(--duration-slow) var(--ease-out-back),
+              opacity var(--duration-normal) var(--ease-smooth);
+}
+
+.inventory-screen.mounted .inventory-dialog {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.inventory-screen.exiting .inventory-dialog {
+  transform: scale(0.8) !important;
+  opacity: 0 !important;
+}
+
+/* ── Header ── */
+.inventory-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.inventory-title {
+  flex: 1;
+  font-size: var(--text-xl);
+  color: var(--gold);
+}
+
+/* ── Body ── */
+.inventory-body {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Section Titles ── */
+.inventory-section-title {
+  font-size: var(--text-base);
+  color: var(--gold);
+  margin-bottom: var(--space-md);
+  letter-spacing: 0.05em;
+}
+
+/* ── Equipment Grid ── */
+.inventory-equip-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.inventory-equip-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+
+.inventory-equip-slot:hover {
+  border-color: var(--border-gold-hover);
+  background: var(--bg-hover);
+}
+
+.inventory-equip-label {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  min-width: 80px;
+}
+
+.inventory-equip-item {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.inventory-equip-item--uncommon { color: var(--green-light); }
+.inventory-equip-item--rare { color: var(--blue-light); }
+.inventory-equip-item--very-rare { color: var(--purple-light); }
+.inventory-equip-item--legendary { color: var(--orange-light); }
+.inventory-equip-item--artifact { color: var(--red-light); }
+
+.inventory-equip-empty {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ── Item Grid ── */
+.inventory-item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-sm);
+}
+
+.inventory-item-slot {
+  position: relative;
+}
+
+.inventory-item-qty {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 1;
+  font-size: 10px;
+}
+
+/* ── Item Card ── */
+.item-card {
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out-back);
+}
+
+.item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.item-card--common { border-color: var(--text-dim); }
+.item-card--uncommon { border-color: var(--green); }
+.item-card--rare { border-color: var(--blue); }
+.item-card--very-rare { border-color: var(--purple); }
+.item-card--legendary { border-color: var(--orange); }
+.item-card--artifact { border-color: var(--red); }
+
+.item-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: 2px;
+}
+
+.item-card-type-icon {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.item-card-name {
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-card-meta {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  text-transform: capitalize;
+  color: var(--text-muted);
+  margin-bottom: var(--space-xs);
+}
+
+.item-card-stats {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.item-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.item-card-value {
+  color: var(--gold-dim);
+}
+
+.item-card-desc {
+  max-height: 0;
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: var(--leading-relaxed);
+  transition: max-height var(--duration-slow) var(--ease-smooth),
+              padding var(--duration-slow) var(--ease-smooth);
+}
+
+.item-card:hover .item-card-desc {
+  max-height: 100px;
+  padding-top: var(--space-xs);
+}
+
+.item-card-attunement {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  color: var(--purple-light);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: var(--space-xs);
+}
+
+/* ── Footer ── */
+.inventory-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-dark);
+}
+
+.inventory-gold {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.inventory-coin-icon {
+  width: 1.25em;
+  height: 1.25em;
+}
+
+.inventory-encumbrance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.inventory-enc-label {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.inventory-enc-bar {
+  width: 120px;
+  height: 12px;
+  background: var(--bg-darkest);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  position: relative;
+  overflow: hidden;
+}
+
+.inventory-enc-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green-dim), var(--green));
+  border-radius: var(--radius-full);
+  transition: width var(--duration-normal) var(--ease-smooth);
+}
+
+.inventory-enc-fill--over {
+  background: linear-gradient(90deg, var(--red-dim), var(--red));
+}
+
+.inventory-enc-value {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 8px;
+  color: var(--text-primary);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+}

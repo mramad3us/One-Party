@@ -1,0 +1,381 @@
+/* ============================================================
+   ONE PARTY — Keyframe Animations & Utility Classes
+   ============================================================ */
+
+/* ── Fade ── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ── Slides (with scale + opacity for richness) ── */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-40px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideOutLeft {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-40px) scale(0.97);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40px) scale(0.97);
+  }
+}
+
+@keyframes slideOutUp {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.97);
+  }
+}
+
+@keyframes slideOutDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(30px) scale(0.97);
+  }
+}
+
+/* ── Bounce In ── */
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Pulse Glow (gold borders/shadows) ── */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(200, 168, 78, 0.1),
+                0 0 20px rgba(200, 168, 78, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(200, 168, 78, 0.25),
+                0 0 40px rgba(200, 168, 78, 0.12);
+  }
+}
+
+/* ── Shimmer (loading sweep) ── */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ── Float (gentle hover) ── */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* ── Shake (damage / errors) ── */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%      { transform: translateX(-6px) rotate(-1deg); }
+  20%      { transform: translateX(5px) rotate(1deg); }
+  30%      { transform: translateX(-4px) rotate(-0.5deg); }
+  40%      { transform: translateX(3px) rotate(0.5deg); }
+  50%      { transform: translateX(-2px); }
+  60%      { transform: translateX(1px); }
+}
+
+/* ── Pop In ── */
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Roll In (for dice) ── */
+@keyframes rollIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-40px) rotate(-120deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) rotate(0deg);
+  }
+}
+
+/* ── Breathe (subtle scale oscillation) ── */
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+/* ── Damage Flash ── */
+@keyframes damageFlash {
+  0% {
+    background-color: transparent;
+  }
+  20% {
+    background-color: rgba(200, 64, 64, 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* ── Heal Flash ── */
+@keyframes healFlash {
+  0% {
+    background-color: transparent;
+  }
+  20% {
+    background-color: rgba(76, 175, 80, 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* ── Spin (loading) ── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Text Glow ── */
+@keyframes textGlow {
+  0%, 100% {
+    text-shadow: 0 0 8px rgba(200, 168, 78, 0.3);
+  }
+  50% {
+    text-shadow: 0 0 16px rgba(200, 168, 78, 0.6),
+                 0 0 32px rgba(200, 168, 78, 0.3);
+  }
+}
+
+/* ── Ripple (click effect) ── */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   Utility Classes
+   ============================================================ */
+
+.animate-fade-in {
+  animation: fadeIn var(--duration-normal) var(--ease-smooth) both;
+}
+
+.animate-fade-out {
+  animation: fadeOut var(--duration-normal) var(--ease-smooth) both;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft var(--duration-slow) var(--ease-out-back) both;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight var(--duration-slow) var(--ease-out-back) both;
+}
+
+.animate-slide-in-up {
+  animation: slideInUp var(--duration-slow) var(--ease-out-back) both;
+}
+
+.animate-slide-in-down {
+  animation: slideInDown var(--duration-slow) var(--ease-out-back) both;
+}
+
+.animate-bounce-in {
+  animation: bounceIn var(--duration-extra-slow) var(--ease-spring) both;
+}
+
+.animate-pop-in {
+  animation: popIn var(--duration-normal) var(--ease-out-back) both;
+}
+
+.animate-roll-in {
+  animation: rollIn var(--duration-slow) var(--ease-out-back) both;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.animate-text-glow {
+  animation: textGlow 2.5s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(200, 168, 78, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ── Hover Effects ── */
+.hover-bounce {
+  transition: transform var(--duration-normal) var(--ease-bounce);
+}
+.hover-bounce:hover {
+  transform: scale(1.05);
+}
+
+.hover-glow {
+  transition: box-shadow var(--duration-normal) var(--ease-smooth);
+}
+.hover-glow:hover {
+  box-shadow: var(--shadow-glow);
+}
+
+.hover-lift {
+  transition: transform var(--duration-normal) var(--ease-out-back),
+              box-shadow var(--duration-normal) var(--ease-smooth);
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+/* ── Click Effects ── */
+.click-press {
+  transition: transform var(--duration-fast) var(--ease-smooth);
+}
+.click-press:active {
+  transform: scale(0.95);
+}
+
+/* ── Transition Utilities ── */
+.transition-all {
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+
+.transition-colors {
+  transition: color var(--duration-normal) var(--ease-smooth),
+              background-color var(--duration-normal) var(--ease-smooth),
+              border-color var(--duration-normal) var(--ease-smooth);
+}
+
+.transition-transform {
+  transition: transform var(--duration-normal) var(--ease-smooth);
+}
+
+.transition-opacity {
+  transition: opacity var(--duration-normal) var(--ease-smooth);
+}
