@@ -1686,8 +1686,9 @@ async function main(): Promise<void> {
     // Push traveling context (only Escape works)
     keyboardInput.pushContext('traveling');
 
-    // Keep world map visible during travel
+    // Keep world map visible during travel, show travel log + sun arc
     activeGameScreen.setTravelPath(path, 0);
+    activeGameScreen.startTravelLog(activeGameState.world.time);
 
     const rng = activeRng ?? new SeededRNG(Date.now());
 
@@ -1774,11 +1775,11 @@ async function main(): Promise<void> {
       activeGameScreen.setTravelPath(path, i + 1);
       activeGameScreen.updateTime(activeGameState.world.time);
 
-      // Animate the sun arc smoothly during travel
+      // Animate both sun arcs smoothly during travel
       const sunArc = activeGameScreen.getSunArc();
-      if (sunArc) {
-        sunArc.animateToTime(activeGameState.world.time, 1500);
-      }
+      if (sunArc) sunArc.animateToTime(activeGameState.world.time, 1500);
+      const travelSunArc = activeGameScreen.getTravelSunArc();
+      if (travelSunArc) travelSunArc.animateToTime(activeGameState.world.time, 1500);
 
       // Animation delay — 2 seconds per tile for immersive pacing
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1857,6 +1858,7 @@ async function main(): Promise<void> {
     }
 
     // Clean up
+    activeGameScreen.endTravelLog();
     activeGameScreen.clearTravelPath();
     activeGameScreen.hideWorldMap();
     if (keyboardInput.getContext() === 'traveling') {

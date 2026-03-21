@@ -386,6 +386,66 @@
   flex-shrink: 0;
 }
 
+/* ── Travel Info Bar (sun arc on map overlay) ── */
+.travel-info-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-xs) var(--space-md);
+  flex-shrink: 0;
+  animation: fadeIn 0.4s ease-out both;
+}
+
+.travel-info-bar--hidden {
+  display: none;
+}
+
+.travel-sun-wrap {
+  display: flex;
+  align-items: center;
+}
+
+/* ── Travel Log (journey narrative on map overlay) ── */
+.travel-log {
+  max-height: 140px;
+  overflow-y: auto;
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(6, 5, 3, 0.75);
+  border-top: 1px solid rgba(196, 162, 74, 0.1);
+  border-bottom: 1px solid rgba(196, 162, 74, 0.1);
+  flex-shrink: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 162, 74, 0.15) transparent;
+}
+
+.travel-log--hidden {
+  display: none;
+}
+
+.travel-log-entry {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  padding: 0.2rem 0;
+  animation: slideInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.travel-log-entry--action {
+  color: var(--gold-light);
+}
+
+.travel-log-entry--description {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.travel-log-entry--system {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
 /* ── Map Panel ── */
 .map-panel {
   padding: var(--space-md);

@@ -49,6 +49,10 @@ export class GameScreen extends Component {
   private actionWrap!: HTMLElement;
   private mapOverlay!: HTMLElement;
   private mapOverlayVisible = false;
+  private travelLogEl!: HTMLElement;
+  private travelSunArc!: SunArc;
+  private travelInfoBar!: HTMLElement;
+  private isTraveling = false;
   private hintsVisible = false;
 
   // Status bar elements
@@ -158,6 +162,17 @@ export class GameScreen extends Component {
     this.mapPanel = new MapPanel(mapContent, this.engine);
     mapOverlayInner.appendChild(mapContent);
 
+    // Travel info bar: sun arc + time (hidden until travel starts)
+    this.travelInfoBar = el('div', { class: 'travel-info-bar travel-info-bar--hidden' });
+    const travelSunWrap = el('div', { class: 'travel-sun-wrap' });
+    this.travelSunArc = new SunArc(travelSunWrap, this.engine, 'large');
+    this.travelInfoBar.appendChild(travelSunWrap);
+    mapOverlayInner.appendChild(this.travelInfoBar);
+
+    // Travel log (hidden until travel starts)
+    this.travelLogEl = el('div', { class: 'travel-log travel-log--hidden' });
+    mapOverlayInner.appendChild(this.travelLogEl);
+
     mapOverlayInner.appendChild(el('div', { class: 'game-map-overlay-hint font-mono' }, ['Arrows/WASD: move cursor \u2022 Enter: travel \u2022 m/Esc: close']));
     this.mapOverlay.appendChild(mapOverlayInner);
     screen.appendChild(this.mapOverlay);
@@ -167,6 +182,7 @@ export class GameScreen extends Component {
 
   protected setupEvents(): void {
     this.addChild(this.sunArc);
+    this.addChild(this.travelSunArc);
     this.addChild(this.statusPanel);
     this.addChild(this.partyPanel);
     this.addChild(this.narrativePanel);
@@ -200,6 +216,13 @@ export class GameScreen extends Component {
 
   addNarrative(block: NarrativeBlock): void {
     this.narrativePanel.addBlock(block);
+    // Mirror to travel log when journeying
+    if (this.isTraveling) {
+      const cat = block.category === 'action' ? 'action'
+        : block.category === 'system' ? 'system'
+        : 'description';
+      this.addTravelLog(block.text, cat);
+    }
   }
 
   updateParty(members: PartyMember[]): void {
@@ -239,6 +262,34 @@ export class GameScreen extends Component {
   /** Get the sun arc widget (for time-spending activity overlays). */
   getSunArc(): SunArc {
     return this.sunArc;
+  }
+
+  /** Get the travel sun arc on the map overlay. */
+  getTravelSunArc(): SunArc {
+    return this.travelSunArc;
+  }
+
+  /** Show the travel log + sun arc on the map overlay. */
+  startTravelLog(initialTime: GameTime): void {
+    this.travelLogEl.innerHTML = '';
+    this.travelLogEl.classList.remove('travel-log--hidden');
+    this.travelInfoBar.classList.remove('travel-info-bar--hidden');
+    this.travelSunArc.updateTime(initialTime);
+    this.isTraveling = true;
+  }
+
+  /** Add a line to the travel log on the map overlay. */
+  addTravelLog(text: string, category: 'action' | 'description' | 'system' = 'description'): void {
+    const entry = el('div', { class: `travel-log-entry travel-log-entry--${category}` }, [text]);
+    this.travelLogEl.appendChild(entry);
+    this.travelLogEl.scrollTop = this.travelLogEl.scrollHeight;
+  }
+
+  /** Hide the travel log + sun arc. */
+  endTravelLog(): void {
+    this.isTraveling = false;
+    this.travelLogEl.classList.add('travel-log--hidden');
+    this.travelInfoBar.classList.add('travel-info-bar--hidden');
   }
 
   /** Set the location name in the status bar. */
