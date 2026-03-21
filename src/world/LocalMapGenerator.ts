@@ -1349,12 +1349,13 @@ export class LocalMapGenerator {
     const minSpacing = opts?.minSpacing ?? 2;
     const targetCount = Math.floor(w * h * targetDensity);
 
-    // Build candidates sorted by noise score descending
+    // Build candidates with noise score + random jitter to break grid patterns
     const candidates: { x: number; y: number; score: number }[] = [];
     for (let y = 1; y < h - 1; y++) {
       for (let x = 1; x < w - 1; x++) {
         if (noise[y][x] > 0.15) {
-          candidates.push({ x, y, score: noise[y][x] });
+          // Mix noise (70%) with random jitter (30%) to prevent uniform spacing
+          candidates.push({ x, y, score: noise[y][x] * 0.7 + this.rng.next() * 0.3 });
         }
       }
     }
@@ -1382,7 +1383,9 @@ export class LocalMapGenerator {
       if (opts?.skipCell?.(cand.x, cand.y)) continue;
 
       cells[cand.y][cand.x] = opts?.placeFn?.(cand.x, cand.y) ?? treeCell(ground);
-      this.markExclusion(blocked, w, h, cand.x, cand.y, minSpacing);
+      // Vary exclusion radius per tree (minSpacing to minSpacing+1) for organic spacing
+      const jitteredSpacing = minSpacing + (this.rng.next() < 0.4 ? 1 : 0);
+      this.markExclusion(blocked, w, h, cand.x, cand.y, jitteredSpacing);
       placed++;
     }
   }
