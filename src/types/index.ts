@@ -13,6 +13,9 @@ export * from './grid';
 // World structure types
 export * from './world';
 
+// Overworld generation types
+export * from './overworld';
+
 // Combat system types
 export * from './combat';
 

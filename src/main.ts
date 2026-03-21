@@ -14,8 +14,10 @@ import { CharacterScreen } from '@/ui/screens/CharacterScreen';
 import { StorageEngine } from '@/storage/StorageEngine';
 import { SaveManager } from '@/storage/SaveManager';
 import { CharacterFactory } from '@/character/CharacterFactory';
-import { WorldGenerator } from '@/world/WorldGenerator';
 import { LocalMapGenerator } from '@/world/LocalMapGenerator';
+import { WorldCreationScreen } from '@/ui/screens/WorldCreationScreen';
+import { overworldToWorld } from '@/world/OverworldBridge';
+import type { OverworldData } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { DiceRoller } from '@/rules/DiceRoller';
 import { TextNarrativeEngine } from '@/narrative/NarrativeEngine';
@@ -72,10 +74,12 @@ async function main(): Promise<void> {
   let activeGameScreen: GameScreen | null = null;
   let activeRng: SeededRNG | null = null;
   let activeDice: DiceRoller | null = null;
+  let activeOverworld: OverworldData | null = null;
   const narrator = new TextNarrativeEngine();
   const equipmentRules = new EquipmentRules();
 
   // 7. Register screens
+  ui.registerScreen('worldcreation', () => new WorldCreationScreen(container, engine));
   ui.registerScreen('menu', () => new MenuScreen(container, engine));
   ui.registerScreen('creation', () => new CreationScreen(container, engine));
   ui.registerScreen('game', () => {
@@ -137,36 +141,11 @@ async function main(): Promise<void> {
       skills,
     });
 
-    // Generate world
-    const worldGen = new WorldGenerator(rng);
-    const world = worldGen.generateWorld(seed);
-
-    // Find starting location (first village, or first location in first region)
-    let startLocationId: string | null = null;
-    for (const [, region] of world.regions) {
-      for (const [, location] of region.locations) {
-        if (location.locationType === 'village') {
-          startLocationId = location.id;
-          break;
-        }
-      }
-      if (startLocationId) break;
+    // Bridge overworld to World/Region/Location hierarchy
+    if (!activeOverworld) {
+      throw new Error('No world generated — create a world first');
     }
-
-    // Fall back to first location in first region
-    if (!startLocationId) {
-      const firstRegion = world.regions.values().next().value;
-      if (firstRegion) {
-        const firstLoc = firstRegion.locations.values().next().value;
-        if (firstLoc) {
-          startLocationId = firstLoc.id;
-        }
-      }
-    }
-
-    if (!startLocationId) {
-      throw new Error('World has no locations');
-    }
+    const { world, startLocationId } = overworldToWorld(activeOverworld, rng);
 
     // Create game state
     const gameState = new GameState(world, character.id, startLocationId);
@@ -1053,17 +1032,65 @@ async function main(): Promise<void> {
   // 14. Register tooltip handling on the app container
   TooltipSystem.getInstance().registerContainer(container);
 
-  // 15. Check if saves exist (to enable/disable menu buttons via storage)
-  const hasSaves = await saveManager.hasSaves();
-  if (hasSaves) {
-    // Store a flag so MenuScreen can detect saves
-    localStorage.setItem('oneparty-saves', 'true');
-  } else {
-    localStorage.removeItem('oneparty-saves');
-  }
+  // 15. Wire world creation and deletion events
+  engine.events.on('world:created', async (event) => {
+    const { overworld } = event.data as { overworld: OverworldData };
+    activeOverworld = overworld;
+    await storage.saveWorld(overworld);
+    console.log(`[One Party] World "${overworld.name}" saved (${overworld.width}×${overworld.height})`);
 
-  // 16. Show menu screen
-  await ui.switchScreen('menu');
+    // Navigate to menu
+    engine.events.emit({
+      type: 'ui:navigate',
+      category: 'ui',
+      data: { screen: 'menu', direction: 'left' },
+    });
+  });
+
+  engine.events.on('world:delete', async () => {
+    // Confirm with the player
+    const confirmed = await Modal.confirm(
+      engine,
+      'This will permanently destroy the world and all saved games. Are you sure?',
+      'Delete World',
+    );
+    if (!confirmed) return;
+
+    // Delete world and all saves
+    await storage.deleteWorld();
+    await storage.deleteAllSaves();
+    localStorage.removeItem('oneparty-saves');
+    activeOverworld = null;
+    activeGameState = null;
+    gamePopulated = false;
+    engine.entities.clear();
+
+    engine.events.emit({
+      type: 'ui:navigate',
+      category: 'ui',
+      data: { screen: 'worldcreation', direction: 'right' },
+    });
+  });
+
+  // 16. Check world and saves, decide what to show first
+  const hasWorld = await storage.hasWorld();
+
+  if (hasWorld) {
+    activeOverworld = (await storage.loadWorld()) ?? null;
+
+    const hasSaves = await saveManager.hasSaves();
+    if (hasSaves) {
+      localStorage.setItem('oneparty-saves', 'true');
+    } else {
+      localStorage.removeItem('oneparty-saves');
+    }
+
+    await ui.switchScreen('menu');
+  } else {
+    // No world yet — show world creation screen
+    localStorage.removeItem('oneparty-saves');
+    await ui.switchScreen('worldcreation');
+  }
 
   // 17. Start the engine loop
   engine.start();

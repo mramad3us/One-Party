@@ -249,6 +249,24 @@
 .menu-screen.mounted .menu-actions .btn:nth-child(4) {
   animation-delay: 650ms;
 }
+.menu-screen.mounted .menu-actions .btn:nth-child(5) {
+  animation-delay: 800ms;
+}
+
+/* Delete World button — danger styling */
+.menu-delete-world {
+  margin-top: var(--space-md);
+  color: #8a4a3a !important;
+  border-color: rgba(138, 74, 58, 0.2) !important;
+  font-size: var(--text-xs) !important;
+  letter-spacing: 0.1em;
+}
+
+.menu-delete-world:hover {
+  color: #c05040 !important;
+  border-color: rgba(192, 80, 64, 0.4) !important;
+  background: rgba(192, 80, 64, 0.08) !important;
+}
 
 /* Logo entrance */
 .menu-logo {

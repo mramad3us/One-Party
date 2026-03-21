@@ -4,6 +4,7 @@ import { AnimationSystem } from './AnimationSystem';
 
 export type ScreenName =
   | 'menu'
+  | 'worldcreation'
   | 'creation'
   | 'game'
   | 'combat'

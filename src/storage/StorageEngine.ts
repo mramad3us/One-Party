@@ -1,11 +1,13 @@
 import type { SaveMeta, SaveData } from '@/types';
+import type { OverworldData } from '@/types/overworld';
 
 const DB_NAME = 'one-party';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORE_SAVE_META = 'save-meta';
 const STORE_SAVE_DATA = 'save-data';
 const STORE_SETTINGS = 'settings';
+const STORE_WORLD = 'world';
 
 /**
  * IndexedDB wrapper providing async access to save data,
@@ -21,17 +23,17 @@ export class StorageEngine {
     this.db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-      request.onupgradeneeded = () => {
+      request.onupgradeneeded = (event) => {
         const db = request.result;
+        const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
 
-        if (!db.objectStoreNames.contains(STORE_SAVE_META)) {
+        if (oldVersion < 1) {
           db.createObjectStore(STORE_SAVE_META, { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains(STORE_SAVE_DATA)) {
           db.createObjectStore(STORE_SAVE_DATA, { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
           db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' });
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore(STORE_WORLD, { keyPath: 'id' });
         }
       };
 
@@ -133,6 +135,57 @@ export class StorageEngine {
     const tx = this.transaction(STORE_SETTINGS, 'readwrite');
     const store = tx.objectStore(STORE_SETTINGS);
     await this.request(store.put({ key, value }));
+  }
+
+  // ── World ──
+
+  /** Save the overworld data (only one world at a time). */
+  async saveWorld(data: OverworldData): Promise<void> {
+    const tx = this.transaction(STORE_WORLD, 'readwrite');
+    const store = tx.objectStore(STORE_WORLD);
+    store.put(data);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /** Load the current overworld (returns first record since only one exists). */
+  async loadWorld(): Promise<OverworldData | undefined> {
+    const tx = this.transaction(STORE_WORLD, 'readonly');
+    const store = tx.objectStore(STORE_WORLD);
+    const all = await this.request<OverworldData[]>(store.getAll());
+    return all[0];
+  }
+
+  /** Delete the current world. */
+  async deleteWorld(): Promise<void> {
+    const tx = this.transaction(STORE_WORLD, 'readwrite');
+    const store = tx.objectStore(STORE_WORLD);
+    store.clear();
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /** Check whether a world exists. */
+  async hasWorld(): Promise<boolean> {
+    const tx = this.transaction(STORE_WORLD, 'readonly');
+    const store = tx.objectStore(STORE_WORLD);
+    const count = await this.request<number>(store.count());
+    return count > 0;
+  }
+
+  /** Delete all saves (used when deleting a world). */
+  async deleteAllSaves(): Promise<void> {
+    const tx = this.transaction([STORE_SAVE_META, STORE_SAVE_DATA], 'readwrite');
+    tx.objectStore(STORE_SAVE_META).clear();
+    tx.objectStore(STORE_SAVE_DATA).clear();
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   // ── Private helpers ──

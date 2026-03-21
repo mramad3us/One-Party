@@ -29,7 +29,7 @@ export class MenuScreen extends Component {
     const subtitle = el('p', { class: 'menu-subtitle' }, [
       'A Solo D&D 5e Adventure',
     ]);
-    const version = el('span', { class: 'menu-version' }, ['v0.2.5']);
+    const version = el('span', { class: 'menu-version' }, ['v0.3.0']);
     const ornament = el('div', { class: 'menu-ornament' });
 
     logo.appendChild(title);
@@ -73,10 +73,17 @@ export class MenuScreen extends Component {
       ['Settings'],
     );
 
+    const deleteWorldBtn = el(
+      'button',
+      { class: 'btn btn-ghost btn-lg menu-delete-world', 'data-action': 'delete-world' },
+      ['Delete World'],
+    );
+
     actions.appendChild(newBtn);
     actions.appendChild(continueBtn);
     actions.appendChild(loadBtn);
     actions.appendChild(settingsBtn);
+    actions.appendChild(deleteWorldBtn);
     screen.appendChild(actions);
 
     // ── Footer ──
@@ -123,6 +130,18 @@ export class MenuScreen extends Component {
         this.engine.events.emit({
           type: 'ui:modal:load',
           category: 'ui',
+          data: {},
+        });
+      });
+    }
+
+    // Delete World
+    const delWorldBtn = this.el.querySelector('[data-action="delete-world"]');
+    if (delWorldBtn) {
+      this.listen(delWorldBtn, 'click', () => {
+        this.engine.events.emit({
+          type: 'world:delete',
+          category: 'world',
           data: {},
         });
       });
