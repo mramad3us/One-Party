@@ -312,16 +312,15 @@
 .action-btn { min-width: 100px; }
 
 /* ── World Map Overlay ── */
+/* ── World Map Overlay — fullscreen cartographic display ── */
 .game-map-overlay {
   position: fixed;
   inset: 0;
   z-index: var(--z-modal, 1000);
-  background: rgba(0, 0, 0, 0.9);
+  background: #030302;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity 0.3s var(--ease-smooth);
-  backdrop-filter: blur(4px);
+  align-items: stretch;
+  justify-content: stretch;
 }
 
 .game-map-overlay--hidden {
@@ -329,45 +328,49 @@
 }
 
 .game-map-overlay-inner {
-  background:
-    radial-gradient(ellipse at 50% 30%, rgba(196, 162, 74, 0.03) 0%, transparent 60%),
-    var(--bg-panel);
-  border: 1px solid var(--border-gold);
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm);
-  width: 98vw;
-  height: 97vh;
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7),
-              var(--shadow-glow);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(196, 162, 74, 0.04) 0%, transparent 50%),
+    #060503;
 }
 
 .game-map-overlay-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-xs);
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: var(--space-xs);
+  padding: 10px 16px;
+  background: linear-gradient(180deg, rgba(14, 12, 8, 0.95) 0%, rgba(6, 5, 3, 0.8) 100%);
+  border-bottom: 1px solid rgba(196, 162, 74, 0.15);
+  flex-shrink: 0;
+  z-index: 5;
 }
 
 .game-map-overlay-title {
-  font-size: var(--text-xl);
+  font-size: 1.1rem;
   color: var(--gold);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
 }
 
 .game-map-overlay-close {
   font-size: var(--text-lg);
-  color: var(--text-muted);
+  color: var(--text-dim);
+  opacity: 0.6;
+  transition: opacity var(--duration-fast) var(--ease-smooth);
+}
+
+.game-map-overlay-close:hover {
+  opacity: 1;
+  color: var(--text-primary);
 }
 
 .game-map-overlay-content {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .game-map-overlay-content .map-panel {
@@ -375,15 +378,19 @@
   display: flex;
   flex-direction: column;
   padding: 0;
+  position: relative;
 }
 
 .game-map-overlay-hint {
   text-align: center;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-dim);
-  margin-top: var(--space-sm);
-  letter-spacing: 0.1em;
+  opacity: 0.5;
+  padding: 6px 0;
+  letter-spacing: 0.12em;
   flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(6, 5, 3, 0.6) 0%, rgba(6, 5, 3, 0.95) 100%);
+  border-top: 1px solid rgba(196, 162, 74, 0.06);
 }
 
 /* ── Travel Info Bar (sun arc on map overlay) ── */
@@ -392,8 +399,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-md);
-  padding: var(--space-xs) var(--space-md);
+  padding: 6px 16px;
   flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(6, 5, 3, 0.6) 0%, rgba(6, 5, 3, 0.9) 100%);
+  border-top: 1px solid rgba(196, 162, 74, 0.08);
   animation: fadeIn 0.4s ease-out both;
 }
 
@@ -408,15 +417,14 @@
 
 /* ── Travel Log (journey narrative on map overlay) ── */
 .travel-log {
-  max-height: 140px;
+  max-height: 120px;
   overflow-y: auto;
-  padding: var(--space-sm) var(--space-md);
-  background: rgba(6, 5, 3, 0.75);
-  border-top: 1px solid rgba(196, 162, 74, 0.1);
-  border-bottom: 1px solid rgba(196, 162, 74, 0.1);
+  padding: 8px 16px;
+  background: rgba(6, 5, 3, 0.85);
+  border-top: 1px solid rgba(196, 162, 74, 0.06);
   flex-shrink: 0;
   scrollbar-width: thin;
-  scrollbar-color: rgba(196, 162, 74, 0.15) transparent;
+  scrollbar-color: rgba(196, 162, 74, 0.12) transparent;
 }
 
 .travel-log--hidden {
@@ -425,10 +433,10 @@
 
 .travel-log-entry {
   font-family: var(--font-body);
-  font-size: 0.78rem;
-  line-height: 1.55;
-  padding: 0.2rem 0;
-  animation: slideInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  padding: 2px 0;
+  animation: fadeIn 0.3s ease-out both;
 }
 
 .travel-log-entry--action {
@@ -443,33 +451,31 @@
 .travel-log-entry--system {
   color: var(--text-dim);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
 }
 
 /* ── Map Panel ── */
 .map-panel {
-  padding: var(--space-md);
+  padding: 0;
+  position: relative;
 }
 
-.map-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-sm);
-  color: var(--gold);
-}
-
-.map-header-title {
-  font-size: var(--text-base);
-  letter-spacing: 0.1em;
-}
-
+/* Region name — floats centered above the canvas */
 .map-region-name {
-  font-family: var(--font-heading);
-  font-size: var(--text-sm);
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-size: 0.95rem;
   color: var(--text-secondary);
   text-align: center;
-  margin-bottom: var(--space-sm);
+  letter-spacing: 0.1em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  padding: 4px 16px;
+  background: linear-gradient(180deg, rgba(6, 5, 3, 0.7) 0%, rgba(6, 5, 3, 0) 100%);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 
 /* ── Canvas Map ── */
@@ -477,11 +483,8 @@
   flex: 1;
   min-height: 0;
   position: relative;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
   overflow: hidden;
   background: #020201;
-  box-shadow: var(--shadow-inset-dark);
 }
 
 .map-canvas {
@@ -496,7 +499,7 @@
   cursor: grabbing;
 }
 
-/* Map panel inside overlay: full-bleed canvas with floating detail */
+/* Map panel inside overlay: full-bleed canvas */
 .game-map-overlay-content .map-panel {
   display: flex;
   flex-direction: column;
@@ -509,31 +512,25 @@
   min-height: 0;
 }
 
-.game-map-overlay-content .map-detail {
+/* ── Map Detail — floating card over canvas ── */
+.map-detail {
   position: absolute;
-  top: var(--space-md);
-  right: var(--space-md);
-  width: 280px;
-  max-height: 60%;
+  top: 12px;
+  right: 12px;
+  width: 240px;
+  max-height: calc(100% - 24px);
   overflow-y: auto;
   z-index: 10;
-  margin-top: 0;
-  background: rgba(18, 16, 12, 0.92);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--border-gold);
+  padding: 12px;
+  background: rgba(10, 8, 6, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(196, 162, 74, 0.2);
   border-radius: var(--radius-md);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), var(--shadow-glow);
-}
-
-/* ── Map Detail Tile ── */
-.map-detail {
-  margin-top: var(--space-md);
-  padding: var(--space-md);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-gold);
-  border-radius: var(--radius-md);
-  animation: fadeSlideUp 0.25s var(--ease-heavy);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7),
+              0 0 1px rgba(196, 162, 74, 0.15);
+  animation: fadeIn 0.2s ease-out both;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 162, 74, 0.12) transparent;
 }
 
 .map-detail--hidden {
@@ -543,28 +540,30 @@
 .map-detail-header {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-xs);
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .map-detail-swatch {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 3px;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(196, 162, 74, 0.15);
   flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .map-detail-coords {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-dim);
-  margin-bottom: var(--space-xs);
+  font-family: var(--font-mono);
+  margin-bottom: 4px;
+  opacity: 0.6;
 }
 
 .map-detail-name {
   flex: 1;
-  font-size: var(--text-base);
+  font-size: 0.9rem;
   color: var(--gold);
   letter-spacing: 0.06em;
 }
@@ -575,35 +574,41 @@
 }
 
 .map-detail-close {
-  font-size: var(--text-sm);
+  font-size: 0.75rem;
   color: var(--text-dim);
-  padding: 2px 6px;
+  padding: 2px 4px;
   line-height: 1;
+  opacity: 0.5;
+  transition: opacity var(--duration-fast) var(--ease-smooth);
+}
+
+.map-detail-close:hover {
+  opacity: 1;
 }
 
 .map-detail-type {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  margin-bottom: var(--space-sm);
+  margin-bottom: 6px;
 }
 
 .map-detail-current-badge {
   color: var(--gold);
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0;
   text-transform: none;
 }
 
 .map-detail-desc {
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   color: var(--text-secondary);
-  line-height: var(--leading-relaxed);
-  margin-bottom: var(--space-sm);
-  padding: var(--space-xs) 0;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
+  line-height: 1.5;
+  margin-bottom: 6px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(196, 162, 74, 0.08);
+  border-bottom: 1px solid rgba(196, 162, 74, 0.08);
 }
 
 .map-detail-desc--unknown {
@@ -612,11 +617,11 @@
 }
 
 .map-detail-section {
-  margin-bottom: var(--space-sm);
+  margin-bottom: 6px;
 }
 
 .map-detail-section-title {
-  font-size: 9px;
+  font-size: 8px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--gold-dim);
@@ -624,47 +629,47 @@
 }
 
 .map-detail-sub {
-  font-size: 11px;
+  font-size: 0.72rem;
   color: var(--text-secondary);
   padding: 1px 0;
 }
 
 .map-detail-visited {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-dim);
   font-style: italic;
-  margin-bottom: var(--space-xs);
+  margin-bottom: 4px;
 }
 
 .map-detail-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: var(--space-sm);
+  gap: 3px;
+  margin-bottom: 6px;
 }
 
 .map-detail-tag {
-  font-size: 9px;
-  padding: 1px 6px;
-  background: var(--bg-deep);
+  font-size: 8px;
+  padding: 1px 5px;
+  background: rgba(6, 5, 3, 0.6);
   color: var(--text-muted);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(196, 162, 74, 0.08);
 }
 
 .map-detail-travel {
   width: 100%;
-  margin-top: var(--space-sm);
+  margin-top: 6px;
 }
 
 .map-detail-unreachable {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-dim);
   font-style: italic;
   text-align: center;
-  margin-top: var(--space-sm);
-  padding: var(--space-xs);
-  border-top: 1px solid var(--border-subtle);
+  margin-top: 6px;
+  padding: 4px;
+  border-top: 1px solid rgba(196, 162, 74, 0.08);
 }
 
 @keyframes fadeSlideUp {

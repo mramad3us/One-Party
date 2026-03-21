@@ -86,13 +86,8 @@ export class MapPanel extends Component {
   protected createElement(): HTMLElement {
     const wrapper = el('div', { class: 'map-panel panel' });
 
-    // Header
-    const header = el('div', { class: 'map-header' });
-    header.appendChild(el('span', { class: 'map-header-title font-heading' }, ['World Map']));
-    wrapper.appendChild(header);
-
-    // Region name display
-    this.regionNameEl = el('div', { class: 'map-region-name' });
+    // Region name display (floats as a label over the canvas)
+    this.regionNameEl = el('div', { class: 'map-region-name font-heading' });
     wrapper.appendChild(this.regionNameEl);
 
     // Canvas container
@@ -102,9 +97,9 @@ export class MapPanel extends Component {
     canvasWrap.appendChild(this.canvas);
     wrapper.appendChild(canvasWrap);
 
-    // Detail panel (shown on tile click)
+    // Detail panel (shown on tile click — positioned absolute over the canvas)
     this.detailEl = el('div', { class: 'map-detail map-detail--hidden' });
-    wrapper.appendChild(this.detailEl);
+    canvasWrap.appendChild(this.detailEl);
 
     return wrapper;
   }
