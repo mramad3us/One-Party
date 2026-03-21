@@ -9,7 +9,7 @@ import {
   type MapResult,
 } from './LocalMapGenerator';
 
-const POI_SIZE = 120;
+const POI_SIZE = 200;
 const CENTER = Math.floor(POI_SIZE / 2);
 
 /**
@@ -19,7 +19,12 @@ const CENTER = Math.floor(POI_SIZE / 2);
  * groves, oases, etc). Small non-POI maps are reserved for future random
  * encounters during travel between tiles.
  */
+/** Axis-aligned bounding box for a placed building. */
+type BuildingRect = { x1: number; y1: number; x2: number; y2: number };
+
 export class POIMapGenerator extends LocalMapGenerator {
+  /** All building footprints placed during current generation. */
+  private buildings: BuildingRect[] = [];
 
   /**
    * Generate a POI map for a settlement tile.
@@ -36,6 +41,7 @@ export class POIMapGenerator extends LocalMapGenerator {
       const w = POI_SIZE, h = POI_SIZE;
       const ground = this.biomeToTerrain(biome);
       const cells = this.fillGrid(w, h, ground);
+      this.buildings = [];
 
       this.paintBiomeDecoration(cells, w, h, biome, ground);
       const roadTerrain: CellTerrain = biome === 'swamp' ? 'wood' : 'stone';
@@ -58,6 +64,10 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
 
       this.placeMinorPOIs(cells, w, h, ground, roadTerrain);
+
+      // Post-generation: validate and repair all building perimeters
+      this.validateBuildings(cells, w, h);
+
       const playerStart = this.computeSpawnPoint(cells, w, h, entryDir);
       return { grid: { width: w, height: h, cells }, playerStart };
     };
@@ -90,6 +100,7 @@ export class POIMapGenerator extends LocalMapGenerator {
       const w = POI_SIZE, h = POI_SIZE;
       const ground = this.biomeToTerrain(biome);
       const cells = this.fillGrid(w, h, ground);
+      this.buildings = [];
 
       this.paintBiomeDecoration(cells, w, h, biome, ground);
 
@@ -138,6 +149,10 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
 
       this.placeMinorPOIs(cells, w, h, ground, roadTerrain);
+
+      // Post-generation: validate and repair all building perimeters
+      this.validateBuildings(cells, w, h);
+
       const playerStart = this.computeSpawnPoint(cells, w, h, entryDir);
       return { grid: { width: w, height: h, cells }, playerStart };
     };
@@ -226,12 +241,12 @@ export class POIMapGenerator extends LocalMapGenerator {
     const isTown = settlement === 'town';
 
     // Farmland ring
-    const farmInner = isCity ? 25 : isTown ? 28 : 32;
-    const farmOuter = isCity ? 45 : isTown ? 42 : 40;
+    const farmInner = isCity ? 42 : isTown ? 47 : 53;
+    const farmOuter = isCity ? 75 : isTown ? 70 : 67;
     this.placeFarmland(cells, w, h, farmInner, farmOuter, ground);
 
     // Town core area
-    const coreSize = isCity ? 38 : isTown ? 32 : 24;
+    const coreSize = isCity ? 64 : isTown ? 54 : 40;
     const coreMin = CENTER - Math.floor(coreSize / 2);
     const coreMax = CENTER + Math.floor(coreSize / 2);
 
@@ -255,7 +270,7 @@ export class POIMapGenerator extends LocalMapGenerator {
     }
 
     // Town square at center
-    const sqSize = isCity ? 6 : isTown ? 5 : 4;
+    const sqSize = isCity ? 10 : isTown ? 8 : 6;
     for (let y = CENTER - sqSize; y <= CENTER + sqSize; y++) {
       for (let x = CENTER - sqSize; x <= CENTER + sqSize; x++) {
         if (x >= 0 && x < w && y >= 0 && y < h) {
@@ -266,7 +281,7 @@ export class POIMapGenerator extends LocalMapGenerator {
     cells[CENTER][CENTER] = makeCell(roadTerrain, 1, false, ['fountain']);
 
     // Market stalls — 4 chests at offsets around the fountain
-    const stallOffsets = [[-3, -2], [3, -2], [-3, 2], [3, 2]];
+    const stallOffsets = [[-5, -3], [5, -3], [-5, 3], [5, 3]];
     for (const [dx, dy] of stallOffsets) {
       const sx = CENTER + dx, sy = CENTER + dy;
       if (sx >= 0 && sx < w && sy >= 0 && sy < h) {
@@ -325,11 +340,11 @@ export class POIMapGenerator extends LocalMapGenerator {
       const q = quadrants[Math.floor(this.rng.next() * quadrants.length)];
       const isMultiRoom = placed.length < multiRoomCount;
       const bw = isMultiRoom
-        ? 8 + Math.floor(this.rng.next() * 6)   // 8-13
-        : 5 + Math.floor(this.rng.next() * 3);   // 5-7 (cottages/sheds)
+        ? 14 + Math.floor(this.rng.next() * 8)  // 14-21
+        : 8 + Math.floor(this.rng.next() * 4);  // 8-11 (cottages/sheds)
       const bh = isMultiRoom
-        ? 6 + Math.floor(this.rng.next() * 4)   // 6-9
-        : 4 + Math.floor(this.rng.next() * 2);   // 4-5
+        ? 10 + Math.floor(this.rng.next() * 6)  // 10-15
+        : 6 + Math.floor(this.rng.next() * 3);  // 6-8
       const availW = q.xMax - q.xMin - bw;
       const availH = q.yMax - q.yMin - bh;
       if (availW < 0 || availH < 0) continue;
@@ -380,8 +395,20 @@ export class POIMapGenerator extends LocalMapGenerator {
       else if (side === 2) { cx = CENTER - dist; cy = CENTER + 5 + Math.floor(this.rng.next() * 6); }
       else { cx = CENTER + dist; cy = CENTER + 5 + Math.floor(this.rng.next() * 6); }
 
-      if (cx > 3 && cx < w - 10 && cy > 3 && cy < h - 10) {
-        this.placeSolidBuilding(cells, w, h, cx, cy, 5, 4);
+      if (cx > 3 && cx < w - 14 && cy > 3 && cy < h - 12) {
+        const ocw = 8, och = 6;
+        // Check overlap with existing buildings (2-cell gap)
+        const ox1 = cx - 2, oy1 = cy - 2, ox2 = cx + ocw + 2, oy2 = cy + och + 2;
+        let outskirtOverlaps = false;
+        for (const b of this.buildings) {
+          if (ox1 <= b.x2 && ox2 >= b.x1 && oy1 <= b.y2 && oy2 >= b.y1) {
+            outskirtOverlaps = true;
+            break;
+          }
+        }
+        if (!outskirtOverlaps) {
+          this.placeSolidBuilding(cells, w, h, cx, cy, ocw, och);
+        }
       }
     }
   }
@@ -398,8 +425,8 @@ export class POIMapGenerator extends LocalMapGenerator {
       const dist = innerRadius + this.rng.next() * (outerRadius - innerRadius);
       const fx = CENTER + Math.floor(Math.cos(angle) * dist);
       const fy = CENTER + Math.floor(Math.sin(angle) * dist);
-      const pw = 6 + Math.floor(this.rng.next() * 6);
-      const ph = 5 + Math.floor(this.rng.next() * 5);
+      const pw = 10 + Math.floor(this.rng.next() * 10);
+      const ph = 8 + Math.floor(this.rng.next() * 8);
 
       for (let y = fy; y < fy + ph && y < h - 1; y++) {
         for (let x = fx; x < fx + pw && x < w - 1; x++) {
@@ -434,7 +461,19 @@ export class POIMapGenerator extends LocalMapGenerator {
         const shedX = fx + pw + 1;
         const shedY = fy + 1;
         if (shedX + 3 < w - 1 && shedY + 3 < h - 1 && shedX > 0 && shedY > 0) {
-          this.placeSolidBuilding(cells, w, h, shedX, shedY, 3, 3);
+          // Check overlap with existing buildings (2-cell gap)
+          const shW = 5, shH = 4;
+          const sx1 = shedX - 2, sy1 = shedY - 2, sx2 = shedX + shW + 2, sy2 = shedY + shH + 2;
+          let shedOverlaps = false;
+          for (const b of this.buildings) {
+            if (sx1 <= b.x2 && sx2 >= b.x1 && sy1 <= b.y2 && sy2 >= b.y1) {
+              shedOverlaps = true;
+              break;
+            }
+          }
+          if (!shedOverlaps) {
+            this.placeSolidBuilding(cells, w, h, shedX, shedY, shW, shH);
+          }
         }
       }
     }
@@ -450,7 +489,7 @@ export class POIMapGenerator extends LocalMapGenerator {
     // Dense vegetation in outer area — spaced for navigation
     const outerNoise = this.generateNoiseField(w, h, 0.1);
     this.placeSpacedTrees(cells, w, h, outerNoise, 0.10, ground, {
-      skipCell: (x, y) => Math.sqrt((x - CENTER) ** 2 + (y - CENTER) ** 2) <= 25,
+      skipCell: (x, y) => Math.sqrt((x - CENTER) ** 2 + (y - CENTER) ** 2) <= 42,
     });
 
     // Old road fragments (partially overgrown) — with spacing
@@ -464,8 +503,8 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
     }
 
-    // Central ruins cluster (40x40 area)
-    const ruinsSize = 20;
+    // Central ruins cluster (66x66 area)
+    const ruinsSize = 33;
     const ruinsMin = CENTER - ruinsSize;
     const ruinsMax = CENTER + ruinsSize;
 
@@ -488,11 +527,11 @@ export class POIMapGenerator extends LocalMapGenerator {
     for (let attempt = 0; attempt < buildingCount * 15 && placed.length < buildingCount; attempt++) {
       const isLarge = placed.length < Math.ceil(buildingCount * 0.5);
       const bw = isLarge
-        ? 8 + Math.floor(this.rng.next() * 5)   // 8-12
-        : 5 + Math.floor(this.rng.next() * 4);   // 5-8
+        ? 14 + Math.floor(this.rng.next() * 7)  // 14-20
+        : 8 + Math.floor(this.rng.next() * 5);  // 8-12
       const bh = isLarge
-        ? 6 + Math.floor(this.rng.next() * 3)   // 6-8
-        : 4 + Math.floor(this.rng.next() * 3);   // 4-6
+        ? 10 + Math.floor(this.rng.next() * 5)  // 10-14
+        : 6 + Math.floor(this.rng.next() * 4);  // 6-9
       const bx = ruinsMin + 3 + Math.floor(this.rng.next() * (ruinsSize * 2 - bw - 6));
       const by = ruinsMin + 3 + Math.floor(this.rng.next() * (ruinsSize * 2 - bh - 6));
 
@@ -511,11 +550,15 @@ export class POIMapGenerator extends LocalMapGenerator {
       placed.push({ x: bx, y: by, bw, bh });
 
       // Place building first (multi-room or solid)
+      // Track index so we can unregister after decay (ruins are intentionally broken)
+      const preCount = this.buildings.length;
       if (isLarge) {
         this.placeMultiRoomBuilding(cells, w, h, bx, by, bw, bh, ['common', 'storage', 'bedroom']);
       } else {
         this.placeSolidBuilding(cells, w, h, bx, by, bw, bh);
       }
+      // Remove from validation — ruins are intentionally decayed
+      this.buildings.splice(preCount);
 
       // Apply decay — randomly remove walls and doors
       const decay = 0.3 + this.rng.next() * 0.35;
@@ -586,7 +629,7 @@ export class POIMapGenerator extends LocalMapGenerator {
     ground: CellTerrain,
   ): void {
     // Sacred clearing
-    const sacredRadius = 14 + Math.floor(this.rng.next() * 4);
+    const sacredRadius = 24 + Math.floor(this.rng.next() * 6);
     for (let y = CENTER - sacredRadius; y <= CENTER + sacredRadius; y++) {
       for (let x = CENTER - sacredRadius; x <= CENTER + sacredRadius; x++) {
         if (x < 0 || x >= w || y < 0 || y >= h) continue;
@@ -597,7 +640,7 @@ export class POIMapGenerator extends LocalMapGenerator {
     }
 
     // Dense sacred grove ring
-    const groveOuter = sacredRadius + 6;
+    const groveOuter = sacredRadius + 10;
     for (let y = CENTER - groveOuter; y <= CENTER + groveOuter; y++) {
       for (let x = CENTER - groveOuter; x <= CENTER + groveOuter; x++) {
         if (x < 1 || x >= w - 1 || y < 1 || y >= h - 1) continue;
@@ -612,7 +655,7 @@ export class POIMapGenerator extends LocalMapGenerator {
 
     // Standing stones along approach paths
     for (let dir = 0; dir < 4; dir++) {
-      for (let dist = sacredRadius + 8; dist < 55; dist += 12 + Math.floor(this.rng.next() * 6)) {
+      for (let dist = sacredRadius + 12; dist < 90; dist += 18 + Math.floor(this.rng.next() * 8)) {
         let sx: number, sy: number;
         if (dir === 0) { sx = CENTER; sy = CENTER - dist; }
         else if (dir === 1) { sx = CENTER; sy = CENTER + dist; }
@@ -632,7 +675,7 @@ export class POIMapGenerator extends LocalMapGenerator {
     // Central structure — seeded choice
     if (this.rng.next() < 0.5) {
       // Stone circle with pillars
-      const circleR = 6;
+      const circleR = 10;
       const pillarCount = 8 + Math.floor(this.rng.next() * 4);
       for (let i = 0; i < pillarCount; i++) {
         const angle = (i / pillarCount) * Math.PI * 2;
@@ -654,20 +697,20 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
     } else {
       // Temple building
-      const tw = 16, th = 22;
+      const tw = 26, th = 36;
       const tx = CENTER - Math.floor(tw / 2);
       const ty = CENTER - Math.floor(th / 2);
       this.placeSolidBuilding(cells, w, h, tx, ty, tw, th);
 
       // Nave pillars
-      for (let y = ty + 3; y < ty + th - 3; y += 4) {
-        if (tx + 3 < w) cells[y][tx + 3] = makeCell('stone', Infinity, true, ['pillar']);
-        if (tx + tw - 4 < w) cells[y][tx + tw - 4] = makeCell('stone', Infinity, true, ['pillar']);
+      for (let y = ty + 5; y < ty + th - 5; y += 6) {
+        if (tx + 5 < w) cells[y][tx + 5] = makeCell('stone', Infinity, true, ['pillar']);
+        if (tx + tw - 6 < w) cells[y][tx + tw - 6] = makeCell('stone', Infinity, true, ['pillar']);
       }
       // Altar at far end
-      cells[ty + 2][CENTER] = makeCell('stone', 1, false, ['altar']);
+      cells[ty + 3][CENTER] = makeCell('stone', 1, false, ['altar']);
       // Fountain near entrance
-      cells[ty + th - 3][CENTER] = makeCell('stone', 1, false, ['fountain']);
+      cells[ty + th - 4][CENTER] = makeCell('stone', 1, false, ['fountain']);
     }
   }
 
@@ -679,7 +722,7 @@ export class POIMapGenerator extends LocalMapGenerator {
     roadTerrain: CellTerrain,
   ): void {
     // Clear zone around fortress
-    const clearRadius = 20 + Math.floor(this.rng.next() * 5);
+    const clearRadius = 35 + Math.floor(this.rng.next() * 8);
     for (let y = CENTER - clearRadius; y <= CENTER + clearRadius; y++) {
       for (let x = CENTER - clearRadius; x <= CENTER + clearRadius; x++) {
         if (x < 0 || x >= w || y < 0 || y >= h) continue;
@@ -691,8 +734,8 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
     }
 
-    // Fortress walls (40x40)
-    const fortSize = 20;
+    // Fortress walls (66x66)
+    const fortSize = 33;
     const fMin = CENTER - fortSize;
     const fMax = CENTER + fortSize;
 
@@ -720,15 +763,15 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
     }
 
-    // Corner towers (4x4)
+    // Corner towers (6x6)
     for (const t of [
-      { x: fMin, y: fMin }, { x: fMax - 3, y: fMin },
-      { x: fMin, y: fMax - 3 }, { x: fMax - 3, y: fMax - 3 },
+      { x: fMin, y: fMin }, { x: fMax - 5, y: fMin },
+      { x: fMin, y: fMax - 5 }, { x: fMax - 5, y: fMax - 5 },
     ]) {
-      for (let y = t.y; y < t.y + 4; y++) {
-        for (let x = t.x; x < t.x + 4; x++) {
+      for (let y = t.y; y < t.y + 6; y++) {
+        for (let x = t.x; x < t.x + 6; x++) {
           if (x >= 0 && x < w && y >= 0 && y < h) {
-            if (y === t.y || y === t.y + 3 || x === t.x || x === t.x + 3) {
+            if (y === t.y || y === t.y + 5 || x === t.x || x === t.x + 5) {
               cells[y][x] = wallCell();
             } else {
               cells[y][x] = floorCell('stone');
@@ -739,20 +782,20 @@ export class POIMapGenerator extends LocalMapGenerator {
     }
 
     // Interior buildings (multi-room)
-    this.placeMultiRoomBuilding(cells, w, h, fMin + 3, CENTER - 8, 8, 6, ['common', 'armory', 'storage']);
-    this.placeMultiRoomBuilding(cells, w, h, fMin + 3, CENTER + 3, 8, 6, ['bedroom', 'common', 'kitchen']);
-    this.placeMultiRoomBuilding(cells, w, h, fMax - 11, CENTER - 8, 8, 6, ['shrine', 'storage', 'armory']);
+    this.placeMultiRoomBuilding(cells, w, h, fMin + 5, CENTER - 14, 14, 10, ['common', 'armory', 'storage']);
+    this.placeMultiRoomBuilding(cells, w, h, fMin + 5, CENTER + 5, 14, 10, ['bedroom', 'common', 'kitchen']);
+    this.placeMultiRoomBuilding(cells, w, h, fMax - 19, CENTER - 14, 14, 10, ['shrine', 'storage', 'armory']);
 
     // Armory chest
-    const armoryChestX = fMax - 9;
-    const armoryChestY = CENTER - 6;
+    const armoryChestX = fMax - 15;
+    const armoryChestY = CENTER - 10;
     if (armoryChestX >= 0 && armoryChestX < w && armoryChestY >= 0 && armoryChestY < h) {
       cells[armoryChestY][armoryChestX] = makeCell('stone', 1, false, ['chest']);
     }
 
-    // Central keep (10x10)
-    const keepMin = CENTER - 5;
-    const keepMax = CENTER + 4;
+    // Central keep (16x16)
+    const keepMin = CENTER - 8;
+    const keepMax = CENTER + 7;
     for (let y = keepMin; y <= keepMax; y++) {
       for (let x = keepMin; x <= keepMax; x++) {
         if (y === keepMin || y === keepMax || x === keepMin || x === keepMax) {
@@ -763,11 +806,11 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
     }
     cells[keepMax][CENTER] = makeCell('stone', Infinity, true, ['door']);
-    cells[keepMin + 2][CENTER] = makeCell('stone', 1, false, ['altar']);
-    cells[keepMin + 2][keepMin + 2] = makeCell('stone', Infinity, true, ['pillar']);
-    cells[keepMin + 2][keepMax - 2] = makeCell('stone', Infinity, true, ['pillar']);
-    cells[keepMax - 2][keepMin + 2] = makeCell('stone', Infinity, true, ['pillar']);
-    cells[keepMax - 2][keepMax - 2] = makeCell('stone', Infinity, true, ['pillar']);
+    cells[keepMin + 3][CENTER] = makeCell('stone', 1, false, ['altar']);
+    cells[keepMin + 3][keepMin + 3] = makeCell('stone', Infinity, true, ['pillar']);
+    cells[keepMin + 3][keepMax - 3] = makeCell('stone', Infinity, true, ['pillar']);
+    cells[keepMax - 3][keepMin + 3] = makeCell('stone', Infinity, true, ['pillar']);
+    cells[keepMax - 3][keepMax - 3] = makeCell('stone', Infinity, true, ['pillar']);
 
     // Optional moat (30% chance)
     if (this.rng.next() < 0.3) {
@@ -1524,12 +1567,23 @@ export class POIMapGenerator extends LocalMapGenerator {
       else if (dir === 2) { mx = dist; my = CENTER; }
       else { mx = w - 1 - dist; my = CENTER; }
 
-      const offsetX = (dir < 2 ? 1 : 0) * (4 + Math.floor(this.rng.next() * 4)) * (this.rng.next() < 0.5 ? -1 : 1);
-      const offsetY = (dir >= 2 ? 1 : 0) * (4 + Math.floor(this.rng.next() * 4)) * (this.rng.next() < 0.5 ? -1 : 1);
+      const offsetX = (dir < 2 ? 1 : 0) * (6 + Math.floor(this.rng.next() * 8)) * (this.rng.next() < 0.5 ? -1 : 1);
+      const offsetY = (dir >= 2 ? 1 : 0) * (6 + Math.floor(this.rng.next() * 8)) * (this.rng.next() < 0.5 ? -1 : 1);
       mx += offsetX;
       my += offsetY;
 
       if (mx < 6 || mx >= w - 6 || my < 6 || my >= h - 6) continue;
+
+      // Skip if the minor POI's 7×7 area overlaps any building (with 1-cell margin)
+      const mxMin = mx - 4, mxMax = mx + 4, myMin = my - 4, myMax = my + 4;
+      let hitsBuilding = false;
+      for (const b of this.buildings) {
+        if (mxMin <= b.x2 && mxMax >= b.x1 && myMin <= b.y2 && myMax >= b.y1) {
+          hitsBuilding = true;
+          break;
+        }
+      }
+      if (hitsBuilding) continue;
 
       const type = minorTypes[Math.floor(this.rng.next() * minorTypes.length)];
       this.placeMinorFeature(cells, w, h, mx, my, type, ground, roadTerrain);
@@ -1548,6 +1602,7 @@ export class POIMapGenerator extends LocalMapGenerator {
         else { px = CENTER + step; py = CENTER + 2; }
 
         if (px >= 1 && px < w - 1 && py >= 1 && py < h - 1
+            && cells[py][px].terrain !== 'wall' && cells[py][px].terrain !== 'wood'
             && cells[py][px].features.length === 0 && !this.isRoad(cells[py][px])) {
           cells[py][px] = makeCell('stone', Infinity, true, ['pillar']);
         }
@@ -1562,12 +1617,16 @@ export class POIMapGenerator extends LocalMapGenerator {
     type: string,
     ground: CellTerrain, roadTerrain: CellTerrain,
   ): void {
-    // Clear a small area first
+    // Clear a small area first — but never overwrite structural cells (walls, doors)
     for (let dy = -3; dy <= 3; dy++) {
       for (let dx = -3; dx <= 3; dx++) {
         const px = cx + dx, py = cy + dy;
         if (px >= 0 && px < w && py >= 0 && py < h) {
-          cells[py][px] = floorCell(ground);
+          const cell = cells[py][px];
+          if (cell.terrain !== 'wall' && cell.terrain !== 'wood'
+            && !cell.features.some(f => f === 'door' || f === 'door_locked' || f === 'chest' || f === 'altar' || f === 'fire')) {
+            cells[py][px] = floorCell(ground);
+          }
         }
       }
     }
@@ -1766,7 +1825,13 @@ export class POIMapGenerator extends LocalMapGenerator {
       return this.placeSolidBuilding(cells, gridW, gridH, bx, by, bw, bh);
     }
 
-    // Outer shell: walls + wood floor
+    // Register footprint for collision avoidance and post-gen validation
+    this.buildings.push({ x1, y1, x2, y2 });
+
+    const innerW = x2 - x1 - 1; // interior width (not counting perimeter walls)
+    const innerH = y2 - y1 - 1;
+
+    // ── Step 1: Outer shell — walls on perimeter, wood floor inside ──
     for (let y = y1; y <= y2; y++) {
       for (let x = x1; x <= x2; x++) {
         if (y === y1 || y === y2 || x === x1 || x === x2) {
@@ -1777,75 +1842,95 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
     }
 
-    // South door (main entrance)
-    const mainDoorX = x1 + Math.floor((x2 - x1) / 2);
+    // ── Step 2: Choose vertical split position ──
+    // Pick a position for the internal vertical wall (column index)
+    const splitX = x1 + Math.floor(innerW * (0.35 + this.rng.next() * 0.3)) + 1;
+
+    // ── Step 3: Place main entrance on south wall, NOT on the split column ──
+    // The entrance must be clearly inside one of the two halves
+    let mainDoorX: number;
+    const leftMid = x1 + Math.floor((splitX - x1) / 2);
+    const rightMid = splitX + Math.floor((x2 - splitX) / 2);
+    // Pick the larger side for the entrance
+    if (splitX - x1 > x2 - splitX) {
+      mainDoorX = leftMid; // entrance in left half
+    } else {
+      mainDoorX = rightMid; // entrance in right half
+    }
+    // Ensure door is on interior (not on outer wall column)
+    mainDoorX = Math.max(x1 + 1, Math.min(x2 - 1, mainDoorX));
+    // Final safety: must not be on splitX
+    if (mainDoorX === splitX) mainDoorX = splitX + 1;
+    if (mainDoorX >= x2) mainDoorX = splitX - 1;
+
     cells[y2][mainDoorX] = makeCell('wood', Infinity, true, ['door']);
 
-    // Internal subdivisions
-    const innerW = x2 - x1 - 1; // interior width
-    const innerH = y2 - y1 - 1; // interior height
+    const entranceOnLeft = mainDoorX < splitX;
 
-    // Vertical split — always do one if wide enough
-    const splitX = x1 + Math.floor(innerW * (0.4 + this.rng.next() * 0.2)) + 1;
+    // ── Step 4: Place vertical internal wall with door ──
     for (let y = y1 + 1; y < y2; y++) {
       cells[y][splitX] = wallCell();
     }
-    // Door in vertical wall
-    const vDoorY = y1 + 1 + Math.floor(this.rng.next() * (innerH - 1));
-    cells[vDoorY][splitX] = makeCell('wood', Infinity, true, ['door']);
 
-    // Determine which side the main door is on (left or right of split)
-    const mainDoorOnLeft = mainDoorX < splitX;
-
-    // Horizontal split on the larger side if building is tall enough
-    const rooms: { x1: number; y1: number; x2: number; y2: number; idx: number }[] = [];
+    // ── Step 5: Horizontal split (if tall enough) on the non-entrance side ──
+    // Determine room layout
+    type Room = { rx1: number; ry1: number; rx2: number; ry2: number; idx: number };
+    const rooms: Room[] = [];
     let roomIdx = 0;
 
-    if (innerH >= 6) {
-      // Split the side WITHOUT the main door horizontally
-      const hSplitY = y1 + Math.floor(innerH * (0.4 + this.rng.next() * 0.2)) + 1;
+    // Entrance room spans the full height of its half
+    const entranceRoom: Room = entranceOnLeft
+      ? { rx1: x1 + 1, ry1: y1 + 1, rx2: splitX - 1, ry2: y2 - 1, idx: roomIdx++ }
+      : { rx1: splitX + 1, ry1: y1 + 1, rx2: x2 - 1, ry2: y2 - 1, idx: roomIdx++ };
+    rooms.push(entranceRoom);
 
-      if (mainDoorOnLeft) {
-        // Split right side horizontally
-        for (let x = splitX + 1; x < x2; x++) {
-          cells[hSplitY][x] = wallCell();
-        }
-        const hDoorX = splitX + 1 + Math.floor(this.rng.next() * (x2 - splitX - 2));
-        cells[hSplitY][hDoorX] = makeCell('wood', Infinity, true, ['door']);
+    // The other side may get horizontally split
+    const otherX1 = entranceOnLeft ? splitX + 1 : x1 + 1;
+    const otherX2 = entranceOnLeft ? x2 - 1 : splitX - 1;
+    const otherSpan = otherX2 - otherX1 + 1; // width of other side interior
 
-        // Left room (full height)
-        rooms.push({ x1: x1 + 1, y1: y1 + 1, x2: splitX - 1, y2: y2 - 1, idx: roomIdx++ });
-        // Top-right room
-        rooms.push({ x1: splitX + 1, y1: y1 + 1, x2: x2 - 1, y2: hSplitY - 1, idx: roomIdx++ });
-        // Bottom-right room
-        rooms.push({ x1: splitX + 1, y1: hSplitY + 1, x2: x2 - 1, y2: y2 - 1, idx: roomIdx++ });
-      } else {
-        // Split left side horizontally
-        for (let x = x1 + 1; x < splitX; x++) {
-          cells[hSplitY][x] = wallCell();
-        }
-        const hDoorX = x1 + 1 + Math.floor(this.rng.next() * (splitX - x1 - 2));
-        cells[hSplitY][hDoorX] = makeCell('wood', Infinity, true, ['door']);
+    if (innerH >= 6 && otherSpan >= 2) {
+      // Horizontal split on the other side
+      const hSplitY = y1 + Math.floor(innerH * (0.35 + this.rng.next() * 0.3)) + 1;
 
-        // Top-left room
-        rooms.push({ x1: x1 + 1, y1: y1 + 1, x2: splitX - 1, y2: hSplitY - 1, idx: roomIdx++ });
-        // Bottom-left room
-        rooms.push({ x1: x1 + 1, y1: hSplitY + 1, x2: splitX - 1, y2: y2 - 1, idx: roomIdx++ });
-        // Right room (full height)
-        rooms.push({ x1: splitX + 1, y1: y1 + 1, x2: x2 - 1, y2: y2 - 1, idx: roomIdx++ });
+      // Place horizontal wall
+      for (let x = otherX1; x <= otherX2; x++) {
+        cells[hSplitY][x] = wallCell();
       }
+
+      // Door in horizontal wall — connects upper and lower other-side rooms
+      const hDoorX = otherX1 + Math.floor(this.rng.next() * otherSpan);
+      cells[hSplitY][hDoorX] = makeCell('wood', Infinity, true, ['door']);
+
+      // Upper other-side room
+      rooms.push({ rx1: otherX1, ry1: y1 + 1, rx2: otherX2, ry2: hSplitY - 1, idx: roomIdx++ });
+      // Lower other-side room
+      rooms.push({ rx1: otherX1, ry1: hSplitY + 1, rx2: otherX2, ry2: y2 - 1, idx: roomIdx++ });
+
+      // Vertical wall door: must be placed so it connects entrance room to
+      // BOTH other-side rooms. Put it at the hSplitY row (where the h-wall
+      // meets the v-wall) so it acts as a T-junction, OR place two doors.
+      // Simplest correct approach: place TWO doors in the vertical wall,
+      // one in each half (above and below the horizontal split).
+      const topDoorY = y1 + 1 + Math.floor(this.rng.next() * Math.max(1, hSplitY - y1 - 2));
+      const botDoorY = hSplitY + 1 + Math.floor(this.rng.next() * Math.max(1, y2 - hSplitY - 2));
+      cells[topDoorY][splitX] = makeCell('wood', Infinity, true, ['door']);
+      cells[botDoorY][splitX] = makeCell('wood', Infinity, true, ['door']);
     } else {
-      // Just 2 rooms (left and right)
-      rooms.push({ x1: x1 + 1, y1: y1 + 1, x2: splitX - 1, y2: y2 - 1, idx: roomIdx++ });
-      rooms.push({ x1: splitX + 1, y1: y1 + 1, x2: x2 - 1, y2: y2 - 1, idx: roomIdx++ });
+      // No horizontal split — just 2 rooms (left and right)
+      rooms.push({ rx1: otherX1, ry1: y1 + 1, rx2: otherX2, ry2: y2 - 1, idx: roomIdx++ });
+
+      // Single door in vertical wall
+      const vDoorY = y1 + 1 + Math.floor(this.rng.next() * (innerH - 1));
+      cells[vDoorY][splitX] = makeCell('wood', Infinity, true, ['door']);
     }
 
-    // Assign features to rooms based on type
+    // ── Step 6: Place features in rooms ──
     const types = roomTypes ?? ['common', 'storage', 'kitchen', 'bedroom'];
     for (const room of rooms) {
       const type = types[room.idx % types.length];
-      const rcx = Math.floor((room.x1 + room.x2) / 2);
-      const rcy = Math.floor((room.y1 + room.y2) / 2);
+      const rcx = Math.floor((room.rx1 + room.rx2) / 2);
+      const rcy = Math.floor((room.ry1 + room.ry2) / 2);
 
       if (rcx >= 0 && rcx < gridW && rcy >= 0 && rcy < gridH) {
         switch (type) {
@@ -1854,16 +1939,13 @@ export class POIMapGenerator extends LocalMapGenerator {
             cells[rcy][rcx] = makeCell('wood', 1, false, ['fire']);
             break;
           case 'storage':
-            cells[rcy][rcx] = makeCell('wood', 1, false, ['chest']);
-            break;
-          case 'bedroom':
-            // No furniture yet — just empty room
-            break;
           case 'armory':
             cells[rcy][rcx] = makeCell('wood', 1, false, ['chest']);
             break;
           case 'shrine':
             cells[rcy][rcx] = makeCell('wood', 1, false, ['altar']);
+            break;
+          case 'bedroom':
             break;
         }
       }
@@ -1892,6 +1974,9 @@ export class POIMapGenerator extends LocalMapGenerator {
     // Need at least 3x3 to be useful
     if (x2 - x1 < 2 || y2 - y1 < 2) return;
 
+    // Register footprint for collision avoidance and post-gen validation
+    this.buildings.push({ x1, y1, x2, y2 });
+
     // Build the rectangle: walls on perimeter, wood floor inside
     for (let y = y1; y <= y2; y++) {
       for (let x = x1; x <= x2; x++) {
@@ -1911,6 +1996,152 @@ export class POIMapGenerator extends LocalMapGenerator {
     if (bw >= 6 && bh >= 6) {
       const secondDoorX = x1 + Math.floor((x2 - x1) / 2);
       cells[y1][secondDoorX] = makeCell('wood', Infinity, true, ['door']);
+    }
+  }
+
+  // ── Building Validation ──────────────────────────────────────
+
+  /**
+   * Post-generation pass: validate and repair all registered buildings.
+   * 1. Repair perimeter walls that were destroyed
+   * 2. Remove interior wall cells placed by overlapping neighbor buildings
+   * 3. Ensure every interior cell is reachable from the entrance via flood fill
+   * 4. Ensure at least one entrance door exists
+   */
+  private validateBuildings(cells: GridCell[][], w: number, h: number): void {
+    // Build a set of all perimeter cells across ALL buildings
+    const perimeterSet = new Set<string>();
+    const validBuildings = this.buildings.filter(
+      b => b.x1 >= 0 && b.y1 >= 0 && b.x2 < w && b.y2 < h && b.x2 - b.x1 >= 2 && b.y2 - b.y1 >= 2,
+    );
+
+    for (const b of validBuildings) {
+      for (let x = b.x1; x <= b.x2; x++) {
+        perimeterSet.add(`${x},${b.y1}`);
+        perimeterSet.add(`${x},${b.y2}`);
+      }
+      for (let y = b.y1 + 1; y < b.y2; y++) {
+        perimeterSet.add(`${b.x1},${y}`);
+        perimeterSet.add(`${b.x2},${y}`);
+      }
+    }
+
+    // Pass 1: Repair ALL perimeters across all buildings first
+    for (const b of validBuildings) {
+      for (let x = b.x1; x <= b.x2; x++) {
+        this.repairWall(cells, x, b.y1);
+        this.repairWall(cells, x, b.y2);
+      }
+      for (let y = b.y1 + 1; y < b.y2; y++) {
+        this.repairWall(cells, b.x1, y);
+        this.repairWall(cells, b.x2, y);
+      }
+    }
+
+    // Pass 2: Remove foreign interior walls, but NEVER touch cells that are
+    // on ANY building's perimeter (those were just repaired in pass 1)
+    for (const b of validBuildings) {
+      for (let y = b.y1 + 1; y < b.y2; y++) {
+        for (let x = b.x1 + 1; x < b.x2; x++) {
+          if (cells[y][x].terrain !== 'wall') continue;
+          if (perimeterSet.has(`${x},${y}`)) continue; // don't touch any building's perimeter
+          // Check if this wall is from another building's footprint
+          for (const other of validBuildings) {
+            if (other === b) continue;
+            const onOtherPerimeter =
+              ((x === other.x1 || x === other.x2) && y >= other.y1 && y <= other.y2) ||
+              ((y === other.y1 || y === other.y2) && x >= other.x1 && x <= other.x2);
+            if (onOtherPerimeter) {
+              cells[y][x] = floorCell('wood');
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Pass 3: Ensure entrance doors + flood-fill reachability for each building
+    for (const b of validBuildings) {
+      // Find an entrance door on the perimeter
+      let entranceDoor: { x: number; y: number } | null = null;
+      for (let x = b.x1; x <= b.x2; x++) {
+        for (const ey of [b.y1, b.y2]) {
+          if (cells[ey][x].features.some(f => f === 'door' || f === 'door_locked')) {
+            entranceDoor = { x, y: ey };
+          }
+        }
+      }
+      for (let y = b.y1 + 1; y < b.y2; y++) {
+        for (const ex of [b.x1, b.x2]) {
+          if (cells[y][ex].features.some(f => f === 'door' || f === 'door_locked')) {
+            entranceDoor = { x: ex, y };
+          }
+        }
+      }
+      if (!entranceDoor) {
+        const doorX = b.x1 + Math.floor((b.x2 - b.x1) / 2);
+        cells[b.y2][doorX] = makeCell('wood', Infinity, true, ['door']);
+        entranceDoor = { x: doorX, y: b.y2 };
+      }
+
+      // Flood fill from entrance
+      const reachable = new Set<string>();
+      const queue: [number, number][] = [[entranceDoor.x, entranceDoor.y]];
+      while (queue.length > 0) {
+        const [fx, fy] = queue.shift()!;
+        const k = `${fx},${fy}`;
+        if (reachable.has(k)) continue;
+        if (fx < b.x1 || fx > b.x2 || fy < b.y1 || fy > b.y2) continue;
+        const c = cells[fy][fx];
+        if (c.terrain === 'wall' && !c.features.some(f => f === 'door' || f === 'door_locked')) continue;
+        reachable.add(k);
+        queue.push([fx + 1, fy], [fx - 1, fy], [fx, fy + 1], [fx, fy - 1]);
+      }
+
+      // Fix unreachable interior cells by punching doors through blocking walls
+      for (let y = b.y1 + 1; y < b.y2; y++) {
+        for (let x = b.x1 + 1; x < b.x2; x++) {
+          const c = cells[y][x];
+          if (c.terrain === 'wall' || c.features.some(f => f === 'door' || f === 'door_locked')) continue;
+          if (reachable.has(`${x},${y}`)) continue;
+
+          // Find adjacent wall between reachable and unreachable areas
+          for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+            const wx = x + dx, wy = y + dy;
+            if (wx < b.x1 || wx > b.x2 || wy < b.y1 || wy > b.y2) continue;
+            // Only punch through internal walls, not perimeter walls
+            if (wx === b.x1 || wx === b.x2 || wy === b.y1 || wy === b.y2) continue;
+            if (cells[wy][wx].terrain !== 'wall' || cells[wy][wx].features.length > 0) continue;
+
+            const ox = wx + dx, oy = wy + dy;
+            if (ox >= b.x1 && ox <= b.x2 && oy >= b.y1 && oy <= b.y2 && reachable.has(`${ox},${oy}`)) {
+              cells[wy][wx] = makeCell('wood', Infinity, true, ['door']);
+              // Re-flood from newly connected cell
+              const requeue: [number, number][] = [[x, y]];
+              while (requeue.length > 0) {
+                const [rx, ry] = requeue.shift()!;
+                const rk = `${rx},${ry}`;
+                if (reachable.has(rk)) continue;
+                if (rx < b.x1 || rx > b.x2 || ry < b.y1 || ry > b.y2) continue;
+                const rc = cells[ry][rx];
+                if (rc.terrain === 'wall' && !rc.features.some(f => f === 'door' || f === 'door_locked')) continue;
+                reachable.add(rk);
+                requeue.push([rx + 1, ry], [rx - 1, ry], [rx, ry + 1], [rx, ry - 1]);
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /** Repair a single perimeter cell to be a wall, unless it's a door. */
+  private repairWall(cells: GridCell[][], x: number, y: number): void {
+    const cell = cells[y][x];
+    if (cell.features.some(f => f === 'door' || f === 'door_locked')) return;
+    if (cell.terrain !== 'wall') {
+      cells[y][x] = wallCell();
     }
   }
 

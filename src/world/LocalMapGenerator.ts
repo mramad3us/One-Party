@@ -1465,11 +1465,25 @@ export class LocalMapGenerator {
 
     for (let step = 0; step < steps; step++) {
       if (x >= 0 && x < w && y >= 0 && y < h) {
-        cells[y][x] = floorCell(terrain);
+        // Never overwrite walls or doors — paths route around structures
+        const cell = cells[y][x];
+        if (cell.terrain !== 'wall' && !cell.features.some(f => f === 'door' || f === 'door_locked')) {
+          cells[y][x] = floorCell(terrain);
+        }
         // Path width
         if (pathWidth >= 2) {
-          if (x + 1 < w) cells[y][x + 1] = floorCell(terrain);
-          if (y + 1 < h) cells[y + 1][x] = floorCell(terrain);
+          if (x + 1 < w) {
+            const c2 = cells[y][x + 1];
+            if (c2.terrain !== 'wall' && !c2.features.some(f => f === 'door' || f === 'door_locked')) {
+              cells[y][x + 1] = floorCell(terrain);
+            }
+          }
+          if (y + 1 < h) {
+            const c3 = cells[y + 1][x];
+            if (c3.terrain !== 'wall' && !c3.features.some(f => f === 'door' || f === 'door_locked')) {
+              cells[y + 1][x] = floorCell(terrain);
+            }
+          }
         }
       }
 

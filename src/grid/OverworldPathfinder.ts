@@ -26,6 +26,20 @@ export function findOverworldPath(
   const key = (x: number, y: number) => y * width + x;
   const goalKey = key(goal.x, goal.y);
 
+  // Precompute the ideal straight-line direction for tie-breaking.
+  // We add a tiny cost based on perpendicular distance from the ideal line,
+  // so A* prefers paths that track the straight line instead of making L-shapes.
+  const ldx = goal.x - start.x;
+  const ldy = goal.y - start.y;
+  const lineLen = Math.sqrt(ldx * ldx + ldy * ldy) || 1;
+
+  /** Perpendicular distance from point (px,py) to the start→goal line, normalized to [0,1). */
+  function crossTrackCost(px: number, py: number): number {
+    const cross = Math.abs((px - start.x) * ldy - (py - start.y) * ldx) / lineLen;
+    // Scale down so it only breaks ties — never exceeds 1 step of real cost
+    return cross * 0.001;
+  }
+
   // Open set as sorted array (small maps, simple is fine)
   type Node = { x: number; y: number; g: number; f: number };
   const open: Node[] = [{ x: start.x, y: start.y, g: 0, f: heuristic(start, goal) }];
@@ -50,7 +64,6 @@ export function findOverworldPath(
 
     const currentKey = key(current.x, current.y);
     if (currentKey === goalKey) {
-      // Reconstruct path
       return { path: reconstructPath(cameFrom, currentKey, width), found: true };
     }
 
@@ -69,8 +82,8 @@ export function findOverworldPath(
       gScore.set(nKey, tentativeG);
       cameFrom.set(nKey, currentKey);
 
-      const f = tentativeG + heuristic({ x: nx, y: ny }, goal);
-      // Add to open (duplicates are fine — we check gScore)
+      // Tie-break: prefer nodes closer to the ideal straight line
+      const f = tentativeG + heuristic({ x: nx, y: ny }, goal) + crossTrackCost(nx, ny);
       open.push({ x: nx, y: ny, g: tentativeG, f });
     }
   }
