@@ -33,7 +33,8 @@ import type { EntityRenderInfo } from '@/grid/GridRenderer';
 import { TimeNarrator } from '@/narrative/TimeNarrator';
 import { Modal } from '@/ui/widgets/Modal';
 import { el } from '@/utils/dom';
-import type { SaveMeta } from '@/types';
+import type { SaveMeta, EquipmentSlots } from '@/types';
+import { EquipmentRules } from '@/rules/EquipmentRules';
 
 async function main(): Promise<void> {
   // 1. Initialize storage engine
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   let activeGameScreen: GameScreen | null = null;
   let activeRng: SeededRNG | null = null;
   const narrator = new TextNarrativeEngine();
+  const equipmentRules = new EquipmentRules();
 
   // 7. Register screens
   ui.registerScreen('menu', () => new MenuScreen(container, engine));
@@ -203,16 +205,106 @@ async function main(): Promise<void> {
     }
 
     if (screen === 'inventory' && activeInventoryScreen) {
-      const character = engine.entities.getAll<Character>('character')[0];
-      if (character) {
-        const itemMap = new Map<string, import('@/types').Item>();
-        for (const entry of character.inventory.items) {
-          const item = getItem(entry.itemId);
-          if (item) itemMap.set(item.id, item);
-        }
-        activeInventoryScreen.setInventory(character.inventory, itemMap);
-        activeInventoryScreen.setEquipment(character.equipment, itemMap);
+      refreshInventoryScreen(activeInventoryScreen);
+    }
+  });
+
+  /** Build a complete item map (inventory + equipped) and refresh the inventory screen. */
+  function refreshInventoryScreen(invScreen: InventoryScreen): void {
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+    const itemMap = new Map<string, import('@/types').Item>();
+    // Include inventory items
+    for (const entry of character.inventory.items) {
+      const item = getItem(entry.itemId);
+      if (item) itemMap.set(item.id, item);
+    }
+    // Include equipped items
+    for (const slotId of Object.values(character.equipment)) {
+      if (slotId) {
+        const item = getItem(slotId);
+        if (item) itemMap.set(item.id, item);
       }
+    }
+    invScreen.setInventory(character.inventory, itemMap);
+    invScreen.setEquipment(character.equipment, itemMap);
+  }
+
+  // ── Inventory interactions ──
+  engine.events.on('inventory:equip', (event) => {
+    const { itemId, slot } = event.data as { itemId: string; slot: keyof EquipmentSlots };
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+    const item = getItem(itemId);
+    if (!item) return;
+
+    // If slot is occupied, unequip first
+    if (character.equipment[slot] !== null) {
+      equipmentRules.unequip(character, slot);
+    }
+
+    const result = equipmentRules.equip(character, itemId, slot);
+    if (result.ok) {
+      // Refresh the inventory screen
+      const invScreen = activeInventoryScreen;
+      if (invScreen) refreshInventoryScreen(invScreen);
+      // Update game screen status
+      if (activeGameScreen) activeGameScreen.setCharacter(character);
+    }
+  });
+
+  engine.events.on('inventory:unequip', (event) => {
+    const { slot } = event.data as { slot: keyof EquipmentSlots };
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+
+    const result = equipmentRules.unequip(character, slot);
+    if (result.ok) {
+      const invScreen = activeInventoryScreen;
+      if (invScreen) refreshInventoryScreen(invScreen);
+      if (activeGameScreen) activeGameScreen.setCharacter(character);
+    }
+  });
+
+  engine.events.on('inventory:use', (event) => {
+    const { itemId } = event.data as { itemId: string };
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+    const item = getItem(itemId);
+    if (!item) return;
+
+    if (item.itemType === 'food' || item.itemType === 'drink') {
+      const props = item.properties as ConsumableProperties;
+      const hungerBefore = character.survival.hunger;
+      const thirstBefore = character.survival.thirst;
+      SurvivalRules.consume(character.survival, props);
+
+      // Remove from inventory
+      const invEntry = character.inventory.items.find(e => e.itemId === itemId);
+      if (invEntry) {
+        invEntry.quantity -= 1;
+        if (invEntry.quantity <= 0) {
+          character.inventory.items = character.inventory.items.filter(e => e.itemId !== itemId);
+        }
+      }
+
+      // Narrate
+      if (activeGameScreen) {
+        if (item.itemType === 'food') {
+          activeGameScreen.addNarrative(
+            SurvivalNarrator.describeEating(hungerBefore, character.survival.hunger, props.description),
+          );
+        } else {
+          activeGameScreen.addNarrative(
+            SurvivalNarrator.describeDrinking(thirstBefore, character.survival.thirst, props.description),
+          );
+        }
+        activeGameScreen.setCharacter(character);
+      }
+
+      // Refresh inventory
+      const invScreen = activeInventoryScreen;
+      if (invScreen) refreshInventoryScreen(invScreen);
     }
   });
 

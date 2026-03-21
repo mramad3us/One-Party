@@ -4,6 +4,9 @@
 
 .character-screen {
   z-index: var(--z-modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .character-dialog {
@@ -11,9 +14,9 @@
   border: 1px solid var(--border-gold);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg), var(--shadow-glow);
-  width: 90%;
-  max-width: 720px;
-  max-height: 85vh;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;

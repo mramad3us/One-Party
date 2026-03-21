@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 520" fill="none">
+  <defs>
+    <linearGradient id="body-glow" x1="100" y1="0" x2="100" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c8a84e" stop-opacity="0.25"/>
+      <stop offset="50%" stop-color="#c8a84e" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#c8a84e" stop-opacity="0.06"/>
+    </linearGradient>
+    <radialGradient id="core-glow" cx="100" cy="200" r="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c8a84e" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#c8a84e" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-glow">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Ambient core glow -->
+  <ellipse cx="100" cy="200" rx="60" ry="100" fill="url(#core-glow)"/>
+
+  <!-- ═══ HEAD ═══ -->
+  <!-- Skull shape — slightly angular, not a perfect circle -->
+  <path d="M 100 12
+    C 78 12, 68 28, 68 48
+    C 68 58, 72 66, 80 72
+    L 82 74 C 86 78, 92 80, 100 80
+    C 108 80, 114 78, 118 74
+    L 120 72 C 128 66, 132 58, 132 48
+    C 132 28, 122 12, 100 12 Z"
+    stroke="url(#body-glow)" stroke-width="1.2" opacity="0.7" filter="url(#soft-glow)"/>
+
+  <!-- Face details — brow ridge -->
+  <path d="M 78 38 Q 88 34, 100 36 Q 112 34, 122 38" stroke="#c8a84e" stroke-width="0.6" opacity="0.15"/>
+  <!-- Jaw line -->
+  <path d="M 82 74 Q 100 82, 118 74" stroke="#c8a84e" stroke-width="0.5" opacity="0.12"/>
+
+  <!-- ═══ NECK ═══ -->
+  <path d="M 90 80 L 88 98" stroke="url(#body-glow)" stroke-width="1" opacity="0.5"/>
+  <path d="M 110 80 L 112 98" stroke="url(#body-glow)" stroke-width="1" opacity="0.5"/>
+
+  <!-- ═══ SHOULDERS & UPPER BODY ═══ -->
+  <!-- Trapezius muscles -->
+  <path d="M 88 98 Q 82 100, 58 112 Q 42 120, 30 128"
+    stroke="url(#body-glow)" stroke-width="1.2" opacity="0.6" filter="url(#soft-glow)"/>
+  <path d="M 112 98 Q 118 100, 142 112 Q 158 120, 170 128"
+    stroke="url(#body-glow)" stroke-width="1.2" opacity="0.6" filter="url(#soft-glow)"/>
+
+  <!-- Shoulder caps — deltoid shape -->
+  <path d="M 30 128 Q 24 138, 26 152" stroke="url(#body-glow)" stroke-width="1.1" opacity="0.5"/>
+  <path d="M 170 128 Q 176 138, 174 152" stroke="url(#body-glow)" stroke-width="1.1" opacity="0.5"/>
+
+  <!-- ═══ TORSO ═══ -->
+  <!-- Outer contour — ribcage to waist taper -->
+  <path d="M 62 112 L 58 160 Q 56 190, 60 220 Q 62 240, 68 258"
+    stroke="url(#body-glow)" stroke-width="1.2" opacity="0.55"/>
+  <path d="M 138 112 L 142 160 Q 144 190, 140 220 Q 138 240, 132 258"
+    stroke="url(#body-glow)" stroke-width="1.2" opacity="0.55"/>
+
+  <!-- Chest musculature hints -->
+  <path d="M 72 120 Q 86 130, 100 128 Q 114 130, 128 120" stroke="#c8a84e" stroke-width="0.5" opacity="0.12"/>
+  <path d="M 74 132 Q 86 140, 100 138" stroke="#c8a84e" stroke-width="0.4" opacity="0.08"/>
+  <path d="M 126 132 Q 114 140, 100 138" stroke="#c8a84e" stroke-width="0.4" opacity="0.08"/>
+  <!-- Sternum line -->
+  <line x1="100" y1="110" x2="100" y2="175" stroke="#c8a84e" stroke-width="0.3" opacity="0.08"/>
+
+  <!-- Abdominal lines -->
+  <path d="M 82 170 Q 90 174, 100 172 Q 110 174, 118 170" stroke="#c8a84e" stroke-width="0.3" opacity="0.06"/>
+  <path d="M 84 188 Q 92 192, 100 190 Q 108 192, 116 188" stroke="#c8a84e" stroke-width="0.3" opacity="0.06"/>
+
+  <!-- ═══ ARMS ═══ -->
+  <!-- Upper arms (bicep contour) -->
+  <path d="M 26 152 Q 22 170, 20 190 Q 18 210, 16 225"
+    stroke="url(#body-glow)" stroke-width="1" opacity="0.45"/>
+  <path d="M 174 152 Q 178 170, 180 190 Q 182 210, 184 225"
+    stroke="url(#body-glow)" stroke-width="1" opacity="0.45"/>
+
+  <!-- Inner arm line -->
+  <path d="M 42 140 Q 36 165, 32 190 Q 30 210, 28 225"
+    stroke="#c8a84e" stroke-width="0.6" opacity="0.2"/>
+  <path d="M 158 140 Q 164 165, 168 190 Q 170 210, 172 225"
+    stroke="#c8a84e" stroke-width="0.6" opacity="0.2"/>
+
+  <!-- Forearms -->
+  <path d="M 16 225 Q 14 248, 12 268 Q 10 282, 10 295"
+    stroke="url(#body-glow)" stroke-width="0.9" opacity="0.35"/>
+  <path d="M 184 225 Q 186 248, 188 268 Q 190 282, 190 295"
+    stroke="url(#body-glow)" stroke-width="0.9" opacity="0.35"/>
+  <path d="M 28 225 Q 26 248, 24 268 Q 22 282, 22 295"
+    stroke="#c8a84e" stroke-width="0.5" opacity="0.15"/>
+  <path d="M 172 225 Q 174 248, 176 268 Q 178 282, 178 295"
+    stroke="#c8a84e" stroke-width="0.5" opacity="0.15"/>
+
+  <!-- ═══ HANDS ═══ -->
+  <path d="M 10 295 Q 6 305, 8 315 Q 10 322, 16 325 Q 22 322, 22 312 Q 22 302, 22 295"
+    stroke="url(#body-glow)" stroke-width="0.8" opacity="0.3"/>
+  <path d="M 190 295 Q 194 305, 192 315 Q 190 322, 184 325 Q 178 322, 178 312 Q 178 302, 178 295"
+    stroke="url(#body-glow)" stroke-width="0.8" opacity="0.3"/>
+  <!-- Fingers suggestion -->
+  <path d="M 10 315 L 6 324 M 12 318 L 8 328 M 16 318 L 14 328" stroke="#c8a84e" stroke-width="0.3" opacity="0.12"/>
+  <path d="M 190 315 L 194 324 M 188 318 L 192 328 M 184 318 L 186 328" stroke="#c8a84e" stroke-width="0.3" opacity="0.12"/>
+
+  <!-- ═══ WAIST / BELT LINE ═══ -->
+  <path d="M 68 258 Q 82 266, 100 268 Q 118 266, 132 258"
+    stroke="url(#body-glow)" stroke-width="1" opacity="0.5" filter="url(#soft-glow)"/>
+  <!-- Belt buckle hint -->
+  <rect x="94" y="260" width="12" height="8" rx="1" stroke="#c8a84e" stroke-width="0.5" opacity="0.15"/>
+
+  <!-- ═══ HIPS & UPPER LEGS ═══ -->
+  <path d="M 68 258 Q 66 275, 64 290 Q 62 310, 58 330"
+    stroke="url(#body-glow)" stroke-width="1.1" opacity="0.45"/>
+  <path d="M 132 258 Q 134 275, 136 290 Q 138 310, 142 330"
+    stroke="url(#body-glow)" stroke-width="1.1" opacity="0.45"/>
+  <!-- Inner thigh -->
+  <path d="M 86 268 Q 84 290, 80 310 Q 78 325, 76 340"
+    stroke="#c8a84e" stroke-width="0.5" opacity="0.15"/>
+  <path d="M 114 268 Q 116 290, 120 310 Q 122 325, 124 340"
+    stroke="#c8a84e" stroke-width="0.5" opacity="0.15"/>
+
+  <!-- ═══ KNEES ═══ -->
+  <ellipse cx="67" cy="345" rx="10" ry="8" stroke="#c8a84e" stroke-width="0.4" opacity="0.1"/>
+  <ellipse cx="133" cy="345" rx="10" ry="8" stroke="#c8a84e" stroke-width="0.4" opacity="0.1"/>
+
+  <!-- ═══ LOWER LEGS ═══ -->
+  <path d="M 58 330 Q 54 360, 52 390 Q 50 420, 46 445"
+    stroke="url(#body-glow)" stroke-width="1" opacity="0.38"/>
+  <path d="M 142 330 Q 146 360, 148 390 Q 150 420, 154 445"
+    stroke="url(#body-glow)" stroke-width="1" opacity="0.38"/>
+  <!-- Shin/calf inner -->
+  <path d="M 76 340 Q 72 370, 68 400 Q 64 425, 60 445"
+    stroke="#c8a84e" stroke-width="0.4" opacity="0.12"/>
+  <path d="M 124 340 Q 128 370, 132 400 Q 136 425, 140 445"
+    stroke="#c8a84e" stroke-width="0.4" opacity="0.12"/>
+
+  <!-- ═══ FEET ═══ -->
+  <path d="M 46 445 Q 42 455, 36 465 Q 30 472, 28 475 Q 32 480, 48 480 Q 58 478, 60 470 Q 62 460, 60 445"
+    stroke="url(#body-glow)" stroke-width="0.8" opacity="0.3"/>
+  <path d="M 154 445 Q 158 455, 164 465 Q 170 472, 172 475 Q 168 480, 152 480 Q 142 478, 140 470 Q 138 460, 140 445"
+    stroke="url(#body-glow)" stroke-width="0.8" opacity="0.3"/>
+</svg>

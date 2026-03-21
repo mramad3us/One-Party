@@ -28,10 +28,19 @@ const EQUIP_SLOT_ORDER: (keyof EquipmentSlots)[] = [
   'boots', 'ring2',
 ];
 
+/** Maps item types to their default equipment slot. */
+const ITEM_TYPE_TO_SLOT: Partial<Record<string, keyof EquipmentSlots>> = {
+  weapon: 'mainHand',
+  armor: 'armor',
+};
+
+/** Item types that can be consumed (used) rather than equipped. */
+const CONSUMABLE_TYPES = new Set(['food', 'drink', 'potion']);
+
 /**
- * Inventory management modal overlay.
- * Equipment slots (left) and inventory grid (right),
- * with item cards, tooltips, gold display, and encumbrance bar.
+ * Inventory management screen — fullscreen overlay.
+ * Equipment paperdoll (left) and inventory grid (right),
+ * with click-to-equip, click-to-use, and click-to-unequip interactions.
  */
 export class InventoryScreen extends Component {
   private equipmentEl!: HTMLElement;
@@ -41,6 +50,9 @@ export class InventoryScreen extends Component {
   private encumbranceFill!: HTMLElement;
   private encumbranceLabel!: HTMLElement;
   private itemCards: ItemCard[] = [];
+
+  // @ts-expect-error Reserved for future drag-and-drop interactions
+  private currentItems = new Map<EntityId, Item>();
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
@@ -115,6 +127,8 @@ export class InventoryScreen extends Component {
   }
 
   setInventory(inventory: Inventory, items: Map<EntityId, Item>): void {
+    this.currentItems = items;
+
     // Clear old item cards
     for (const card of this.itemCards) {
       card.destroy();
@@ -122,7 +136,7 @@ export class InventoryScreen extends Component {
     this.itemCards = [];
     this.inventoryGrid.innerHTML = '';
 
-    // Render inventory items
+    // Render inventory items with action buttons
     for (const entry of inventory.items) {
       const item = items.get(entry.itemId);
       if (!item) continue;
@@ -137,6 +151,36 @@ export class InventoryScreen extends Component {
       const card = new ItemCard(cardWrap, this.engine, item);
       this.addChild(card);
       this.itemCards.push(card);
+
+      // Action overlay on the card
+      const actions = el('div', { class: 'item-card-actions' });
+
+      if (CONSUMABLE_TYPES.has(item.itemType)) {
+        const useBtn = el('button', { class: 'btn btn-primary btn-sm item-action-btn' }, ['Use']);
+        useBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.engine.events.emit({
+            type: 'inventory:use',
+            category: 'character',
+            data: { itemId: item.id },
+          });
+        });
+        actions.appendChild(useBtn);
+      } else if (item.itemType === 'weapon' || item.itemType === 'armor') {
+        const equipBtn = el('button', { class: 'btn btn-primary btn-sm item-action-btn' }, ['Equip']);
+        equipBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.engine.events.emit({
+            type: 'inventory:equip',
+            category: 'character',
+            data: { itemId: item.id, slot: this.getDefaultSlot(item) },
+          });
+        });
+        actions.appendChild(equipBtn);
+      }
+
+      // Mount the card, then append actions into the card element
+      cardWrap.querySelector('.item-card')?.appendChild(actions);
       this.inventoryGrid.appendChild(cardWrap);
     }
 
@@ -161,6 +205,7 @@ export class InventoryScreen extends Component {
   }
 
   setEquipment(equipment: EquipmentSlots, items: Map<EntityId, Item>): void {
+    this.currentItems = items;
     this.equipmentEl.innerHTML = '';
 
     for (const slot of EQUIP_SLOT_ORDER) {
@@ -176,9 +221,19 @@ export class InventoryScreen extends Component {
           const rarityClass = `inventory-equip-item--${item.rarity}`;
           const itemEl = el('div', {
             class: `inventory-equip-item ${rarityClass}`,
-            'data-tooltip': `${item.name}\n${item.description}`,
+            'data-tooltip': `${item.name}\n${item.description}\nClick to unequip`,
           }, [item.name]);
           slotEl.appendChild(itemEl);
+
+          // Click to unequip
+          slotEl.classList.add('inventory-equip-slot--filled');
+          slotEl.addEventListener('click', () => {
+            this.engine.events.emit({
+              type: 'inventory:unequip',
+              category: 'character',
+              data: { slot },
+            });
+          });
         } else {
           slotEl.appendChild(el('div', { class: 'inventory-equip-empty' }, ['Empty']));
         }
@@ -188,6 +243,16 @@ export class InventoryScreen extends Component {
 
       this.equipmentEl.appendChild(slotEl);
     }
+  }
+
+  /** Determine the best equipment slot for an item. */
+  private getDefaultSlot(item: Item): keyof EquipmentSlots {
+    if (item.itemType === 'armor') {
+      const props = item.properties as { armorType?: string };
+      if (props.armorType === 'shield') return 'offHand';
+      return 'armor';
+    }
+    return ITEM_TYPE_TO_SLOT[item.itemType] ?? 'mainHand';
   }
 
   async close(): Promise<void> {
