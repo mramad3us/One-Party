@@ -4,6 +4,13 @@ import { Component } from '@/ui/Component';
 import { el } from '@/utils/dom';
 import { SRD_RACES, type RaceDefinition } from '@/data/races';
 import { SRD_CLASSES, type ClassDefinition } from '@/data/classes';
+import { isDevMode } from '@/utils/devmode';
+
+const QUICK_NAMES = [
+  'Aldric', 'Brunda', 'Cael', 'Dara', 'Elowen', 'Falk', 'Gideon',
+  'Hestia', 'Ivo', 'Jorin', 'Kael', 'Lyria', 'Maren', 'Nyx',
+  'Orin', 'Pip', 'Quillen', 'Rook', 'Sable', 'Theron', 'Vex', 'Wren',
+];
 
 const ABILITIES: Ability[] = [
   'strength', 'dexterity', 'constitution',
@@ -282,8 +289,65 @@ export class CreationScreen extends Component {
       grid.appendChild(option);
     }
 
+    // Dev mode: "Quick Character" card
+    if (isDevMode()) {
+      const quickCard = el('div', { class: 'creation-option creation-option--dev' });
+      quickCard.appendChild(el('div', { class: 'creation-option-name' }, ['\u26A1 Quick Character']));
+      quickCard.appendChild(el('div', { class: 'creation-option-desc' }, [
+        'Randomize everything and jump straight into the game. (Dev mode)',
+      ]));
+      const devBadge = el('div', { class: 'creation-option-detail' });
+      devBadge.appendChild(el('span', { class: 'badge' }, ['DEV']));
+      quickCard.appendChild(devBadge);
+
+      quickCard.addEventListener('click', () => this.quickCreateCharacter());
+      grid.appendChild(quickCard);
+    }
+
     panel.appendChild(grid);
     return panel;
+  }
+
+  /** Dev mode: randomize a character and skip to game. */
+  private quickCreateCharacter(): void {
+    const race = SRD_RACES[Math.floor(Math.random() * SRD_RACES.length)];
+    const cls = SRD_CLASSES[Math.floor(Math.random() * SRD_CLASSES.length)];
+    const name = QUICK_NAMES[Math.floor(Math.random() * QUICK_NAMES.length)];
+
+    // Roll 4d6-drop-lowest for each ability
+    const scores: Partial<AbilityScores> = {};
+    for (const ability of ABILITIES) {
+      const rolls = Array.from({ length: 4 }, () => Math.floor(Math.random() * 6) + 1);
+      rolls.sort((a, b) => a - b);
+      scores[ability] = rolls[1] + rolls[2] + rolls[3];
+    }
+
+    // Pick random skills from class options
+    const available = [...cls.skillChoices.from];
+    const chosen: Skill[] = [];
+    const needed = cls.skillChoices.choose;
+    for (let i = 0; i < needed && available.length > 0; i++) {
+      const idx = Math.floor(Math.random() * available.length);
+      chosen.push(available.splice(idx, 1)[0]);
+    }
+
+    this.engine.events.emit({
+      type: 'character:created',
+      category: 'character',
+      data: {
+        name,
+        race: race.id,
+        class: cls.id,
+        abilityScores: scores as AbilityScores,
+        skills: chosen,
+      },
+    });
+
+    this.engine.events.emit({
+      type: 'ui:navigate',
+      category: 'ui',
+      data: { screen: 'game', direction: 'left' },
+    });
   }
 
   private renderClassStep(): HTMLElement {

@@ -224,6 +224,22 @@
   flex-wrap: wrap;
 }
 
+/* ── Dev Quick Character ── */
+.creation-option--dev {
+  border-color: rgba(100, 180, 255, 0.2);
+  border-style: dashed;
+  background: linear-gradient(135deg, rgba(100, 180, 255, 0.04) 0%, var(--bg-dark) 100%);
+}
+
+.creation-option--dev:hover {
+  border-color: rgba(100, 180, 255, 0.4);
+  background: linear-gradient(135deg, rgba(100, 180, 255, 0.08) 0%, var(--bg-dark) 100%);
+}
+
+.creation-option--dev .creation-option-name {
+  color: #7ab8f0;
+}
+
 /* ── Ability Scores ── */
 .ability-scores-grid {
   display: grid;
