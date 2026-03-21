@@ -1,47 +1,72 @@
 import type { GameEngine } from '@/engine/GameEngine';
-import type { EntityId, Region, Location, LocationType } from '@/types';
+import type { OverworldData, OverworldTerrain, SettlementType } from '@/types/overworld';
 import { Component } from '@/ui/Component';
-import { IconSystem } from '@/ui/IconSystem';
-import { TooltipSystem } from '@/ui/TooltipSystem';
 import { el } from '@/utils/dom';
+import { isTraversable, getTerrainName } from '@/world/OverworldBridge';
 
-const LOCATION_SYMBOLS: Record<LocationType, string> = {
-  village: '\u2302',    // house
-  town: '\u2302',
-  city: '\u265C',       // rook (castle)
-  dungeon: '\u2620',    // skull
-  wilderness: '\u2663', // tree/club
-  ruins: '\u2609',      // sun/circle
-  castle: '\u265C',
-  cave: '\u25CF',       // filled circle
-  temple: '\u2719',     // cross
-  camp: '\u2605',       // star
+// ── Terrain colors (shared with WorldCreationScreen) ──
+
+const TERRAIN_COLORS: Record<OverworldTerrain, string> = {
+  deep_water:    '#0f2942',
+  shallow_water: '#1a4a70',
+  beach:         '#c8b060',
+  plains:        '#4a7a2a',
+  forest:        '#2a5a1a',
+  dense_forest:  '#1a3a10',
+  hills:         '#8a7a4a',
+  mountain:      '#6a6a6a',
+  peak:          '#d0d0d0',
+  snow:          '#c8d8e0',
+  desert:        '#c8a848',
+  swamp:         '#3a4a20',
+  tundra:        '#8a9aa0',
+  volcanic:      '#6a2218',
 };
 
-const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
+const SETTLEMENT_COLORS: Record<SettlementType, string> = {
+  village:  '#e8d040',
+  town:     '#f0c020',
+  city:     '#ffffff',
+  fortress: '#a0a0a0',
+  ruins:    '#8a6a3a',
+  temple:   '#d0b8ff',
+};
+
+const RIVER_COLOR = '#2a6aaa';
+const PLAYER_COLOR = '#ff4444';
+const PLAYER_GLOW = 'rgba(255, 68, 68, 0.5)';
+
+const SETTLEMENT_LABELS: Record<SettlementType, string> = {
   village: 'Village',
   town: 'Town',
   city: 'City',
-  dungeon: 'Dungeon',
-  wilderness: 'Wilderness',
+  fortress: 'Fortress',
   ruins: 'Ruins',
-  castle: 'Castle',
-  cave: 'Cave',
   temple: 'Temple',
-  camp: 'Camp',
 };
 
 /**
- * World map panel with node-based region visualization.
- * Clicking a location opens a detail tile showing what the party knows,
- * with a "Travel" button to move there.
+ * Overworld map panel — canvas-based pixel map replacing the old SVG node-link graph.
+ * Shows the full overworld with terrain colors, settlements, rivers, and player position.
+ * Tiles are clickable for details and travel.
  */
 export class MapPanel extends Component {
-  private svgEl!: SVGSVGElement;
+  private canvas!: HTMLCanvasElement;
   private detailEl!: HTMLElement;
-  private currentRegion: Region | null = null;
-  private currentLocationId: EntityId | null = null;
-  private selectedLocationId: EntityId | null = null;
+  private regionNameEl!: HTMLElement;
+  private overworld: OverworldData | null = null;
+  private playerPos: { x: number; y: number } | null = null;
+  private cursorPos: { x: number; y: number } | null = null;
+  private selectedTile: { x: number; y: number } | null = null;
+  private scale = 3; // pixels per tile
+  private offsetX = 0;
+  private offsetY = 0;
+  private isDragging = false;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private dragStartOffsetX = 0;
+  private dragStartOffsetY = 0;
+  private active = false;
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
@@ -52,22 +77,21 @@ export class MapPanel extends Component {
 
     // Header
     const header = el('div', { class: 'map-header' });
-    const icon = IconSystem.icon('compass');
-    header.appendChild(icon);
-    header.appendChild(el('span', { class: 'map-header-title font-heading' }, ['Map']));
+    header.appendChild(el('span', { class: 'map-header-title font-heading' }, ['World Map']));
     wrapper.appendChild(header);
 
-    // Region name
-    const regionName = el('div', { class: 'map-region-name' });
-    wrapper.appendChild(regionName);
+    // Region name display
+    this.regionNameEl = el('div', { class: 'map-region-name' });
+    wrapper.appendChild(this.regionNameEl);
 
-    // SVG map area
-    this.svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    this.svgEl.setAttribute('class', 'map-svg');
-    this.svgEl.setAttribute('viewBox', '0 0 200 200');
-    wrapper.appendChild(this.svgEl);
+    // Canvas container
+    const canvasWrap = el('div', { class: 'map-canvas-wrap' });
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'map-canvas';
+    canvasWrap.appendChild(this.canvas);
+    wrapper.appendChild(canvasWrap);
 
-    // Location detail tile (hidden by default)
+    // Detail panel (shown on tile click)
     this.detailEl = el('div', { class: 'map-detail map-detail--hidden' });
     wrapper.appendChild(this.detailEl);
 
@@ -75,81 +99,358 @@ export class MapPanel extends Component {
   }
 
   protected setupEvents(): void {
-    TooltipSystem.getInstance().registerContainer(this.el);
+    // Click on canvas → select tile
+    this.listen(this.canvas, 'click', (e: Event) => {
+      const me = e as MouseEvent;
+      if (this.isDragging) return;
+      const tile = this.canvasToTile(me.offsetX, me.offsetY);
+      if (tile) {
+        if (this.selectedTile && this.selectedTile.x === tile.x && this.selectedTile.y === tile.y) {
+          this.hideDetail();
+        } else {
+          this.showDetail(tile.x, tile.y);
+        }
+      }
+    });
+
+    // Drag to pan
+    this.listen(this.canvas, 'mousedown', (e: Event) => {
+      const me = e as MouseEvent;
+      this.isDragging = false;
+      this.dragStartX = me.clientX;
+      this.dragStartY = me.clientY;
+      this.dragStartOffsetX = this.offsetX;
+      this.dragStartOffsetY = this.offsetY;
+
+      const onMove = (e2: MouseEvent) => {
+        const dx = e2.clientX - this.dragStartX;
+        const dy = e2.clientY - this.dragStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+          this.isDragging = true;
+        }
+        this.offsetX = this.dragStartOffsetX + dx;
+        this.offsetY = this.dragStartOffsetY + dy;
+        this.renderMap();
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        // Reset isDragging after a tick so click handler can check it
+        setTimeout(() => { this.isDragging = false; }, 0);
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    // Scroll to zoom
+    this.listen(this.canvas, 'wheel', (e: Event) => {
+      const we = e as WheelEvent;
+      we.preventDefault();
+      const oldScale = this.scale;
+      const delta = we.deltaY > 0 ? -0.5 : 0.5;
+      this.scale = Math.max(1, Math.min(8, this.scale + delta));
+
+      // Zoom toward cursor
+      if (this.scale !== oldScale) {
+        const rect = this.canvas.getBoundingClientRect();
+        const cx = we.clientX - rect.left;
+        const cy = we.clientY - rect.top;
+        const ratio = this.scale / oldScale;
+        this.offsetX = cx - (cx - this.offsetX) * ratio;
+        this.offsetY = cy - (cy - this.offsetY) * ratio;
+      }
+
+      this.renderMap();
+    });
   }
 
-  setRegion(region: Region): void {
-    this.currentRegion = region;
+  /** Set the overworld data to render. */
+  setOverworld(overworld: OverworldData): void {
+    this.overworld = overworld;
+    this.regionNameEl.textContent = overworld.name;
+    this.calculateInitialView();
+    this.renderMap();
+  }
 
-    const nameEl = this.$('.map-region-name');
-    if (nameEl) {
-      nameEl.textContent = region.name;
+  /** Set the player's current overworld position. */
+  setPlayerPosition(x: number, y: number): void {
+    this.playerPos = { x, y };
+    // Initialize cursor at player position
+    if (!this.cursorPos) {
+      this.cursorPos = { x, y };
+    }
+    this.renderMap();
+  }
+
+  /** Activate the map (call when overlay opens). */
+  activate(): void {
+    if (this.active) return;
+    this.active = true;
+
+    // Reset cursor to player position
+    if (this.playerPos) {
+      this.cursorPos = { ...this.playerPos };
+      this.showDetail(this.cursorPos.x, this.cursorPos.y);
     }
 
-    this.selectedLocationId = null;
+    this.renderMap();
+  }
+
+  /** Deactivate the map (call when overlay closes). */
+  deactivate(): void {
+    this.active = false;
+  }
+
+  /** Handle cursor movement from KeyboardInput events. */
+  moveCursor(dx: number, dy: number): void {
+    if (!this.overworld || !this.cursorPos) return;
+    const nx = Math.max(0, Math.min(this.overworld.width - 1, this.cursorPos.x + dx));
+    const ny = Math.max(0, Math.min(this.overworld.height - 1, this.cursorPos.y + dy));
+    this.cursorPos = { x: nx, y: ny };
+    this.showDetail(nx, ny);
+    this.scrollCursorIntoView();
+  }
+
+  /** Handle travel command from KeyboardInput events. */
+  travelToCursor(): void {
+    if (!this.overworld || !this.cursorPos) return;
+    if (!this.isAdjacentToPlayer(this.cursorPos.x, this.cursorPos.y)) return;
+
+    const tile = this.overworld.tiles[this.cursorPos.y][this.cursorPos.x];
+    if (!isTraversable(tile.terrain)) return;
+
+    this.engine.events.emit({
+      type: 'overworld:travel',
+      category: 'ui',
+      data: { x: this.cursorPos.x, y: this.cursorPos.y },
+    });
     this.hideDetail();
+  }
+
+  /** Scroll the view so the cursor is visible. */
+  private scrollCursorIntoView(): void {
+    if (!this.cursorPos) return;
+    const cx = this.offsetX + this.cursorPos.x * this.scale + this.scale / 2;
+    const cy = this.offsetY + this.cursorPos.y * this.scale + this.scale / 2;
+    const margin = 40;
+
+    let moved = false;
+    if (cx < margin) { this.offsetX += margin - cx; moved = true; }
+    if (cx > this.canvas.width - margin) { this.offsetX -= cx - (this.canvas.width - margin); moved = true; }
+    if (cy < margin) { this.offsetY += margin - cy; moved = true; }
+    if (cy > this.canvas.height - margin) { this.offsetY -= cy - (this.canvas.height - margin); moved = true; }
+
+    if (moved) this.renderMap();
+  }
+
+  /** Center the map view on the player. Also resizes canvas to fit container. */
+  centerOnPlayer(): void {
+    if (!this.playerPos || !this.overworld) return;
+
+    // Resize canvas to match current container size
+    const container = this.canvas.parentElement;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        this.canvas.width = rect.width;
+        this.canvas.height = rect.height;
+      }
+    }
+
+    const cw = this.canvas.width;
+    const ch = this.canvas.height;
+    this.offsetX = cw / 2 - this.playerPos.x * this.scale - this.scale / 2;
+    this.offsetY = ch / 2 - this.playerPos.y * this.scale - this.scale / 2;
     this.renderMap();
   }
 
-  setCurrentLocation(locationId: EntityId): void {
-    this.currentLocationId = locationId;
-    this.renderMap();
-    // If the selected location is now current, refresh detail
-    if (this.selectedLocationId) {
-      this.showDetail(this.selectedLocationId);
+  // ── Legacy API compatibility (called from GameScreen.setGameState) ──
+
+  setRegion(): void {
+    // No-op: overworld map doesn't use region-based rendering
+  }
+
+  setCurrentLocation(): void {
+    // No-op: use setPlayerPosition instead
+  }
+
+  highlightPath(): void {
+    // No-op
+  }
+
+  // ── Rendering ──
+
+  private calculateInitialView(): void {
+    if (!this.overworld) return;
+
+    // Size canvas to fill container
+    const container = this.canvas.parentElement;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const cw = Math.max(400, rect.width || 600);
+    const ch = Math.max(300, rect.height || 400);
+    this.canvas.width = cw;
+    this.canvas.height = ch;
+
+    // Fit the map to the canvas
+    const scaleX = cw / this.overworld.width;
+    const scaleY = ch / this.overworld.height;
+    this.scale = Math.max(1, Math.min(8, Math.floor(Math.min(scaleX, scaleY))));
+
+    // Center
+    const mapW = this.overworld.width * this.scale;
+    const mapH = this.overworld.height * this.scale;
+    this.offsetX = (cw - mapW) / 2;
+    this.offsetY = (ch - mapH) / 2;
+  }
+
+  private renderMap(): void {
+    if (!this.overworld) return;
+
+    const ctx = this.canvas.getContext('2d');
+    if (!ctx) return;
+
+    const cw = this.canvas.width;
+    const ch = this.canvas.height;
+
+    // Clear
+    ctx.fillStyle = '#080808';
+    ctx.fillRect(0, 0, cw, ch);
+
+    const ow = this.overworld.width;
+    const oh = this.overworld.height;
+    const s = this.scale;
+
+    // Compute visible tile range
+    const startX = Math.max(0, Math.floor(-this.offsetX / s));
+    const startY = Math.max(0, Math.floor(-this.offsetY / s));
+    const endX = Math.min(ow, Math.ceil((cw - this.offsetX) / s));
+    const endY = Math.min(oh, Math.ceil((ch - this.offsetY) / s));
+
+    // Draw terrain tiles
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        const tile = this.overworld.tiles[y][x];
+        let color = TERRAIN_COLORS[tile.terrain] ?? '#333333';
+
+        // River override
+        if (tile.river && tile.terrain !== 'deep_water' && tile.terrain !== 'shallow_water') {
+          color = RIVER_COLOR;
+        }
+
+        ctx.fillStyle = color;
+        ctx.fillRect(
+          this.offsetX + x * s,
+          this.offsetY + y * s,
+          s, s,
+        );
+
+        // Settlement dot
+        if (tile.settlement && s >= 2) {
+          ctx.fillStyle = SETTLEMENT_COLORS[tile.settlement] ?? '#ffffff';
+          const dotSize = Math.max(2, s);
+          const offset = (s - dotSize) / 2;
+          ctx.fillRect(
+            this.offsetX + x * s + offset,
+            this.offsetY + y * s + offset,
+            dotSize, dotSize,
+          );
+        }
+      }
+    }
+
+    // Draw cursor (keyboard selection)
+    if (this.cursorPos && this.active) {
+      const cx = this.offsetX + this.cursorPos.x * s;
+      const cy = this.offsetY + this.cursorPos.y * s;
+
+      // Pulsing cursor border
+      ctx.strokeStyle = '#c8a84e';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx - 1, cy - 1, s + 2, s + 2);
+
+      // Inner highlight
+      ctx.fillStyle = 'rgba(200, 168, 78, 0.15)';
+      ctx.fillRect(cx, cy, s, s);
+    }
+
+    // Draw selected tile highlight (mouse click, only when no keyboard cursor)
+    if (this.selectedTile && !this.active) {
+      const sx = this.offsetX + this.selectedTile.x * s;
+      const sy = this.offsetY + this.selectedTile.y * s;
+      ctx.strokeStyle = '#c8a84e';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(sx - 1, sy - 1, s + 2, s + 2);
+    }
+
+    // Draw player position
+    if (this.playerPos) {
+      const px = this.offsetX + this.playerPos.x * s + s / 2;
+      const py = this.offsetY + this.playerPos.y * s + s / 2;
+      const r = Math.max(3, s * 0.6);
+
+      // Glow
+      ctx.beginPath();
+      ctx.arc(px, py, r + 2, 0, Math.PI * 2);
+      ctx.fillStyle = PLAYER_GLOW;
+      ctx.fill();
+
+      // Dot
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fillStyle = PLAYER_COLOR;
+      ctx.fill();
+
+      // Border
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
     }
   }
 
-  highlightPath(locationIds: EntityId[]): void {
-    const existing = this.svgEl.querySelectorAll('.map-path-highlight');
-    existing.forEach((el) => el.remove());
+  // ── Tile ↔ Canvas coordinate mapping ──
 
-    if (!this.currentRegion || locationIds.length < 2) return;
+  private canvasToTile(canvasX: number, canvasY: number): { x: number; y: number } | null {
+    if (!this.overworld) return null;
 
-    const locations = Array.from(this.currentRegion.locations.values());
-    const posMap = this.computePositions(locations);
+    const tileX = Math.floor((canvasX - this.offsetX) / this.scale);
+    const tileY = Math.floor((canvasY - this.offsetY) / this.scale);
 
-    for (let i = 0; i < locationIds.length - 1; i++) {
-      const from = posMap.get(locationIds[i]);
-      const to = posMap.get(locationIds[i + 1]);
-      if (!from || !to) continue;
-
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', String(from.x));
-      line.setAttribute('y1', String(from.y));
-      line.setAttribute('x2', String(to.x));
-      line.setAttribute('y2', String(to.y));
-      line.setAttribute('class', 'map-path-highlight');
-      this.svgEl.insertBefore(line, this.svgEl.firstChild);
+    if (tileX < 0 || tileX >= this.overworld.width || tileY < 0 || tileY >= this.overworld.height) {
+      return null;
     }
+    return { x: tileX, y: tileY };
   }
 
-  // ── Detail Tile ──
+  // ── Detail Panel ──
 
-  private showDetail(locationId: EntityId): void {
-    if (!this.currentRegion) return;
-    const loc = this.currentRegion.locations.get(locationId);
-    if (!loc) return;
+  private showDetail(x: number, y: number): void {
+    if (!this.overworld) return;
+    const tile = this.overworld.tiles[y][x];
 
-    this.selectedLocationId = locationId;
+    this.selectedTile = { x, y };
     this.detailEl.innerHTML = '';
     this.detailEl.classList.remove('map-detail--hidden');
 
-    const isCurrent = locationId === this.currentLocationId;
-    const isConnected = this.isConnectedToCurrent(locationId);
+    const isPlayerHere = this.playerPos?.x === x && this.playerPos?.y === y;
+    const isAdjacent = this.isAdjacentToPlayer(x, y);
+    const traversable = isTraversable(tile.terrain);
 
-    // Header with symbol and name
+    // Header
     const header = el('div', { class: 'map-detail-header' });
-    const symbol = el('span', { class: 'map-detail-symbol' }, [
-      LOCATION_SYMBOLS[loc.locationType] ?? '\u25CF',
-    ]);
-    header.appendChild(symbol);
 
-    if (loc.discovered) {
-      header.appendChild(el('span', { class: 'map-detail-name font-heading' }, [loc.name]));
-    } else {
-      header.appendChild(el('span', { class: 'map-detail-name map-detail-name--unknown font-heading' }, ['Unknown Place']));
-    }
+    // Color swatch
+    const swatch = el('span', { class: 'map-detail-swatch' });
+    swatch.style.backgroundColor = TERRAIN_COLORS[tile.terrain];
+    header.appendChild(swatch);
+
+    // Name
+    const name = tile.settlement && tile.settlementName
+      ? tile.settlementName
+      : getTerrainName(tile.terrain);
+    header.appendChild(el('span', { class: 'map-detail-name font-heading' }, [name]));
 
     // Close button
     const closeBtn = el('button', { class: 'map-detail-close btn btn-ghost' }, ['\u2715']);
@@ -161,236 +462,78 @@ export class MapPanel extends Component {
     this.detailEl.appendChild(header);
 
     // Type badge
-    const typeBadge = el('div', { class: 'map-detail-type font-mono' }, [
-      LOCATION_TYPE_LABELS[loc.locationType] ?? loc.locationType,
-    ]);
-    if (isCurrent) {
+    const typeLabel = tile.settlement
+      ? SETTLEMENT_LABELS[tile.settlement]
+      : getTerrainName(tile.terrain);
+    const typeBadge = el('div', { class: 'map-detail-type font-mono' }, [typeLabel]);
+    if (isPlayerHere) {
       typeBadge.appendChild(el('span', { class: 'map-detail-current-badge' }, [' \u2022 You are here']));
     }
     this.detailEl.appendChild(typeBadge);
 
-    // Description (only if discovered)
-    if (loc.discovered) {
+    // Coordinates
+    this.detailEl.appendChild(
+      el('div', { class: 'map-detail-coords font-mono' }, [`(${x}, ${y})`]),
+    );
+
+    // Region info
+    const owRegion = this.overworld.regions.find(r => r.id === tile.regionId);
+    if (owRegion) {
       this.detailEl.appendChild(
-        el('div', { class: 'map-detail-desc' }, [loc.description]),
-      );
-
-      // Known sub-locations
-      const knownSubs = Array.from(loc.subLocations.values()).filter(s => s.discovered);
-      if (knownSubs.length > 0) {
-        const subsSection = el('div', { class: 'map-detail-section' });
-        subsSection.appendChild(el('div', { class: 'map-detail-section-title font-mono' }, ['Known Places']));
-        for (const sub of knownSubs) {
-          subsSection.appendChild(el('div', { class: 'map-detail-sub font-mono' }, [
-            `\u2022 ${sub.name} (${sub.subType})`,
-          ]));
-        }
-        this.detailEl.appendChild(subsSection);
-      }
-
-      // Connected locations
-      const connectedLocs = loc.connections
-        .map(id => this.currentRegion!.locations.get(id))
-        .filter((l): l is Location => l != null);
-
-      if (connectedLocs.length > 0) {
-        const connSection = el('div', { class: 'map-detail-section' });
-        connSection.appendChild(el('div', { class: 'map-detail-section-title font-mono' }, ['Connected To']));
-        for (const conn of connectedLocs) {
-          const connName = conn.discovered ? conn.name : '???';
-          connSection.appendChild(el('div', { class: 'map-detail-sub font-mono' }, [
-            `\u2022 ${connName}`,
-          ]));
-        }
-        this.detailEl.appendChild(connSection);
-      }
-
-      // Last visited
-      if (loc.lastVisited) {
-        this.detailEl.appendChild(
-          el('div', { class: 'map-detail-visited font-mono' }, ['Previously visited']),
-        );
-      }
-
-      // Tags
-      if (loc.tags.length > 0) {
-        const tagsEl = el('div', { class: 'map-detail-tags' });
-        for (const tag of loc.tags) {
-          tagsEl.appendChild(el('span', { class: 'map-detail-tag badge' }, [tag]));
-        }
-        this.detailEl.appendChild(tagsEl);
-      }
-    } else {
-      // Undiscovered — mysterious description
-      this.detailEl.appendChild(
-        el('div', { class: 'map-detail-desc map-detail-desc--unknown' }, [
-          'This place remains shrouded in mystery. Perhaps the road will reveal its secrets in time.',
-        ]),
+        el('div', { class: 'map-detail-sub font-mono' }, [`Region: ${owRegion.name}`]),
       );
     }
 
-    // Travel button (only if not current and reachable)
-    if (!isCurrent && isConnected) {
+    // Tile properties
+    if (tile.river) {
+      this.detailEl.appendChild(
+        el('div', { class: 'map-detail-sub font-mono' }, ['\u2022 River flows through here']),
+      );
+    }
+
+    // Travel button
+    if (!isPlayerHere && isAdjacent && traversable) {
       const travelBtn = el('button', { class: 'btn btn-primary map-detail-travel' }, [
-        `Travel to ${loc.discovered ? loc.name : 'this place'}`,
+        `Travel to ${name}`,
       ]);
       travelBtn.addEventListener('click', () => {
         this.engine.events.emit({
-          type: 'map:travel',
+          type: 'overworld:travel',
           category: 'ui',
-          data: { locationId },
+          data: { x, y },
         });
         this.hideDetail();
       });
       this.detailEl.appendChild(travelBtn);
-    } else if (!isCurrent && !isConnected) {
+    } else if (!isPlayerHere && !isAdjacent) {
       this.detailEl.appendChild(
         el('div', { class: 'map-detail-unreachable font-mono' }, [
-          'No direct path from your current location.',
+          'Too far — travel to an adjacent tile first.',
+        ]),
+      );
+    } else if (!traversable && !isPlayerHere) {
+      this.detailEl.appendChild(
+        el('div', { class: 'map-detail-unreachable font-mono' }, [
+          'This terrain is impassable on foot.',
         ]),
       );
     }
+
+    this.renderMap();
   }
 
   private hideDetail(): void {
-    this.selectedLocationId = null;
+    this.selectedTile = null;
     this.detailEl.classList.add('map-detail--hidden');
     this.detailEl.innerHTML = '';
-    this.renderMap(); // Deselect visual highlight
+    this.renderMap();
   }
 
-  private isConnectedToCurrent(locationId: EntityId): boolean {
-    if (!this.currentRegion || !this.currentLocationId) return false;
-    const currentLoc = this.currentRegion.locations.get(this.currentLocationId);
-    if (!currentLoc) return false;
-    return currentLoc.connections.includes(locationId);
-  }
-
-  // ── Rendering ──
-
-  private renderMap(): void {
-    while (this.svgEl.firstChild) {
-      this.svgEl.removeChild(this.svgEl.firstChild);
-    }
-
-    if (!this.currentRegion) return;
-
-    const locations = Array.from(this.currentRegion.locations.values());
-    const posMap = this.computePositions(locations);
-
-    // Draw connections first (behind nodes)
-    for (const loc of locations) {
-      if (!loc.discovered) continue;
-      const from = posMap.get(loc.id);
-      if (!from) continue;
-
-      for (const connId of loc.connections) {
-        const to = posMap.get(connId);
-        if (!to) continue;
-
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', String(from.x));
-        line.setAttribute('y1', String(from.y));
-        line.setAttribute('x2', String(to.x));
-        line.setAttribute('y2', String(to.y));
-        line.setAttribute('class', 'map-connection');
-        this.svgEl.appendChild(line);
-      }
-    }
-
-    // Draw location nodes
-    for (const loc of locations) {
-      const pos = posMap.get(loc.id);
-      if (!pos) continue;
-
-      const isCurrent = loc.id === this.currentLocationId;
-      const isSelected = loc.id === this.selectedLocationId;
-      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-
-      let cls = 'map-node';
-      if (isCurrent) cls += ' map-node--current';
-      if (isSelected) cls += ' map-node--selected';
-      if (!loc.discovered) cls += ' map-node--hidden';
-      group.setAttribute('class', cls);
-      group.style.cursor = 'pointer';
-
-      // Click handler
-      group.addEventListener('click', () => {
-        if (this.selectedLocationId === loc.id) {
-          this.hideDetail();
-        } else {
-          this.showDetail(loc.id);
-          this.renderMap(); // Re-render to update selected highlight
-          this.showDetail(loc.id); // Re-show since renderMap clears it visually
-        }
-      });
-
-      // Node circle
-      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      circle.setAttribute('cx', String(pos.x));
-      circle.setAttribute('cy', String(pos.y));
-      circle.setAttribute('r', isCurrent ? '10' : isSelected ? '10' : '8');
-      let circleClass = 'map-node-circle';
-      if (isCurrent) circleClass += ' map-node-circle--current';
-      if (isSelected) circleClass += ' map-node-circle--selected';
-      circle.setAttribute('class', circleClass);
-      group.appendChild(circle);
-
-      // Location symbol
-      if (loc.discovered) {
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', String(pos.x));
-        text.setAttribute('y', String(pos.y + 1));
-        text.setAttribute('class', 'map-node-symbol');
-        text.textContent = LOCATION_SYMBOLS[loc.locationType] ?? '\u25CF';
-        group.appendChild(text);
-      } else {
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', String(pos.x));
-        text.setAttribute('y', String(pos.y + 1));
-        text.setAttribute('class', 'map-node-symbol map-node-symbol--hidden');
-        text.textContent = '?';
-        group.appendChild(text);
-      }
-
-      // Location name label (for discovered)
-      if (loc.discovered) {
-        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        label.setAttribute('x', String(pos.x));
-        label.setAttribute('y', String(pos.y + (isCurrent ? 18 : 16)));
-        label.setAttribute('class', 'map-node-label');
-        label.textContent = loc.name;
-        group.appendChild(label);
-      }
-
-      this.svgEl.appendChild(group);
-    }
-  }
-
-  private computePositions(locations: Location[]): Map<EntityId, { x: number; y: number }> {
-    const posMap = new Map<EntityId, { x: number; y: number }>();
-    const padding = 25;
-    const size = 200 - padding * 2;
-
-    if (locations.length === 0) return posMap;
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const loc of locations) {
-      minX = Math.min(minX, loc.coordinates.x);
-      minY = Math.min(minY, loc.coordinates.y);
-      maxX = Math.max(maxX, loc.coordinates.x);
-      maxY = Math.max(maxY, loc.coordinates.y);
-    }
-
-    const rangeX = maxX - minX || 1;
-    const rangeY = maxY - minY || 1;
-
-    for (const loc of locations) {
-      const x = padding + ((loc.coordinates.x - minX) / rangeX) * size;
-      const y = padding + ((loc.coordinates.y - minY) / rangeY) * size;
-      posMap.set(loc.id, { x, y });
-    }
-
-    return posMap;
+  private isAdjacentToPlayer(x: number, y: number): boolean {
+    if (!this.playerPos) return false;
+    const dx = Math.abs(x - this.playerPos.x);
+    const dy = Math.abs(y - this.playerPos.y);
+    // 8-directional adjacency
+    return dx <= 1 && dy <= 1 && !(dx === 0 && dy === 0);
   }
 }

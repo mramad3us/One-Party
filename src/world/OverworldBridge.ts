@@ -6,7 +6,7 @@ import type {
   World,
 } from '@/types';
 import type { BiomeType } from '@/types/world';
-import type { OverworldData, OverworldRegion, SettlementType } from '@/types/overworld';
+import type { OverworldData, OverworldRegion, OverworldTerrain, SettlementType } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { generateId } from '@/engine/IdGenerator';
 import { WorldGenerator } from './WorldGenerator';
@@ -219,4 +219,149 @@ function findAdjacentRegions(
   }
 
   return [...adjacent];
+}
+
+// ── Terrain → LocationType mapping for non-settlement tiles ──────────
+
+const TERRAIN_TO_LOCATION_TYPE: Record<OverworldTerrain, LocationType> = {
+  deep_water: 'wilderness',
+  shallow_water: 'wilderness',
+  beach: 'wilderness',
+  plains: 'wilderness',
+  forest: 'wilderness',
+  dense_forest: 'wilderness',
+  hills: 'wilderness',
+  mountain: 'cave',
+  peak: 'wilderness',
+  snow: 'wilderness',
+  desert: 'wilderness',
+  swamp: 'wilderness',
+  tundra: 'wilderness',
+  volcanic: 'wilderness',
+};
+
+const TERRAIN_TO_BIOME: Record<OverworldTerrain, BiomeType> = {
+  deep_water: 'coast',
+  shallow_water: 'coast',
+  beach: 'coast',
+  plains: 'plains',
+  forest: 'forest',
+  dense_forest: 'forest',
+  hills: 'mountain',
+  mountain: 'mountain',
+  peak: 'mountain',
+  snow: 'tundra',
+  desert: 'desert',
+  swamp: 'swamp',
+  tundra: 'tundra',
+  volcanic: 'volcanic',
+};
+
+const TERRAIN_NAMES: Record<OverworldTerrain, string> = {
+  deep_water: 'Open Sea',
+  shallow_water: 'Coastal Waters',
+  beach: 'Sandy Shore',
+  plains: 'Open Plains',
+  forest: 'Woodland',
+  dense_forest: 'Dense Forest',
+  hills: 'Rolling Hills',
+  mountain: 'Mountain Pass',
+  peak: 'Mountain Peak',
+  snow: 'Snowfield',
+  desert: 'Desert Sands',
+  swamp: 'Marshlands',
+  tundra: 'Frozen Tundra',
+  volcanic: 'Scorched Earth',
+};
+
+/** Terrains that cannot be entered on foot. */
+const IMPASSABLE_TERRAIN: Set<OverworldTerrain> = new Set([
+  'deep_water',
+  'shallow_water',
+  'peak',
+]);
+
+/** Check if a tile terrain is traversable on foot. */
+export function isTraversable(terrain: OverworldTerrain): boolean {
+  return !IMPASSABLE_TERRAIN.has(terrain);
+}
+
+/** Get a human-readable name for a terrain type. */
+export function getTerrainName(terrain: OverworldTerrain): string {
+  return TERRAIN_NAMES[terrain] ?? terrain;
+}
+
+/** Get the biome for a given overworld terrain. */
+export function getTerrainBiome(terrain: OverworldTerrain): BiomeType {
+  return TERRAIN_TO_BIOME[terrain];
+}
+
+/** Get the location type for a given overworld terrain. */
+export function getTerrainLocationType(terrain: OverworldTerrain): LocationType {
+  return TERRAIN_TO_LOCATION_TYPE[terrain];
+}
+
+// Cache of tile-coordinate → locationId for on-demand created locations
+const tileLocationCache = new Map<string, EntityId>();
+
+/** Clear the tile location cache (e.g. on world delete). */
+export function clearTileLocationCache(): void {
+  tileLocationCache.clear();
+}
+
+/**
+ * Get or create a Location for a specific overworld tile.
+ * Settlement tiles return their existing Location.
+ * Non-settlement tiles get a wilderness Location created on demand.
+ */
+export function getOrCreateTileLocation(
+  overworld: OverworldData,
+  x: number,
+  y: number,
+  world: World,
+  rng: SeededRNG,
+): { location: Location; region: Region; created: boolean } {
+  const tile = overworld.tiles[y][x];
+  const regionId = tile.regionId;
+  const region = world.regions.get(regionId);
+
+  if (!region) {
+    throw new Error(`Region ${regionId} not found for tile (${x}, ${y})`);
+  }
+
+  // If settlement tile, find existing location by coordinates
+  if (tile.settlement) {
+    for (const [, loc] of region.locations) {
+      if (loc.coordinates.x === x && loc.coordinates.y === y) {
+        return { location: loc, region, created: false };
+      }
+    }
+  }
+
+  // Check cache
+  const cacheKey = `${x},${y}`;
+  const cachedId = tileLocationCache.get(cacheKey);
+  if (cachedId) {
+    const existing = region.locations.get(cachedId);
+    if (existing) {
+      return { location: existing, region, created: false };
+    }
+  }
+
+  // Create new wilderness location for this tile
+  const worldGen = new WorldGenerator(rng);
+  const locationType = TERRAIN_TO_LOCATION_TYPE[tile.terrain];
+  const location = worldGen.generateLocation(regionId, locationType, region.difficulty);
+
+  // Override with terrain-appropriate name and data
+  location.name = TERRAIN_NAMES[tile.terrain];
+  location.coordinates = { x, y };
+  location.discovered = true;
+  location.description = BIOME_DESCRIPTIONS[TERRAIN_TO_BIOME[tile.terrain]] ?? BIOME_DESCRIPTIONS.plains;
+
+  // Add to region
+  region.locations.set(location.id, location);
+  tileLocationCache.set(cacheKey, location.id);
+
+  return { location, region, created: true };
 }

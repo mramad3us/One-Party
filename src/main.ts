@@ -16,7 +16,14 @@ import { SaveManager } from '@/storage/SaveManager';
 import { CharacterFactory } from '@/character/CharacterFactory';
 import { LocalMapGenerator } from '@/world/LocalMapGenerator';
 import { WorldCreationScreen } from '@/ui/screens/WorldCreationScreen';
-import { overworldToWorld } from '@/world/OverworldBridge';
+import {
+  overworldToWorld,
+  getOrCreateTileLocation,
+  getTerrainName,
+  getTerrainBiome,
+  isTraversable,
+  clearTileLocationCache,
+} from '@/world/OverworldBridge';
 import type { OverworldData } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { DiceRoller } from '@/rules/DiceRoller';
@@ -151,6 +158,10 @@ async function main(): Promise<void> {
     const gameState = new GameState(world, character.id, startLocationId);
     activeGameState = gameState;
 
+    // Set overworld position from starting location's coordinates
+    const startLoc = gameState.getCurrentLocation();
+    gameState.overworldPosition = { x: startLoc.coordinates.x, y: startLoc.coordinates.y };
+
     // Register entities
     engine.entities.clear();
     engine.entities.add(character);
@@ -170,9 +181,20 @@ async function main(): Promise<void> {
 
   let gamePopulated = false;
 
-  // Populate screens when they become active
+  // Populate screens when they become active + sync keyboard context
   engine.events.on('ui:screen:changed', (event) => {
     const { screen } = event.data as { screen: string };
+
+    // Sync keyboard context to the active screen
+    if (screen === 'game') {
+      keyboardInput.setContext('exploration');
+    } else if (screen === 'inventory') {
+      keyboardInput.setContext('inventory');
+    } else if (screen === 'character') {
+      keyboardInput.setContext('character');
+    } else if (screen === 'menu' || screen === 'worldcreation' || screen === 'creation') {
+      keyboardInput.setContext('menu');
+    }
 
     if (screen === 'game' && activeGameScreen && activeGameState && !gamePopulated) {
       populateGameScreen(activeGameScreen, activeGameState, engine);
@@ -329,6 +351,17 @@ async function main(): Promise<void> {
       currentLocationId: location.id,
     });
 
+    // Set up overworld canvas map
+    if (activeOverworld) {
+      screen.setOverworld(activeOverworld);
+
+      // Derive overworld position from current location if not set (old saves)
+      if (!state.overworldPosition) {
+        state.overworldPosition = { x: location.coordinates.x, y: location.coordinates.y };
+      }
+      screen.setOverworldPosition(state.overworldPosition.x, state.overworldPosition.y);
+    }
+
     // Add opening narrative
     screen.addNarrative({
       text: `Your adventure begins in the world of ${state.world.name}.`,
@@ -356,7 +389,18 @@ async function main(): Promise<void> {
       // First visit — generate new local map
       const rng = activeRng ?? new SeededRNG(Date.now());
       const mapGen = new LocalMapGenerator(rng);
-      const result = mapGen.generate(location.locationType, region.biome);
+
+      // Use terrain-aware generation if we have overworld context
+      let result;
+      if (activeOverworld && state.overworldPosition) {
+        const owTile = activeOverworld.tiles[state.overworldPosition.y][state.overworldPosition.x];
+        result = owTile.settlement
+          ? mapGen.generate(location.locationType, region.biome)
+          : mapGen.generateFromTerrain(owTile.terrain, owTile.river);
+      } else {
+        result = mapGen.generate(location.locationType, region.biome);
+      }
+
       gridDef = result.grid;
       playerStart = result.playerStart;
       // Store in location for persistence
@@ -483,12 +527,10 @@ async function main(): Promise<void> {
 
           activeGameScreen.addNarrative(narrator.describeLocation(dest));
 
-          // Update map and status
+          // Update party status
           activeGameScreen.setGameState({
             mode: 'exploration',
             partyMembers: getPartyMembers(eng),
-            region,
-            currentLocationId: dest.id,
           });
           if (character) activeGameScreen.setCharacter(character);
 
@@ -694,28 +736,68 @@ async function main(): Promise<void> {
   }
 
   function buildKeyboardHints(): KeyboardHint[] {
-    return [
-      { key: 'k/\u2191', label: 'North',     available: true, category: 'movement' },
-      { key: 'j/\u2193', label: 'South',     available: true, category: 'movement' },
-      { key: 'h/\u2190', label: 'West',      available: true, category: 'movement' },
-      { key: 'l/\u2192', label: 'East',      available: true, category: 'movement' },
-      { key: 'y',   label: 'NW',        available: true, category: 'movement' },
-      { key: 'u',   label: 'NE',        available: true, category: 'movement' },
-      { key: 'b',   label: 'SW',        available: true, category: 'movement' },
-      { key: 'n',   label: 'SE',        available: true, category: 'movement' },
-      { key: 'e',   label: 'Interact',  available: true, category: 'action' },
-      { key: 'x',   label: 'Look',      available: true, category: 'action' },
-      { key: ',',   label: 'Pick up',   available: true, category: 'action' },
-      { key: '.',   label: 'Wait',      available: true, category: 'action' },
-      { key: 'r',   label: 'Rest',      available: true, category: 'action' },
-      { key: '>',   label: 'Descend',   available: true, category: 'action' },
-      { key: '<',   label: 'Ascend',    available: true, category: 'action' },
-      { key: 'i',   label: 'Inventory', available: true, category: 'meta' },
-      { key: 'c',   label: 'Character', available: true, category: 'meta' },
-      { key: 'm',   label: 'World Map', available: true, category: 'meta' },
-      { key: '?',   label: 'Help',      available: true, category: 'meta' },
-      { key: 'Esc', label: 'Cancel',    available: true, category: 'meta' },
-    ];
+    return keyboardInput.getContextHints().map(h => ({
+      key: h.key,
+      label: h.label,
+      available: true,
+      category: h.category,
+    }));
+  }
+
+  let helpModal: Modal | null = null;
+
+  function showContextHelp(): void {
+    const hints = buildKeyboardHints();
+
+    // On the game screen, use the built-in action panel toggle
+    if (activeGameScreen && (keyboardInput.getContext() === 'exploration' || keyboardInput.getContext() === 'combat' || keyboardInput.getContext() === 'worldmap')) {
+      activeGameScreen.setKeyboardHints(hints);
+      activeGameScreen.toggleHelp();
+      return;
+    }
+
+    // On other screens, toggle a Modal with keyboard hints
+    if (helpModal) {
+      helpModal.close();
+      helpModal = null;
+      return;
+    }
+
+    if (hints.length === 0) return;
+
+    // Group hints by category
+    const groups: Record<string, KeyboardHint[]> = {};
+    for (const h of hints) {
+      const cat = h.category ?? 'action';
+      (groups[cat] ??= []).push(h);
+    }
+
+    const content = el('div', { class: 'help-modal-grid' });
+    const catLabels: Record<string, string> = { movement: 'Movement', action: 'Actions', meta: 'Menu' };
+    for (const [cat, catHints] of Object.entries(groups)) {
+      content.appendChild(el('div', { class: 'help-modal-category font-heading' }, [catLabels[cat] ?? cat]));
+      for (const h of catHints) {
+        const row = el('div', { class: 'help-modal-row' });
+        row.appendChild(el('kbd', { class: 'help-modal-key font-mono' }, [h.key]));
+        row.appendChild(el('span', { class: 'help-modal-label' }, [h.label]));
+        content.appendChild(row);
+      }
+    }
+
+    helpModal = new Modal(document.body, engine, {
+      title: 'Keyboard Shortcuts',
+      content,
+      closable: true,
+      width: '360px',
+    });
+    helpModal.mount();
+
+    // Clear reference when modal is closed externally (Escape, backdrop click)
+    const origClose = helpModal.close.bind(helpModal);
+    helpModal.close = async () => {
+      helpModal = null;
+      await origClose();
+    };
   }
 
   // Listen for exploration movement events — update UI + autosave
@@ -809,29 +891,45 @@ async function main(): Promise<void> {
   });
 
   engine.events.on('input:help', () => {
-    if (!activeGameScreen) return;
-    activeGameScreen.toggleHelp();
+    showContextHelp();
   });
 
   engine.events.on('input:worldmap', () => {
     if (!activeGameScreen) return;
-    activeGameScreen.toggleWorldMap();
+    keyboardInput.pushContext('worldmap');
+    activeGameScreen.showWorldMap();
+  });
+
+  // World map cursor movement and travel
+  engine.events.on('input:map_cursor', (event) => {
+    if (!activeGameScreen) return;
+    const { dx, dy } = event.data as { dx: number; dy: number };
+    activeGameScreen.moveMapCursor(dx, dy);
+  });
+
+  engine.events.on('input:map_travel', () => {
+    if (!activeGameScreen) return;
+    activeGameScreen.travelToMapCursor();
   });
 
   engine.events.on('input:cancel', () => {
-    // Close world map if open
-    if (activeGameScreen?.isWorldMapVisible()) {
+    const context = keyboardInput.getContext();
+
+    // Close world map overlay (stays on game screen)
+    if (context === 'worldmap' && activeGameScreen?.isWorldMapVisible()) {
       activeGameScreen.hideWorldMap();
+      keyboardInput.popContext();
       return;
     }
-    // If on a sub-screen, return to game
-    const current = ui.getCurrentScreen();
-    if (current === 'character' || current === 'inventory') {
+    // Return to game from sub-screens
+    if (context === 'character' || context === 'inventory') {
       engine.events.emit({
         type: 'ui:navigate',
         category: 'ui',
         data: { screen: 'game', direction: 'down' },
       });
+      // Context reset happens via ui:screen:changed
+      return;
     }
   });
 
@@ -841,28 +939,37 @@ async function main(): Promise<void> {
     openRestMenu(engine, activeGameState, activeGameScreen, activeDice, saveManager);
   });
 
-  // Handle travel from world map
-  engine.events.on('map:travel', (event) => {
-    const { locationId } = event.data as { locationId: string };
-    if (!activeGameScreen || !activeGameState) return;
+  // Handle travel from overworld map (tile-based)
+  engine.events.on('overworld:travel', (event) => {
+    const { x, y } = event.data as { x: number; y: number };
+    if (!activeGameScreen || !activeGameState || !activeOverworld) return;
 
-    const region = activeGameState.getCurrentRegion();
-    const dest = region.locations.get(locationId);
-    if (!dest) return;
+    const tile = activeOverworld.tiles[y][x];
+    if (!isTraversable(tile.terrain)) return;
+
+    // Get or create a Location for this tile
+    const rng = activeRng ?? new SeededRNG(Date.now());
+    const { location: dest } = getOrCreateTileLocation(
+      activeOverworld, x, y, activeGameState.world, rng,
+    );
 
     dest.discovered = true;
     activeGameState.currentLocationId = dest.id;
     activeGameState.currentSubLocationId = null;
+    activeGameState.overworldPosition = { x, y };
 
-    // Travel takes 2-4 hours
-    const travelRounds = ROUNDS_PER_HOUR * (2 + Math.floor(Math.random() * 3));
+    // Travel takes 1-2 hours per tile
+    const travelRounds = ROUNDS_PER_HOUR * (1 + Math.floor(Math.random() * 2));
     const travelHours = Math.round(travelRounds / ROUNDS_PER_HOUR);
     const timeBefore = { totalRounds: activeGameState.world.time.totalRounds };
     activeGameState.advanceTime(travelRounds);
 
     // Travel narrative
+    const tileName = tile.settlement && tile.settlementName
+      ? tile.settlementName
+      : getTerrainName(tile.terrain);
     activeGameScreen.addNarrative({
-      text: `You gather your belongings and set out. The journey to ${dest.name} takes ${travelHours} hours of hard travel through the ${region.biome} terrain.`,
+      text: `You set out across the ${getTerrainName(tile.terrain).toLowerCase()}. The trek to ${tileName} takes ${travelHours} hour${travelHours > 1 ? 's' : ''} of travel.`,
       category: 'action',
     });
 
@@ -892,9 +999,11 @@ async function main(): Promise<void> {
         fog.setState({ explored: new Set(dest.localMap.exploredCells), visible: new Set() });
       }
     } else {
-      const rng = activeRng ?? new SeededRNG(Date.now());
       const mapGen = new LocalMapGenerator(rng);
-      const result = mapGen.generate(dest.locationType, region.biome);
+      // Use terrain-aware generation for non-settlement tiles
+      const result = tile.settlement
+        ? mapGen.generate(dest.locationType, getTerrainBiome(tile.terrain))
+        : mapGen.generateFromTerrain(tile.terrain, tile.river);
       gridDef = result.grid;
       playerStart = result.playerStart;
       dest.localMap = { grid: gridDef, playerStart, exploredCells: [] };
@@ -930,17 +1039,15 @@ async function main(): Promise<void> {
     }
 
     // Update location name, time, and map
-    activeGameScreen.setLocationName(dest.name);
+    activeGameScreen.setLocationName(tileName);
     activeGameScreen.updateTime(activeGameState.world.time);
-    activeGameScreen.setGameState({
-      mode: 'exploration',
-      partyMembers: getPartyMembers(engine),
-      region,
-      currentLocationId: dest.id,
-    });
+    activeGameScreen.setOverworldPosition(x, y);
 
-    // Close world map
+    // Close world map and restore keyboard context
     activeGameScreen.hideWorldMap();
+    if (keyboardInput.getContext() === 'worldmap') {
+      keyboardInput.popContext();
+    }
   });
 
   // 10. Wire up save management modal
@@ -1064,6 +1171,7 @@ async function main(): Promise<void> {
     activeGameState = null;
     gamePopulated = false;
     engine.entities.clear();
+    clearTileLocationCache();
 
     engine.events.emit({
       type: 'ui:navigate',

@@ -2,6 +2,7 @@ import type { GameEngine } from '@/engine/GameEngine';
 import type { NarrativeBlock } from '@/types/narrative';
 import type { Character, Coordinate, EntityId, Region, SurvivalState } from '@/types';
 import type { GameTime } from '@/types/core';
+import type { OverworldData } from '@/types/overworld';
 import { Component } from '@/ui/Component';
 import { NarrativePanel } from '@/ui/panels/NarrativePanel';
 import { PartyPanel, type PartyMember } from '@/ui/panels/PartyPanel';
@@ -150,7 +151,7 @@ export class GameScreen extends Component {
     this.mapPanel = new MapPanel(mapContent, this.engine);
     mapOverlayInner.appendChild(mapContent);
 
-    mapOverlayInner.appendChild(el('div', { class: 'game-map-overlay-hint font-mono' }, ['Press [m] or [Esc] to close']));
+    mapOverlayInner.appendChild(el('div', { class: 'game-map-overlay-hint font-mono' }, ['Arrows/WASD: move cursor \u2022 Enter: travel \u2022 m/Esc: close']));
     this.mapOverlay.appendChild(mapOverlayInner);
     screen.appendChild(this.mapOverlay);
 
@@ -175,13 +176,7 @@ export class GameScreen extends Component {
 
   setGameState(state: GameScreenState): void {
     this.partyPanel.setMembers(state.partyMembers);
-
-    if (state.region) {
-      this.mapPanel.setRegion(state.region);
-    }
-    if (state.currentLocationId) {
-      this.mapPanel.setCurrentLocation(state.currentLocationId);
-    }
+    // Overworld map is set via setOverworld() — region/location are legacy no-ops
   }
 
   enterCombatMode(grid?: Grid, fog?: FogOfWar): void {
@@ -321,11 +316,27 @@ export class GameScreen extends Component {
   showWorldMap(): void {
     this.mapOverlayVisible = true;
     this.mapOverlay.classList.remove('game-map-overlay--hidden');
+    // Re-center on player when opening (also triggers canvas resize)
+    requestAnimationFrame(() => {
+      this.centerWorldMapOnPlayer();
+      this.mapPanel.activate();
+    });
   }
 
   hideWorldMap(): void {
     this.mapOverlayVisible = false;
     this.mapOverlay.classList.add('game-map-overlay--hidden');
+    this.mapPanel.deactivate();
+  }
+
+  /** Move the world map cursor by delta. */
+  moveMapCursor(dx: number, dy: number): void {
+    this.mapPanel.moveCursor(dx, dy);
+  }
+
+  /** Travel to the current cursor position on the world map. */
+  travelToMapCursor(): void {
+    this.mapPanel.travelToCursor();
   }
 
   toggleWorldMap(): void {
@@ -338,5 +349,20 @@ export class GameScreen extends Component {
 
   isWorldMapVisible(): boolean {
     return this.mapOverlayVisible;
+  }
+
+  /** Set the overworld data for the world map canvas. */
+  setOverworld(overworld: OverworldData): void {
+    this.mapPanel.setOverworld(overworld);
+  }
+
+  /** Update the player's overworld tile position on the map. */
+  setOverworldPosition(x: number, y: number): void {
+    this.mapPanel.setPlayerPosition(x, y);
+  }
+
+  /** Center the world map view on the player. */
+  centerWorldMapOnPlayer(): void {
+    this.mapPanel.centerOnPlayer();
   }
 }

@@ -542,3 +542,48 @@
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+/* ── Help Modal ── */
+.help-modal-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.help-modal-category {
+  color: var(--gold);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: var(--space-sm);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.help-modal-category:first-child {
+  margin-top: 0;
+}
+
+.help-modal-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xs) 0;
+}
+
+.help-modal-key {
+  display: inline-block;
+  min-width: 2.4em;
+  text-align: center;
+  padding: 2px var(--space-xs);
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--gold-light);
+  font-size: var(--text-sm);
+}
+
+.help-modal-label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

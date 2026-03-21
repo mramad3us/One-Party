@@ -14,6 +14,7 @@ export class GameState {
   currentSubLocationId: EntityId | null;
   currentSpaceId: EntityId | null;
   timeContext: TimeContext;
+  overworldPosition: { x: number; y: number } | null;
 
   constructor(world: World, playerId: EntityId, startLocationId: EntityId) {
     this.world = world;
@@ -21,6 +22,7 @@ export class GameState {
     this.currentLocationId = startLocationId;
     this.currentSubLocationId = null;
     this.currentSpaceId = null;
+    this.overworldPosition = null;
     this.timeContext = {
       scale: 'exploration',
       roundsPerTurn: 100,
@@ -58,6 +60,7 @@ export class GameState {
       currentSubLocationId: this.currentSubLocationId,
       currentSpaceId: this.currentSpaceId,
       timeContext: this.timeContext,
+      overworldPosition: this.overworldPosition,
     };
   }
 
@@ -73,6 +76,7 @@ export class GameState {
     state.currentSubLocationId = (data['currentSubLocationId'] as EntityId | null) ?? null;
     state.currentSpaceId = (data['currentSpaceId'] as EntityId | null) ?? null;
     state.timeContext = data['timeContext'] as TimeContext;
+    state.overworldPosition = (data['overworldPosition'] as { x: number; y: number } | null) ?? null;
 
     return state;
   }

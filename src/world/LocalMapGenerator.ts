@@ -1,5 +1,6 @@
 import type { Coordinate, GridCell, GridDefinition, CellTerrain, CellFeature } from '@/types';
 import type { LocationType, BiomeType } from '@/types/world';
+import type { OverworldTerrain } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
 
 interface MapResult {
@@ -53,6 +54,326 @@ export class LocalMapGenerator {
       default:
         return this.generateWilderness(biome);
     }
+  }
+
+  /** Generate a local map based on an overworld terrain type. */
+  generateFromTerrain(terrain: OverworldTerrain, hasRiver: boolean): MapResult {
+    const biomeMap: Record<OverworldTerrain, BiomeType> = {
+      deep_water: 'coast',
+      shallow_water: 'coast',
+      beach: 'coast',
+      plains: 'plains',
+      forest: 'forest',
+      dense_forest: 'forest',
+      hills: 'mountain',
+      mountain: 'mountain',
+      peak: 'mountain',
+      snow: 'tundra',
+      desert: 'desert',
+      swamp: 'swamp',
+      tundra: 'tundra',
+      volcanic: 'volcanic',
+    };
+
+    const biome = biomeMap[terrain];
+
+    switch (terrain) {
+      case 'mountain':
+        return this.generateCave();
+      case 'beach':
+      case 'shallow_water':
+        return this.generateCoast(hasRiver);
+      case 'dense_forest':
+        return this.generateDenseForest();
+      case 'hills':
+        return this.generateHills();
+      case 'swamp':
+        return this.generateSwamp();
+      case 'desert':
+        return this.generateDesert();
+      case 'volcanic':
+        return this.generateVolcanic();
+      default:
+        return this.generateWilderness(biome);
+    }
+  }
+
+  // ── Coast (50x50) ──────────────────────────────────────────
+
+  private generateCoast(hasRiver: boolean): MapResult {
+    const w = 50, h = 50;
+    const cells = this.fillGrid(w, h, 'sand');
+
+    // Water on one side
+    const waterEdge = Math.floor(w * 0.3);
+    for (let y = 0; y < h; y++) {
+      const edgeVariation = waterEdge + Math.floor(Math.sin(y * 0.2) * 3);
+      for (let x = 0; x < edgeVariation; x++) {
+        cells[y][x] = makeCell('water', 2, false);
+      }
+    }
+
+    // Driftwood and rocks on beach
+    for (let y = 0; y < h; y++) {
+      for (let x = waterEdge; x < waterEdge + 5; x++) {
+        if (x < w && this.rng.next() < 0.05) {
+          cells[y][x] = makeCell('sand', 1, false, ['chest']);
+        }
+      }
+    }
+
+    // Some grass inland
+    for (let y = 0; y < h; y++) {
+      for (let x = Math.floor(w * 0.6); x < w; x++) {
+        if (this.rng.next() < 0.4) {
+          cells[y][x] = floorCell('grass');
+        }
+      }
+    }
+
+    if (hasRiver) {
+      let rx = Math.floor(w * 0.6);
+      for (let y = 0; y < h; y++) {
+        rx += Math.floor(this.rng.next() * 3) - 1;
+        rx = Math.max(waterEdge + 3, Math.min(w - 2, rx));
+        cells[y][rx] = makeCell('water', 2, false);
+      }
+    }
+
+    return {
+      grid: { width: w, height: h, cells },
+      playerStart: { x: Math.floor(w * 0.7), y: Math.floor(h / 2) },
+    };
+  }
+
+  // ── Dense Forest (50x50) ────────────────────────────────────
+
+  private generateDenseForest(): MapResult {
+    const w = 50, h = 50;
+    const cells = this.fillGrid(w, h, 'grass');
+
+    // Heavy tree coverage (70% wall)
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        if (this.rng.next() < 0.55) {
+          cells[y][x] = wallCell();
+        }
+      }
+    }
+
+    // Cellular automata to create natural clumps
+    for (let iter = 0; iter < 3; iter++) {
+      const next = this.fillGrid(w, h, 'grass');
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const wallCount = this.countWallNeighbors(cells, x, y);
+          next[y][x] = wallCount >= 4 ? wallCell() : floorCell('grass');
+        }
+      }
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          cells[y][x] = next[y][x];
+        }
+      }
+    }
+
+    // Narrow winding path
+    let px = 0;
+    let py = Math.floor(h / 2);
+    while (px < w) {
+      cells[py][px] = floorCell('grass');
+      if (py > 1 && py < h - 2) {
+        cells[py + 1][px] = floorCell('grass');
+      }
+      px++;
+      py += Math.floor(this.rng.next() * 3) - 1;
+      py = Math.max(1, Math.min(h - 2, py));
+    }
+
+    const start = this.findOpenCell(cells, w, h, Math.floor(w / 2), Math.floor(h / 2));
+    return { grid: { width: w, height: h, cells }, playerStart: start };
+  }
+
+  // ── Hills (50x50) ──────────────────────────────────────────
+
+  private generateHills(): MapResult {
+    const w = 50, h = 50;
+    const cells = this.fillGrid(w, h, 'grass');
+
+    // Rocky outcrops (walls)
+    for (let i = 0; i < 15; i++) {
+      const cx = 3 + Math.floor(this.rng.next() * (w - 6));
+      const cy = 3 + Math.floor(this.rng.next() * (h - 6));
+      const r = 2 + Math.floor(this.rng.next() * 3);
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dy * dy <= r * r && this.rng.next() < 0.6) {
+            const px = cx + dx, py = cy + dy;
+            if (px > 0 && px < w - 1 && py > 0 && py < h - 1) {
+              cells[py][px] = makeCell('stone', 2, true);
+            }
+          }
+        }
+      }
+    }
+
+    // Trail across
+    for (let x = 0; x < w; x++) {
+      const ty = Math.floor(h / 2) + Math.floor(Math.sin(x * 0.15) * 5);
+      if (ty >= 0 && ty < h) {
+        cells[ty][x] = floorCell('stone');
+        if (ty + 1 < h) cells[ty + 1][x] = floorCell('stone');
+      }
+    }
+
+    return {
+      grid: { width: w, height: h, cells },
+      playerStart: { x: Math.floor(w / 2), y: Math.floor(h / 2) },
+    };
+  }
+
+  // ── Swamp (50x50) ──────────────────────────────────────────
+
+  private generateSwamp(): MapResult {
+    const w = 50, h = 50;
+    const cells = this.fillGrid(w, h, 'mud');
+
+    // Water pools everywhere
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (this.rng.next() < 0.25) {
+          cells[y][x] = makeCell('water', 3, false);
+        }
+      }
+    }
+
+    // Cellular automata for natural pools
+    for (let iter = 0; iter < 2; iter++) {
+      const next = this.fillGrid(w, h, 'mud');
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          let waterCount = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (cells[y + dy][x + dx].terrain === 'water') waterCount++;
+            }
+          }
+          next[y][x] = waterCount >= 5
+            ? makeCell('water', 3, false)
+            : makeCell('mud', 2, false);
+        }
+      }
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          cells[y][x] = next[y][x];
+        }
+      }
+    }
+
+    // Dead trees
+    for (let i = 0; i < 30; i++) {
+      const tx = Math.floor(this.rng.next() * (w - 2)) + 1;
+      const ty = Math.floor(this.rng.next() * (h - 2)) + 1;
+      if (cells[ty][tx].terrain === 'mud') {
+        cells[ty][tx] = wallCell();
+      }
+    }
+
+    const start = this.findOpenCell(cells, w, h, Math.floor(w / 2), Math.floor(h / 2));
+    return { grid: { width: w, height: h, cells }, playerStart: start };
+  }
+
+  // ── Desert (50x50) ─────────────────────────────────────────
+
+  private generateDesert(): MapResult {
+    const w = 50, h = 50;
+    const cells = this.fillGrid(w, h, 'sand');
+
+    // Dune ridges (impassable)
+    for (let i = 0; i < 8; i++) {
+      let dx = Math.floor(this.rng.next() * w);
+      for (let y = 0; y < h; y++) {
+        dx += Math.floor(this.rng.next() * 3) - 1;
+        dx = Math.max(0, Math.min(w - 1, dx));
+        if (this.rng.next() < 0.7) {
+          cells[y][dx] = makeCell('sand', Infinity, true);
+        }
+      }
+    }
+
+    // Oasis in a random spot
+    const ox = 10 + Math.floor(this.rng.next() * (w - 20));
+    const oy = 10 + Math.floor(this.rng.next() * (h - 20));
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        if (dx * dx + dy * dy <= 9) {
+          cells[oy + dy][ox + dx] = makeCell('water', 1, false);
+        }
+      }
+    }
+    // Palm trees around oasis
+    for (let dy = -5; dy <= 5; dy++) {
+      for (let dx = -5; dx <= 5; dx++) {
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 9 && d2 <= 25 && this.rng.next() < 0.2) {
+          cells[oy + dy][ox + dx] = floorCell('grass');
+        }
+      }
+    }
+
+    const start = this.findOpenCell(cells, w, h, Math.floor(w / 2), Math.floor(h / 2));
+    return { grid: { width: w, height: h, cells }, playerStart: start };
+  }
+
+  // ── Volcanic (50x50) ───────────────────────────────────────
+
+  private generateVolcanic(): MapResult {
+    const w = 50, h = 50;
+    const cells = this.fillGrid(w, h, 'stone');
+
+    // Lava pools
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (this.rng.next() < 0.08) {
+          cells[y][x] = makeCell('water', Infinity, false); // lava = deadly water
+        }
+      }
+    }
+
+    // Cellular automata for lava pools
+    for (let iter = 0; iter < 2; iter++) {
+      const next = this.fillGrid(w, h, 'stone');
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          let lavaCount = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (cells[y + dy][x + dx].terrain === 'water') lavaCount++;
+            }
+          }
+          next[y][x] = lavaCount >= 5
+            ? makeCell('water', Infinity, false)
+            : makeCell('stone', 1, false);
+        }
+      }
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          cells[y][x] = next[y][x];
+        }
+      }
+    }
+
+    // Rock formations
+    for (let i = 0; i < 20; i++) {
+      const rx = Math.floor(this.rng.next() * (w - 2)) + 1;
+      const ry = Math.floor(this.rng.next() * (h - 2)) + 1;
+      if (cells[ry][rx].terrain === 'stone') {
+        cells[ry][rx] = wallCell();
+      }
+    }
+
+    const start = this.findOpenCell(cells, w, h, Math.floor(w / 2), Math.floor(h / 2));
+    return { grid: { width: w, height: h, cells }, playerStart: start };
   }
 
   // ── Town (40x40) ──────────────────────────────────────────
