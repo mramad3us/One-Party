@@ -76,7 +76,7 @@ export class LocalMapGenerator {
         case 'village':
         case 'town':
         case 'city':
-          return this.generateTown();
+          return this.generateTown(biome, locationType);
         case 'dungeon':
           return this.generateDungeon();
         case 'cave':
@@ -116,6 +116,8 @@ export class LocalMapGenerator {
     worldSeed: number,
     tileX: number,
     tileY: number,
+    /** Bitmask of which sides have water: bit 0=north, 1=south, 2=west, 3=east */
+    waterSides = 0,
   ): MapResult {
     return this.withTileSeed(worldSeed, tileX, tileY, () => {
 
@@ -142,7 +144,7 @@ export class LocalMapGenerator {
         return this.generateCave();
       case 'beach':
       case 'shallow_water':
-        return this.generateCoast(hasRiver);
+        return this.generateCoast(hasRiver, waterSides);
       case 'dense_forest':
         return this.generateDenseForest();
       case 'hills':
@@ -161,84 +163,125 @@ export class LocalMapGenerator {
 
   // ── Coast (50x50) ──────────────────────────────────────────
 
-  private generateCoast(hasRiver: boolean): MapResult {
+  /**
+   * Generate a coastal map. Water placement matches the overworld:
+   * water appears on sides where the overworld has water neighbors.
+   * If no water sides are specified, falls back to random placement.
+   *
+   * waterSides bitmask: bit 0=north, 1=south, 2=west, 3=east
+   */
+  private generateCoast(hasRiver: boolean, waterSides: number): MapResult {
     const w = 50, h = 50;
     const cells = this.fillGrid(w, h, 'sand');
 
-    // Randomize which side the water is on (N/S/E/W)
-    const side = Math.floor(this.rng.next() * 4); // 0=west, 1=east, 2=north, 3=south
-    const waterDepth = 0.2 + this.rng.next() * 0.2; // 20-40% water coverage
-    const waveFreq = 0.1 + this.rng.next() * 0.3;   // Wave frequency
-    const waveAmp = 2 + Math.floor(this.rng.next() * 4); // Wave amplitude
+    // Determine which sides have water
+    const hasN = (waterSides & 1) !== 0;
+    const hasS = (waterSides & 2) !== 0;
+    const hasW = (waterSides & 4) !== 0;
+    const hasE = (waterSides & 8) !== 0;
+    const sideCount = +hasN + +hasS + +hasW + +hasE;
 
-    for (let a = 0; a < h; a++) {
-      const edgeBase = Math.floor((side < 2 ? w : h) * waterDepth);
-      const edgeVariation = edgeBase + Math.floor(Math.sin(a * waveFreq) * waveAmp);
-      for (let b = 0; b < edgeVariation; b++) {
-        let x: number, y: number;
-        if (side === 0)      { x = b; y = a; }           // Water on west
-        else if (side === 1) { x = w - 1 - b; y = a; }   // Water on east
-        else if (side === 2) { x = a; y = b; }            // Water on north
-        else                 { x = a; y = h - 1 - b; }   // Water on south
-        if (x >= 0 && x < w && y >= 0 && y < h) {
-          cells[y][x] = makeCell('water', 2, false);
-        }
-      }
+    // If no overworld context, pick a random side
+    let waterN = hasN, waterS = hasS, waterW = hasW, waterE = hasE;
+    if (sideCount === 0) {
+      const pick = Math.floor(this.rng.next() * 4);
+      if (pick === 0) waterN = true;
+      else if (pick === 1) waterS = true;
+      else if (pick === 2) waterW = true;
+      else waterE = true;
     }
 
-    // Driftwood and rocks on beach edge
-    for (let a = 0; a < (side < 2 ? h : w); a++) {
-      const edgeBase = Math.floor((side < 2 ? w : h) * waterDepth);
-      for (let offset = 0; offset < 5; offset++) {
-        const b = edgeBase + offset;
-        let x: number, y: number;
-        if (side === 0)      { x = b; y = a; }
-        else if (side === 1) { x = w - 1 - b; y = a; }
-        else if (side === 2) { x = a; y = b; }
-        else                 { x = a; y = h - 1 - b; }
-        if (x >= 0 && x < w && y >= 0 && y < h && this.rng.next() < 0.04) {
-          cells[y][x] = makeCell('sand', 1, false, ['chest']);
+    // Per-side water parameters
+    const waveFreq = 0.1 + this.rng.next() * 0.3;
+    const waveAmp = 2 + Math.floor(this.rng.next() * 4);
+    const baseDepth = 0.2 + this.rng.next() * 0.15; // 20-35% from each side
+
+    // Paint water edges on active sides
+    const paintWaterEdge = (
+      primary: 'x' | 'y',
+      fromMax: boolean,
+      length: number,
+      span: number,
+    ) => {
+      const depth = Math.floor(span * baseDepth);
+      for (let a = 0; a < length; a++) {
+        const edge = depth + Math.floor(Math.sin(a * waveFreq) * waveAmp);
+        for (let b = 0; b < edge; b++) {
+          let x: number, y: number;
+          if (primary === 'y' && !fromMax)      { x = a; y = b; }             // North
+          else if (primary === 'y' && fromMax)   { x = a; y = span - 1 - b; } // South
+          else if (primary === 'x' && !fromMax)  { x = b; y = a; }             // West
+          else                                    { x = span - 1 - b; y = a; } // East
+          if (x >= 0 && x < w && y >= 0 && y < h) {
+            cells[y][x] = makeCell('water', 2, false);
+          }
         }
       }
-    }
+    };
 
-    // Some grass inland
-    const grassStart = 0.55 + this.rng.next() * 0.15;
+    if (waterN) paintWaterEdge('y', false, w, h);
+    if (waterS) paintWaterEdge('y', true,  w, h);
+    if (waterW) paintWaterEdge('x', false, h, w);
+    if (waterE) paintWaterEdge('x', true,  h, w);
+
+    // Driftwood / rocks along shore
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        if (cells[y][x].terrain !== 'water') {
-          // Distance from water edge determines grass probability
-          let inlandDist: number;
-          if (side === 0) inlandDist = x / w;
-          else if (side === 1) inlandDist = (w - 1 - x) / w;
-          else if (side === 2) inlandDist = y / h;
-          else inlandDist = (h - 1 - y) / h;
-          if (inlandDist > grassStart && this.rng.next() < 0.5) {
-            cells[y][x] = floorCell('grass');
+        if (cells[y][x].terrain === 'sand' && this.rng.next() < 0.006) {
+          // Check if adjacent to water
+          const adj = (
+            (x > 0 && cells[y][x - 1].terrain === 'water') ||
+            (x < w - 1 && cells[y][x + 1].terrain === 'water') ||
+            (y > 0 && cells[y - 1][x].terrain === 'water') ||
+            (y < h - 1 && cells[y + 1][x].terrain === 'water')
+          );
+          if (adj) {
+            cells[y][x] = makeCell('sand', 1, false, ['chest']);
           }
         }
       }
     }
 
+    // Grass inland (far from all water edges)
+    const grassThreshold = 0.55 + this.rng.next() * 0.15;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (cells[y][x].terrain !== 'sand') continue;
+        // Inland distance = min distance to any water edge (normalized)
+        let inlandDist = 1;
+        if (waterN) inlandDist = Math.min(inlandDist, y / h);
+        if (waterS) inlandDist = Math.min(inlandDist, (h - 1 - y) / h);
+        if (waterW) inlandDist = Math.min(inlandDist, x / w);
+        if (waterE) inlandDist = Math.min(inlandDist, (w - 1 - x) / w);
+        if (inlandDist > grassThreshold && this.rng.next() < 0.5) {
+          cells[y][x] = floorCell('grass');
+        }
+      }
+    }
+
     if (hasRiver) {
-      // River perpendicular to the coast
-      const isHoriz = side >= 2;
-      let pos = Math.floor((isHoriz ? h : w) * (0.3 + this.rng.next() * 0.4));
-      const len = isHoriz ? w : h;
+      // River flows toward the nearest water edge
+      const primarySide = waterS ? 'S' : waterN ? 'N' : waterW ? 'W' : 'E';
+      const isVert = primarySide === 'N' || primarySide === 'S';
+      let pos = Math.floor((isVert ? w : h) * (0.3 + this.rng.next() * 0.4));
+      const len = isVert ? h : w;
       for (let i = 0; i < len; i++) {
         pos += Math.floor(this.rng.next() * 3) - 1;
-        pos = Math.max(2, Math.min((isHoriz ? h : w) - 3, pos));
-        const x = isHoriz ? i : pos;
-        const y = isHoriz ? pos : i;
+        pos = Math.max(2, Math.min((isVert ? w : h) - 3, pos));
+        const x = isVert ? pos : i;
+        const y = isVert ? i : pos;
         if (x >= 0 && x < w && y >= 0 && y < h) {
           cells[y][x] = makeCell('water', 2, false);
         }
       }
     }
 
-    // Player starts inland
-    const sx = side === 0 ? Math.floor(w * 0.7) : side === 1 ? Math.floor(w * 0.3) : Math.floor(w / 2);
-    const sy = side === 2 ? Math.floor(h * 0.7) : side === 3 ? Math.floor(h * 0.3) : Math.floor(h / 2);
+    // Player starts inland (away from water)
+    let sx = Math.floor(w / 2), sy = Math.floor(h / 2);
+    if (waterN) sy = Math.max(sy, Math.floor(h * 0.7));
+    if (waterS) sy = Math.min(sy, Math.floor(h * 0.3));
+    if (waterW) sx = Math.max(sx, Math.floor(w * 0.7));
+    if (waterE) sx = Math.min(sx, Math.floor(w * 0.3));
     const start = this.findOpenCell(cells, w, h, sx, sy);
     return { grid: { width: w, height: h, cells }, playerStart: start };
   }
@@ -631,70 +674,163 @@ export class LocalMapGenerator {
 
   // ── Town (40x40) ──────────────────────────────────────────
 
-  private generateTown(): MapResult {
+  private generateTown(biome: BiomeType = 'forest', size: LocationType = 'village'): MapResult {
     const w = 40, h = 40;
-    const cells = this.fillGrid(w, h, 'grass');
 
-    // Lay down roads in a cross pattern
-    const midX = Math.floor(w / 2);
-    const midY = Math.floor(h / 2);
+    // Biome-aware base terrain and road surface
+    const groundTerrain: CellTerrain = biome === 'desert' ? 'sand'
+      : biome === 'tundra' ? 'ice'
+      : biome === 'swamp' ? 'mud'
+      : biome === 'volcanic' ? 'stone'
+      : biome === 'mountain' ? 'stone'
+      : 'grass';
 
-    // Main road east-west
-    for (let x = 2; x < w - 2; x++) {
-      cells[midY][x] = floorCell('stone');
-      cells[midY - 1][x] = floorCell('stone');
+    const roadTerrain: CellTerrain = biome === 'desert' ? 'sand'
+      : biome === 'swamp' ? 'wood'
+      : 'stone';
+
+    const cells = this.fillGrid(w, h, groundTerrain);
+
+    // Scatter biome-specific decoration on ground
+    this.decorateTownGround(cells, w, h, biome);
+
+    // ── Road layout (varies per seed) ──
+    const layoutRoll = this.rng.next();
+    const midX = Math.floor(w / 2) + Math.floor(this.rng.next() * 5) - 2;
+    const midY = Math.floor(h / 2) + Math.floor(this.rng.next() * 5) - 2;
+
+    // 4 possible road patterns
+    const hasEWRoad = layoutRoll < 0.8;
+    const hasNSRoad = layoutRoll > 0.2;
+    const roadDiagonal = layoutRoll > 0.85;
+
+    if (hasEWRoad) {
+      // Main road east-west (may curve slightly)
+      const curve = Math.floor(this.rng.next() * 3) - 1;
+      for (let x = 2; x < w - 2; x++) {
+        const yOff = x > w / 3 && x < 2 * w / 3 ? 0 : curve;
+        const ry = Math.max(1, Math.min(h - 2, midY + yOff));
+        cells[ry][x] = floorCell(roadTerrain);
+        if (ry - 1 >= 0) cells[ry - 1][x] = floorCell(roadTerrain);
+      }
     }
-    // Main road north-south
-    for (let y = 2; y < h - 2; y++) {
-      cells[y][midX] = floorCell('stone');
-      cells[y][midX + 1] = floorCell('stone');
+
+    if (hasNSRoad && !roadDiagonal) {
+      const curve = Math.floor(this.rng.next() * 3) - 1;
+      for (let y = 2; y < h - 2; y++) {
+        const xOff = y > h / 3 && y < 2 * h / 3 ? 0 : curve;
+        const rx = Math.max(1, Math.min(w - 2, midX + xOff));
+        cells[y][rx] = floorCell(roadTerrain);
+        if (rx + 1 < w) cells[y][rx + 1] = floorCell(roadTerrain);
+      }
+    } else if (roadDiagonal) {
+      // Diagonal path through town
+      for (let i = 2; i < Math.min(w, h) - 2; i++) {
+        const dx = Math.min(w - 2, i);
+        const dy = Math.min(h - 2, i);
+        cells[dy][dx] = floorCell(roadTerrain);
+        if (dx + 1 < w) cells[dy][dx + 1] = floorCell(roadTerrain);
+      }
     }
 
-    // Town square / market in center
-    for (let y = midY - 3; y <= midY + 2; y++) {
-      for (let x = midX - 3; x <= midX + 4; x++) {
-        if (x >= 0 && x < w && y >= 0 && y < h) {
-          cells[y][x] = floorCell('stone');
+    // Town square / market (size and position vary)
+    const sqSize = size === 'city' ? 5 : size === 'town' ? 4 : 3;
+    for (let y = midY - sqSize; y <= midY + sqSize - 1; y++) {
+      for (let x = midX - sqSize; x <= midX + sqSize; x++) {
+        if (x >= 1 && x < w - 1 && y >= 1 && y < h - 1) {
+          cells[y][x] = floorCell(roadTerrain);
         }
       }
     }
 
-    // Fountain in center
-    cells[midY][midX] = makeCell('stone', 1, false, ['fountain']);
+    // Center feature
+    const featureRoll = this.rng.next();
+    const centerFeature: CellFeature = featureRoll < 0.5 ? 'fountain'
+      : featureRoll < 0.8 ? 'fire' : 'fountain';
+    cells[midY][midX] = makeCell(roadTerrain, 1, false, [centerFeature]);
 
-    // Place buildings in quadrants — vary sizes
-    const buildingSpots = [
-      { x: 5, y: 5, bw: 6 + Math.floor(this.rng.next() * 4), bh: 5 + Math.floor(this.rng.next() * 3) },
-      { x: 27, y: 5, bw: 6 + Math.floor(this.rng.next() * 4), bh: 5 + Math.floor(this.rng.next() * 3) },
-      { x: 5, y: 28, bw: 6 + Math.floor(this.rng.next() * 4), bh: 5 + Math.floor(this.rng.next() * 3) },
-      { x: 27, y: 28, bw: 6 + Math.floor(this.rng.next() * 4), bh: 5 + Math.floor(this.rng.next() * 3) },
-      { x: 5, y: 15, bw: 5 + Math.floor(this.rng.next() * 3), bh: 4 + Math.floor(this.rng.next() * 3) },
-      { x: 29, y: 15, bw: 5 + Math.floor(this.rng.next() * 3), bh: 4 + Math.floor(this.rng.next() * 3) },
-      { x: 15, y: 5, bw: 4 + Math.floor(this.rng.next() * 3), bh: 4 + Math.floor(this.rng.next() * 3) },
-      { x: 15, y: 30, bw: 4 + Math.floor(this.rng.next() * 3), bh: 4 + Math.floor(this.rng.next() * 3) },
-    ];
+    // ── Buildings — procedurally placed ──
+    const buildingCount = size === 'city' ? 10 + Math.floor(this.rng.next() * 4)
+      : size === 'town' ? 7 + Math.floor(this.rng.next() * 3)
+      : 4 + Math.floor(this.rng.next() * 3);
 
-    for (const spot of buildingSpots) {
-      this.placeBuilding(cells, w, h, spot.x, spot.y, spot.bw, spot.bh);
+    const placed: { x: number; y: number; bw: number; bh: number }[] = [];
+
+    for (let attempt = 0; attempt < buildingCount * 8 && placed.length < buildingCount; attempt++) {
+      const bw = 4 + Math.floor(this.rng.next() * 5);
+      const bh = 4 + Math.floor(this.rng.next() * 4);
+      const bx = 3 + Math.floor(this.rng.next() * (w - bw - 6));
+      const by = 3 + Math.floor(this.rng.next() * (h - bh - 6));
+
+      // Check no overlap with existing buildings or town square (with 1-tile gap)
+      let overlaps = false;
+      // Skip if on top of town square
+      if (bx < midX + sqSize + 2 && bx + bw > midX - sqSize - 1 &&
+          by < midY + sqSize + 1 && by + bh > midY - sqSize - 1) {
+        overlaps = true;
+      }
+      for (const p of placed) {
+        if (bx < p.x + p.bw + 1 && bx + bw + 1 > p.x &&
+            by < p.y + p.bh + 1 && by + bh + 1 > p.y) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (!overlaps) {
+        placed.push({ x: bx, y: by, bw, bh });
+        this.placeBuilding(cells, w, h, bx, by, bw, bh);
+      }
     }
 
-    // Perimeter wall with gaps for entrances
-    this.placePerimeter(cells, w, h, [
-      { x: midX, y: 0 },      // North gate
-      { x: midX + 1, y: 0 },
-      { x: midX, y: h - 1 },  // South gate
-      { x: midX + 1, y: h - 1 },
-      { x: 0, y: midY },      // West gate
-      { x: 0, y: midY - 1 },
-      { x: w - 1, y: midY },  // East gate
-      { x: w - 1, y: midY - 1 },
-    ]);
+    // Perimeter wall (cities/towns get walls, villages don't always)
+    const hasWall = size === 'city' || size === 'town' || this.rng.next() < 0.4;
+    const gates: Coordinate[] = [];
 
-    // Player starts at south gate
+    if (hasWall) {
+      // Gates at road intersections with perimeter
+      if (hasEWRoad) {
+        gates.push({ x: 0, y: midY }, { x: 0, y: midY - 1 });
+        gates.push({ x: w - 1, y: midY }, { x: w - 1, y: midY - 1 });
+      }
+      if (hasNSRoad || roadDiagonal) {
+        gates.push({ x: midX, y: 0 }, { x: midX + 1, y: 0 });
+        gates.push({ x: midX, y: h - 1 }, { x: midX + 1, y: h - 1 });
+      }
+      // Always at least one entrance on south
+      if (gates.length === 0) {
+        gates.push({ x: midX, y: h - 1 }, { x: midX + 1, y: h - 1 });
+      }
+      this.placePerimeter(cells, w, h, gates);
+    }
+
+    // Pick player start: a gate entrance or edge of town
+    const startY = hasWall ? h - 2 : h - 3;
     return {
       grid: { width: w, height: h, cells },
-      playerStart: { x: midX, y: h - 2 },
+      playerStart: { x: midX, y: startY },
     };
+  }
+
+  /** Scatter biome-appropriate decoration across town ground tiles */
+  private decorateTownGround(cells: GridCell[][], w: number, h: number, biome: BiomeType): void {
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const r = this.rng.next();
+        if (biome === 'forest' && r < 0.08) {
+          cells[y][x] = makeCell('grass', 2, true, ['tree']);
+        } else if (biome === 'desert' && r < 0.03) {
+          cells[y][x] = makeCell('sand', 2, true, ['rock']);
+        } else if (biome === 'swamp' && r < 0.06) {
+          cells[y][x] = r < 0.03 ? makeCell('water', Infinity, false) : makeCell('mud', 2, false);
+        } else if (biome === 'tundra' && r < 0.04) {
+          cells[y][x] = makeCell('ice', 2, true, ['rock']);
+        } else if (biome === 'mountain' && r < 0.05) {
+          cells[y][x] = makeCell('stone', 2, true, ['rock']);
+        } else if (biome === 'volcanic' && r < 0.03) {
+          cells[y][x] = r < 0.01 ? makeCell('lava', Infinity, false) : makeCell('stone', 2, true, ['rock']);
+        }
+      }
+    }
   }
 
   // ── Dungeon (30x50) ───────────────────────────────────────

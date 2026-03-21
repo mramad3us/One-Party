@@ -25,7 +25,9 @@ export type CellFeature =
   | 'stairs_up'
   | 'stairs_down'
   | 'fountain'
-  | 'pillar';
+  | 'pillar'
+  | 'tree'
+  | 'rock';
 
 /** A single cell in the tactical grid */
 export type GridCell = {

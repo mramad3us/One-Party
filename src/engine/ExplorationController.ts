@@ -90,6 +90,14 @@ const FEATURE_NARRATIVES: Record<CellFeature, string[]> = {
   pillar: [
     'A thick stone pillar supports the ceiling here, carved with faded patterns.',
   ],
+  tree: [
+    'A gnarled tree spreads its branches overhead, roots gripping the earth like claws.',
+    'An ancient tree stands here, its bark scarred by wind and time.',
+  ],
+  rock: [
+    'A weathered boulder juts from the ground, its surface pocked and cracked.',
+    'A large stone rests here, half-buried and stubborn as the mountains that spawned it.',
+  ],
 };
 
 function pick<T>(arr: T[]): T {
@@ -621,6 +629,8 @@ export class ExplorationController implements GameSystem {
       stairs_down: 'stairs leading down',
       fountain: 'a fountain',
       pillar: 'a stone pillar',
+      tree: 'a gnarled tree',
+      rock: 'a large rock',
     };
     return descriptions[feature] ?? 'something';
   }

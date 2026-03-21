@@ -52,6 +52,18 @@ import { processWorldDecay, markLocationVisited } from '@/world/WorldDecay';
 // Instead of saving the full 2500-cell grid, we regenerate the base
 // from the deterministic seed and only persist cells that changed.
 
+/** Compute a bitmask of which neighboring overworld tiles are water.
+ *  bit 0=north, 1=south, 2=west, 3=east */
+function getWaterSides(overworld: OverworldData, x: number, y: number): number {
+  const WATER: Set<string> = new Set(['deep_water', 'shallow_water']);
+  let mask = 0;
+  if (y > 0 && WATER.has(overworld.tiles[y - 1][x].terrain))                     mask |= 1; // north
+  if (y < overworld.height - 1 && WATER.has(overworld.tiles[y + 1][x].terrain))   mask |= 2; // south
+  if (x > 0 && WATER.has(overworld.tiles[y][x - 1].terrain))                     mask |= 4; // west
+  if (x < overworld.width - 1 && WATER.has(overworld.tiles[y][x + 1].terrain))    mask |= 8; // east
+  return mask;
+}
+
 /** Regenerate the base grid for a location from its overworld tile. */
 function regenerateBaseGrid(
   overworld: OverworldData,
@@ -65,7 +77,8 @@ function regenerateBaseGrid(
   if (tile.settlement) {
     return mapGen.generate(locationType, biome, overworld.seed, tileX, tileY);
   }
-  return mapGen.generateFromTerrain(tile.terrain, tile.river, overworld.seed, tileX, tileY);
+  const waterSides = getWaterSides(overworld, tileX, tileY);
+  return mapGen.generateFromTerrain(tile.terrain, tile.river, overworld.seed, tileX, tileY, waterSides);
 }
 
 /** Compare current grid against the regenerated base; return only changed cells. */

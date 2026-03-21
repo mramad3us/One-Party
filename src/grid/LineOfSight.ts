@@ -3,8 +3,10 @@ import { coordToKey } from '@/utils/math';
 import { Grid } from './Grid';
 
 /**
- * Bresenham-based line of sight calculations.
- * A cell blocks LoS if its `blocksLoS` property is true (walls, pillars).
+ * Line of sight and field of view calculations.
+ *
+ * Uses recursive shadowcasting for FOV (produces clean circular
+ * visibility) and Bresenham for point-to-point LoS checks.
  */
 export class LineOfSight {
   /**
@@ -62,39 +64,95 @@ export class LineOfSight {
   }
 
   /**
-   * Get all cells visible from an origin within a given range (in cells, not feet).
-   * Uses raycasting to each cell on the perimeter and all intermediate cells.
+   * Get all cells visible from an origin within a given range.
+   * Uses recursive shadowcasting across 8 octants for a clean circular FOV.
    * Returns a set of "x,y" coordinate keys.
    */
   static getVisibleCells(grid: Grid, from: Coordinate, range: number): Set<string> {
     const visible = new Set<string>();
     visible.add(coordToKey(from));
 
-    // Cast rays to every cell within range
-    for (let dy = -range; dy <= range; dy++) {
-      for (let dx = -range; dx <= range; dx++) {
-        // Only cast to cells within circular range
-        if (dx * dx + dy * dy > range * range) continue;
-
-        const tx = from.x + dx;
-        const ty = from.y + dy;
-
-        if (!grid.isValidPosition(tx, ty)) continue;
-
-        const ray = LineOfSight.getRayPath(from, { x: tx, y: ty });
-
-        for (let i = 0; i < ray.length; i++) {
-          const cell = grid.getCell(ray[i].x, ray[i].y);
-
-          // Add this cell as visible
-          visible.add(coordToKey(ray[i]));
-
-          // If it blocks LoS, stop the ray (but the blocking cell itself is visible)
-          if (i > 0 && cell && cell.blocksLoS) break;
-        }
-      }
+    // Cast shadows in all 8 octants
+    for (let octant = 0; octant < 8; octant++) {
+      castShadow(grid, from, range, octant, 1, 1.0, 0.0, visible);
     }
 
     return visible;
+  }
+}
+
+// ── Recursive shadowcasting (Björn Bergström's algorithm) ──────
+
+// Octant transforms: each octant maps (row, col) to (dx, dy)
+const OCTANT_TRANSFORMS: [number, number, number, number][] = [
+  [ 1,  0,  0,  1], // octant 0: E  → SE
+  [ 0,  1,  1,  0], // octant 1: SE → S
+  [ 0, -1,  1,  0], // octant 2: S  → SW
+  [-1,  0,  0,  1], // octant 3: SW → W
+  [-1,  0,  0, -1], // octant 4: W  → NW
+  [ 0, -1, -1,  0], // octant 5: NW → N
+  [ 0,  1, -1,  0], // octant 6: N  → NE
+  [ 1,  0,  0, -1], // octant 7: NE → E
+];
+
+function castShadow(
+  grid: Grid,
+  origin: Coordinate,
+  range: number,
+  octant: number,
+  row: number,
+  startSlope: number,
+  endSlope: number,
+  visible: Set<string>,
+): void {
+  if (startSlope < endSlope) return;
+
+  const [xx, xy, yx, yy] = OCTANT_TRANSFORMS[octant];
+  let nextStartSlope = startSlope;
+
+  for (let r = row; r <= range; r++) {
+    let blocked = false;
+
+    for (let col = Math.floor(r * endSlope - 0.5); col <= Math.ceil(r * startSlope + 0.5); col++) {
+      // Map octant-local (row, col) to grid coordinates
+      const gx = origin.x + col * xx + r * yx;
+      const gy = origin.y + col * xy + r * yy;
+
+      // Distance check (circular FOV)
+      const dist2 = (gx - origin.x) * (gx - origin.x) + (gy - origin.y) * (gy - origin.y);
+      if (dist2 > range * range) continue;
+
+      if (!grid.isValidPosition(gx, gy)) continue;
+
+      const leftSlope = (col - 0.5) / (r + 0.5);
+      const rightSlope = (col + 0.5) / (r - 0.5);
+
+      if (rightSlope < endSlope) continue;
+      if (leftSlope > startSlope) continue;
+
+      // This cell is visible
+      visible.add(coordToKey({ x: gx, y: gy }));
+
+      const cell = grid.getCell(gx, gy);
+      const isBlocking = !cell || cell.blocksLoS;
+
+      if (blocked) {
+        if (isBlocking) {
+          // Still in shadow — narrow the beam
+          nextStartSlope = rightSlope;
+        } else {
+          // Exiting shadow — start a new scan
+          blocked = false;
+          startSlope = nextStartSlope;
+        }
+      } else if (isBlocking && r < range) {
+        // Entering shadow — recurse with narrowed beam, then track shadow
+        blocked = true;
+        castShadow(grid, origin, range, octant, r + 1, startSlope, leftSlope, visible);
+        nextStartSlope = rightSlope;
+      }
+    }
+
+    if (blocked) break;
   }
 }
