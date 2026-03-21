@@ -456,11 +456,10 @@ export class ExplorationController implements GameSystem {
     const character = this.getCharacter?.();
     if (!character) return false;
     for (const entry of character.inventory.items) {
-      const item = this.engine.entities.get(entry.itemId);
-      if (item && 'maxCharges' in item && (item as { maxCharges: number }).maxCharges > 0) {
-        const maxC = (item as { maxCharges: number }).maxCharges;
-        const curC = entry.charges ?? 0;
-        if (curC < maxC) return true;
+      const item = getItem(entry.itemId);
+      if (item && item.maxCharges != null && item.maxCharges > 0) {
+        const curC = entry.charges ?? item.charges ?? 0;
+        if (curC < item.maxCharges) return true;
       }
     }
     return false;
@@ -662,12 +661,11 @@ export class ExplorationController implements GameSystem {
 
     let refilled = false;
     for (const entry of character.inventory.items) {
-      const item = this.engine.entities.get(entry.itemId);
-      if (item && 'maxCharges' in item && (item as { maxCharges: number }).maxCharges > 0) {
-        const maxC = (item as { maxCharges: number }).maxCharges;
-        const curC = entry.charges ?? 0;
-        if (curC < maxC) {
-          entry.charges = maxC;
+      const item = getItem(entry.itemId);
+      if (item && item.maxCharges != null && item.maxCharges > 0) {
+        const curC = entry.charges ?? item.charges ?? 0;
+        if (curC < item.maxCharges) {
+          entry.charges = item.maxCharges;
           refilled = true;
         }
       }
