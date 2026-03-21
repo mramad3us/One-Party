@@ -394,9 +394,10 @@ async function main(): Promise<void> {
       let result;
       if (activeOverworld && state.overworldPosition) {
         const owTile = activeOverworld.tiles[state.overworldPosition.y][state.overworldPosition.x];
+        const { x: tx, y: ty } = state.overworldPosition;
         result = owTile.settlement
           ? mapGen.generate(location.locationType, region.biome)
-          : mapGen.generateFromTerrain(owTile.terrain, owTile.river);
+          : mapGen.generateFromTerrain(owTile.terrain, owTile.river, activeOverworld.seed, tx, ty);
       } else {
         result = mapGen.generate(location.locationType, region.biome);
       }
@@ -1003,7 +1004,7 @@ async function main(): Promise<void> {
       // Use terrain-aware generation for non-settlement tiles
       const result = tile.settlement
         ? mapGen.generate(dest.locationType, getTerrainBiome(tile.terrain))
-        : mapGen.generateFromTerrain(tile.terrain, tile.river);
+        : mapGen.generateFromTerrain(tile.terrain, tile.river, activeOverworld.seed, x, y);
       gridDef = result.grid;
       playerStart = result.playerStart;
       dest.localMap = { grid: gridDef, playerStart, exploredCells: [] };

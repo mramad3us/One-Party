@@ -26,11 +26,31 @@ function floorCell(terrain: CellTerrain = 'floor'): GridCell {
 }
 
 /**
+ * Derive a deterministic seed for a specific overworld tile.
+ * Same world seed + same coordinates = same local map every time.
+ */
+function tileSeed(worldSeed: number, x: number, y: number): number {
+  // Mix coordinates into seed using large primes to avoid patterns
+  let h = worldSeed ^ 0x9e3779b9;
+  h = Math.imul(h ^ x, 0x85ebca6b);
+  h = Math.imul(h ^ y, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+/**
  * Generates detailed local maps for different location types.
  * Each map is a GridDefinition with terrain, features, and a player start position.
+ *
+ * For overworld tiles, use `generateFromTerrain()` with a world seed and
+ * tile coordinates to get deterministic, unique maps per tile.
  */
 export class LocalMapGenerator {
-  constructor(private rng: SeededRNG) {}
+  private rng: SeededRNG;
+
+  constructor(rng: SeededRNG) {
+    this.rng = rng;
+  }
 
   generate(locationType: LocationType, biome: BiomeType = 'forest'): MapResult {
     switch (locationType) {
@@ -56,8 +76,22 @@ export class LocalMapGenerator {
     }
   }
 
-  /** Generate a local map based on an overworld terrain type. */
-  generateFromTerrain(terrain: OverworldTerrain, hasRiver: boolean): MapResult {
+  /**
+   * Generate a local map for an overworld tile.
+   * Uses a deterministic per-tile seed so the same tile always produces
+   * the same map regardless of visit order.
+   */
+  generateFromTerrain(
+    terrain: OverworldTerrain,
+    hasRiver: boolean,
+    worldSeed: number,
+    tileX: number,
+    tileY: number,
+  ): MapResult {
+    // Create a tile-specific RNG — deterministic per position
+    const savedRng = this.rng;
+    this.rng = new SeededRNG(tileSeed(worldSeed, tileX, tileY));
+
     const biomeMap: Record<OverworldTerrain, BiomeType> = {
       deep_water: 'coast',
       shallow_water: 'coast',
@@ -76,26 +110,39 @@ export class LocalMapGenerator {
     };
 
     const biome = biomeMap[terrain];
+    let result: MapResult;
 
     switch (terrain) {
       case 'mountain':
-        return this.generateCave();
+        result = this.generateCave();
+        break;
       case 'beach':
       case 'shallow_water':
-        return this.generateCoast(hasRiver);
+        result = this.generateCoast(hasRiver);
+        break;
       case 'dense_forest':
-        return this.generateDenseForest();
+        result = this.generateDenseForest();
+        break;
       case 'hills':
-        return this.generateHills();
+        result = this.generateHills();
+        break;
       case 'swamp':
-        return this.generateSwamp();
+        result = this.generateSwamp();
+        break;
       case 'desert':
-        return this.generateDesert();
+        result = this.generateDesert();
+        break;
       case 'volcanic':
-        return this.generateVolcanic();
+        result = this.generateVolcanic();
+        break;
       default:
-        return this.generateWilderness(biome);
+        result = this.generateWilderness(biome);
+        break;
     }
+
+    // Restore the original RNG
+    this.rng = savedRng;
+    return result;
   }
 
   // ── Coast (50x50) ──────────────────────────────────────────
@@ -104,46 +151,82 @@ export class LocalMapGenerator {
     const w = 50, h = 50;
     const cells = this.fillGrid(w, h, 'sand');
 
-    // Water on one side
-    const waterEdge = Math.floor(w * 0.3);
-    for (let y = 0; y < h; y++) {
-      const edgeVariation = waterEdge + Math.floor(Math.sin(y * 0.2) * 3);
-      for (let x = 0; x < edgeVariation; x++) {
-        cells[y][x] = makeCell('water', 2, false);
+    // Randomize which side the water is on (N/S/E/W)
+    const side = Math.floor(this.rng.next() * 4); // 0=west, 1=east, 2=north, 3=south
+    const waterDepth = 0.2 + this.rng.next() * 0.2; // 20-40% water coverage
+    const waveFreq = 0.1 + this.rng.next() * 0.3;   // Wave frequency
+    const waveAmp = 2 + Math.floor(this.rng.next() * 4); // Wave amplitude
+
+    for (let a = 0; a < h; a++) {
+      const edgeBase = Math.floor((side < 2 ? w : h) * waterDepth);
+      const edgeVariation = edgeBase + Math.floor(Math.sin(a * waveFreq) * waveAmp);
+      for (let b = 0; b < edgeVariation; b++) {
+        let x: number, y: number;
+        if (side === 0)      { x = b; y = a; }           // Water on west
+        else if (side === 1) { x = w - 1 - b; y = a; }   // Water on east
+        else if (side === 2) { x = a; y = b; }            // Water on north
+        else                 { x = a; y = h - 1 - b; }   // Water on south
+        if (x >= 0 && x < w && y >= 0 && y < h) {
+          cells[y][x] = makeCell('water', 2, false);
+        }
       }
     }
 
-    // Driftwood and rocks on beach
-    for (let y = 0; y < h; y++) {
-      for (let x = waterEdge; x < waterEdge + 5; x++) {
-        if (x < w && this.rng.next() < 0.05) {
+    // Driftwood and rocks on beach edge
+    for (let a = 0; a < (side < 2 ? h : w); a++) {
+      const edgeBase = Math.floor((side < 2 ? w : h) * waterDepth);
+      for (let offset = 0; offset < 5; offset++) {
+        const b = edgeBase + offset;
+        let x: number, y: number;
+        if (side === 0)      { x = b; y = a; }
+        else if (side === 1) { x = w - 1 - b; y = a; }
+        else if (side === 2) { x = a; y = b; }
+        else                 { x = a; y = h - 1 - b; }
+        if (x >= 0 && x < w && y >= 0 && y < h && this.rng.next() < 0.04) {
           cells[y][x] = makeCell('sand', 1, false, ['chest']);
         }
       }
     }
 
     // Some grass inland
+    const grassStart = 0.55 + this.rng.next() * 0.15;
     for (let y = 0; y < h; y++) {
-      for (let x = Math.floor(w * 0.6); x < w; x++) {
-        if (this.rng.next() < 0.4) {
-          cells[y][x] = floorCell('grass');
+      for (let x = 0; x < w; x++) {
+        if (cells[y][x].terrain !== 'water') {
+          // Distance from water edge determines grass probability
+          let inlandDist: number;
+          if (side === 0) inlandDist = x / w;
+          else if (side === 1) inlandDist = (w - 1 - x) / w;
+          else if (side === 2) inlandDist = y / h;
+          else inlandDist = (h - 1 - y) / h;
+          if (inlandDist > grassStart && this.rng.next() < 0.5) {
+            cells[y][x] = floorCell('grass');
+          }
         }
       }
     }
 
     if (hasRiver) {
-      let rx = Math.floor(w * 0.6);
-      for (let y = 0; y < h; y++) {
-        rx += Math.floor(this.rng.next() * 3) - 1;
-        rx = Math.max(waterEdge + 3, Math.min(w - 2, rx));
-        cells[y][rx] = makeCell('water', 2, false);
+      // River perpendicular to the coast
+      const isHoriz = side >= 2;
+      let pos = Math.floor((isHoriz ? h : w) * (0.3 + this.rng.next() * 0.4));
+      const len = isHoriz ? w : h;
+      for (let i = 0; i < len; i++) {
+        pos += Math.floor(this.rng.next() * 3) - 1;
+        pos = Math.max(2, Math.min((isHoriz ? h : w) - 3, pos));
+        const x = isHoriz ? i : pos;
+        const y = isHoriz ? pos : i;
+        if (x >= 0 && x < w && y >= 0 && y < h) {
+          cells[y][x] = makeCell('water', 2, false);
+        }
       }
     }
 
-    return {
-      grid: { width: w, height: h, cells },
-      playerStart: { x: Math.floor(w * 0.7), y: Math.floor(h / 2) },
-    };
+    // Player starts inland
+    const sx = side === 0 ? Math.floor(w * 0.7) : side === 1 ? Math.floor(w * 0.3) : Math.floor(w / 2);
+    const sy = side === 2 ? Math.floor(h * 0.7) : side === 3 ? Math.floor(h * 0.3) : Math.floor(h / 2);
+    const start = this.findOpenCell(cells, w, h, sx, sy);
+    return { grid: { width: w, height: h, cells }, playerStart: start };
   }
 
   // ── Dense Forest (50x50) ────────────────────────────────────
@@ -152,22 +235,25 @@ export class LocalMapGenerator {
     const w = 50, h = 50;
     const cells = this.fillGrid(w, h, 'grass');
 
-    // Heavy tree coverage (70% wall)
+    // Vary tree density per tile
+    const density = 0.45 + this.rng.next() * 0.2; // 45-65%
     for (let y = 1; y < h - 1; y++) {
       for (let x = 1; x < w - 1; x++) {
-        if (this.rng.next() < 0.55) {
+        if (this.rng.next() < density) {
           cells[y][x] = wallCell();
         }
       }
     }
 
-    // Cellular automata to create natural clumps
-    for (let iter = 0; iter < 3; iter++) {
+    // Cellular automata iterations (2-4)
+    const iterations = 2 + Math.floor(this.rng.next() * 3);
+    const threshold = 3 + Math.floor(this.rng.next() * 2); // 3-4
+    for (let iter = 0; iter < iterations; iter++) {
       const next = this.fillGrid(w, h, 'grass');
       for (let y = 1; y < h - 1; y++) {
         for (let x = 1; x < w - 1; x++) {
           const wallCount = this.countWallNeighbors(cells, x, y);
-          next[y][x] = wallCount >= 4 ? wallCell() : floorCell('grass');
+          next[y][x] = wallCount >= threshold ? wallCell() : floorCell('grass');
         }
       }
       for (let y = 1; y < h - 1; y++) {
@@ -177,17 +263,51 @@ export class LocalMapGenerator {
       }
     }
 
-    // Narrow winding path
-    let px = 0;
-    let py = Math.floor(h / 2);
-    while (px < w) {
-      cells[py][px] = floorCell('grass');
-      if (py > 1 && py < h - 2) {
-        cells[py + 1][px] = floorCell('grass');
+    // Winding path — random direction (horizontal or vertical, or diagonal)
+    const pathDir = Math.floor(this.rng.next() * 3); // 0=horiz, 1=vert, 2=diagonal
+    if (pathDir === 0) {
+      let py = Math.floor(h * (0.3 + this.rng.next() * 0.4));
+      for (let px = 0; px < w; px++) {
+        cells[py][px] = floorCell('grass');
+        if (py > 1 && py < h - 2) cells[py + 1][px] = floorCell('grass');
+        py += Math.floor(this.rng.next() * 3) - 1;
+        py = Math.max(1, Math.min(h - 2, py));
       }
-      px++;
-      py += Math.floor(this.rng.next() * 3) - 1;
-      py = Math.max(1, Math.min(h - 2, py));
+    } else if (pathDir === 1) {
+      let px = Math.floor(w * (0.3 + this.rng.next() * 0.4));
+      for (let py = 0; py < h; py++) {
+        cells[py][px] = floorCell('grass');
+        if (px > 1 && px < w - 2) cells[py][px + 1] = floorCell('grass');
+        px += Math.floor(this.rng.next() * 3) - 1;
+        px = Math.max(1, Math.min(w - 2, px));
+      }
+    } else {
+      let px = 0, py = 0;
+      while (px < w && py < h) {
+        cells[py][px] = floorCell('grass');
+        if (px + 1 < w) cells[py][px + 1] = floorCell('grass');
+        px++;
+        py += this.rng.next() < 0.7 ? 1 : 0;
+        py = Math.min(h - 1, py);
+      }
+    }
+
+    // Optional small clearings
+    const clearingCount = Math.floor(this.rng.next() * 3);
+    for (let i = 0; i < clearingCount; i++) {
+      const cx = 5 + Math.floor(this.rng.next() * (w - 10));
+      const cy = 5 + Math.floor(this.rng.next() * (h - 10));
+      const r = 2 + Math.floor(this.rng.next() * 2);
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dy * dy <= r * r) {
+            const px = cx + dx, py = cy + dy;
+            if (px > 0 && px < w - 1 && py > 0 && py < h - 1) {
+              cells[py][px] = floorCell('grass');
+            }
+          }
+        }
+      }
     }
 
     const start = this.findOpenCell(cells, w, h, Math.floor(w / 2), Math.floor(h / 2));
@@ -200,14 +320,16 @@ export class LocalMapGenerator {
     const w = 50, h = 50;
     const cells = this.fillGrid(w, h, 'grass');
 
-    // Rocky outcrops (walls)
-    for (let i = 0; i < 15; i++) {
+    // Vary outcrop count and size range
+    const outcropCount = 8 + Math.floor(this.rng.next() * 15); // 8-22
+    for (let i = 0; i < outcropCount; i++) {
       const cx = 3 + Math.floor(this.rng.next() * (w - 6));
       const cy = 3 + Math.floor(this.rng.next() * (h - 6));
-      const r = 2 + Math.floor(this.rng.next() * 3);
+      const r = 1 + Math.floor(this.rng.next() * 4); // 1-4
+      const fillRate = 0.4 + this.rng.next() * 0.4;  // 40-80% fill
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
-          if (dx * dx + dy * dy <= r * r && this.rng.next() < 0.6) {
+          if (dx * dx + dy * dy <= r * r && this.rng.next() < fillRate) {
             const px = cx + dx, py = cy + dy;
             if (px > 0 && px < w - 1 && py > 0 && py < h - 1) {
               cells[py][px] = makeCell('stone', 2, true);
@@ -217,19 +339,51 @@ export class LocalMapGenerator {
       }
     }
 
-    // Trail across
-    for (let x = 0; x < w; x++) {
-      const ty = Math.floor(h / 2) + Math.floor(Math.sin(x * 0.15) * 5);
-      if (ty >= 0 && ty < h) {
-        cells[ty][x] = floorCell('stone');
-        if (ty + 1 < h) cells[ty + 1][x] = floorCell('stone');
+    // Trail — random orientation and wave
+    const trailDir = this.rng.next() < 0.6 ? 'horiz' : 'vert';
+    const trailOffset = 0.3 + this.rng.next() * 0.4; // Position 30-70%
+    const waveFreq = 0.08 + this.rng.next() * 0.15;
+    const waveAmp = 3 + Math.floor(this.rng.next() * 5);
+
+    if (trailDir === 'horiz') {
+      const baseY = Math.floor(h * trailOffset);
+      for (let x = 0; x < w; x++) {
+        const ty = baseY + Math.floor(Math.sin(x * waveFreq) * waveAmp);
+        if (ty >= 0 && ty < h) {
+          cells[ty][x] = floorCell('stone');
+          if (ty + 1 < h) cells[ty + 1][x] = floorCell('stone');
+        }
+      }
+    } else {
+      const baseX = Math.floor(w * trailOffset);
+      for (let y = 0; y < h; y++) {
+        const tx = baseX + Math.floor(Math.sin(y * waveFreq) * waveAmp);
+        if (tx >= 0 && tx < w) {
+          cells[y][tx] = floorCell('stone');
+          if (tx + 1 < w) cells[y][tx + 1] = floorCell('stone');
+        }
       }
     }
 
-    return {
-      grid: { width: w, height: h, cells },
-      playerStart: { x: Math.floor(w / 2), y: Math.floor(h / 2) },
-    };
+    // Occasional grass patches among stone
+    for (let i = 0; i < 5; i++) {
+      const cx = 5 + Math.floor(this.rng.next() * (w - 10));
+      const cy = 5 + Math.floor(this.rng.next() * (h - 10));
+      const r = 2 + Math.floor(this.rng.next() * 3);
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dy * dy <= r * r) {
+            const px = cx + dx, py = cy + dy;
+            if (px > 0 && px < w - 1 && py > 0 && py < h - 1 && cells[py][px].terrain !== 'stone') {
+              // Leave as grass (don't overwrite stone outcrops)
+            }
+          }
+        }
+      }
+    }
+
+    const start = this.findOpenCell(cells, w, h, Math.floor(w / 2), Math.floor(h / 2));
+    return { grid: { width: w, height: h, cells }, playerStart: start };
   }
 
   // ── Swamp (50x50) ──────────────────────────────────────────
@@ -238,17 +392,20 @@ export class LocalMapGenerator {
     const w = 50, h = 50;
     const cells = this.fillGrid(w, h, 'mud');
 
-    // Water pools everywhere
+    // Vary water coverage
+    const waterDensity = 0.15 + this.rng.next() * 0.2; // 15-35%
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        if (this.rng.next() < 0.25) {
+        if (this.rng.next() < waterDensity) {
           cells[y][x] = makeCell('water', 3, false);
         }
       }
     }
 
-    // Cellular automata for natural pools
-    for (let iter = 0; iter < 2; iter++) {
+    // Cellular automata for natural pools (vary iterations and threshold)
+    const iterations = 1 + Math.floor(this.rng.next() * 3); // 1-3
+    const poolThreshold = 4 + Math.floor(this.rng.next() * 2); // 4-5
+    for (let iter = 0; iter < iterations; iter++) {
       const next = this.fillGrid(w, h, 'mud');
       for (let y = 1; y < h - 1; y++) {
         for (let x = 1; x < w - 1; x++) {
@@ -258,7 +415,7 @@ export class LocalMapGenerator {
               if (cells[y + dy][x + dx].terrain === 'water') waterCount++;
             }
           }
-          next[y][x] = waterCount >= 5
+          next[y][x] = waterCount >= poolThreshold
             ? makeCell('water', 3, false)
             : makeCell('mud', 2, false);
         }
@@ -270,12 +427,31 @@ export class LocalMapGenerator {
       }
     }
 
-    // Dead trees
-    for (let i = 0; i < 30; i++) {
+    // Dead trees — vary count
+    const treeCount = 15 + Math.floor(this.rng.next() * 30); // 15-44
+    for (let i = 0; i < treeCount; i++) {
       const tx = Math.floor(this.rng.next() * (w - 2)) + 1;
       const ty = Math.floor(this.rng.next() * (h - 2)) + 1;
       if (cells[ty][tx].terrain === 'mud') {
         cells[ty][tx] = wallCell();
+      }
+    }
+
+    // Optional raised mud islands (dry patches)
+    const islandCount = Math.floor(this.rng.next() * 4);
+    for (let i = 0; i < islandCount; i++) {
+      const cx = 5 + Math.floor(this.rng.next() * (w - 10));
+      const cy = 5 + Math.floor(this.rng.next() * (h - 10));
+      const r = 2 + Math.floor(this.rng.next() * 3);
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dy * dy <= r * r) {
+            const px = cx + dx, py = cy + dy;
+            if (px > 0 && px < w - 1 && py > 0 && py < h - 1) {
+              cells[py][px] = makeCell('mud', 2, false);
+            }
+          }
+        }
       }
     }
 
@@ -289,35 +465,70 @@ export class LocalMapGenerator {
     const w = 50, h = 50;
     const cells = this.fillGrid(w, h, 'sand');
 
-    // Dune ridges (impassable)
-    for (let i = 0; i < 8; i++) {
-      let dx = Math.floor(this.rng.next() * w);
-      for (let y = 0; y < h; y++) {
-        dx += Math.floor(this.rng.next() * 3) - 1;
-        dx = Math.max(0, Math.min(w - 1, dx));
-        if (this.rng.next() < 0.7) {
-          cells[y][dx] = makeCell('sand', Infinity, true);
+    // Dune ridges — vary count and orientation
+    const duneCount = 4 + Math.floor(this.rng.next() * 8); // 4-11
+    const duneHoriz = this.rng.next() < 0.5;
+
+    for (let i = 0; i < duneCount; i++) {
+      if (duneHoriz) {
+        let dy = Math.floor(this.rng.next() * h);
+        for (let x = 0; x < w; x++) {
+          dy += Math.floor(this.rng.next() * 3) - 1;
+          dy = Math.max(0, Math.min(h - 1, dy));
+          if (this.rng.next() < 0.65) {
+            cells[dy][x] = makeCell('sand', Infinity, true);
+          }
+        }
+      } else {
+        let dx = Math.floor(this.rng.next() * w);
+        for (let y = 0; y < h; y++) {
+          dx += Math.floor(this.rng.next() * 3) - 1;
+          dx = Math.max(0, Math.min(w - 1, dx));
+          if (this.rng.next() < 0.65) {
+            cells[y][dx] = makeCell('sand', Infinity, true);
+          }
         }
       }
     }
 
-    // Oasis in a random spot
-    const ox = 10 + Math.floor(this.rng.next() * (w - 20));
-    const oy = 10 + Math.floor(this.rng.next() * (h - 20));
-    for (let dy = -3; dy <= 3; dy++) {
-      for (let dx = -3; dx <= 3; dx++) {
-        if (dx * dx + dy * dy <= 9) {
-          cells[oy + dy][ox + dx] = makeCell('water', 1, false);
+    // Oasis — vary count (0-2) and position
+    const oasisCount = Math.floor(this.rng.next() * 3); // 0-2
+    for (let i = 0; i < oasisCount; i++) {
+      const ox = 8 + Math.floor(this.rng.next() * (w - 16));
+      const oy = 8 + Math.floor(this.rng.next() * (h - 16));
+      const oasisR = 2 + Math.floor(this.rng.next() * 3); // 2-4
+      for (let dy = -oasisR; dy <= oasisR; dy++) {
+        for (let dx = -oasisR; dx <= oasisR; dx++) {
+          if (dx * dx + dy * dy <= oasisR * oasisR) {
+            const px = ox + dx, py = oy + dy;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+              cells[py][px] = makeCell('water', 1, false);
+            }
+          }
+        }
+      }
+      // Vegetation ring around oasis
+      const vegR = oasisR + 2;
+      for (let dy = -vegR; dy <= vegR; dy++) {
+        for (let dx = -vegR; dx <= vegR; dx++) {
+          const d2 = dx * dx + dy * dy;
+          if (d2 > oasisR * oasisR && d2 <= vegR * vegR && this.rng.next() < 0.25) {
+            const px = ox + dx, py = oy + dy;
+            if (px >= 0 && px < w && py >= 0 && py < h && cells[py][px].terrain === 'sand' && cells[py][px].movementCost < Infinity) {
+              cells[py][px] = floorCell('grass');
+            }
+          }
         }
       }
     }
-    // Palm trees around oasis
-    for (let dy = -5; dy <= 5; dy++) {
-      for (let dx = -5; dx <= 5; dx++) {
-        const d2 = dx * dx + dy * dy;
-        if (d2 > 9 && d2 <= 25 && this.rng.next() < 0.2) {
-          cells[oy + dy][ox + dx] = floorCell('grass');
-        }
+
+    // Scattered rocks
+    const rockCount = Math.floor(this.rng.next() * 12);
+    for (let i = 0; i < rockCount; i++) {
+      const rx = 2 + Math.floor(this.rng.next() * (w - 4));
+      const ry = 2 + Math.floor(this.rng.next() * (h - 4));
+      if (cells[ry][rx].terrain === 'sand' && cells[ry][rx].movementCost < Infinity) {
+        cells[ry][rx] = makeCell('stone', 2, true);
       }
     }
 
@@ -331,17 +542,20 @@ export class LocalMapGenerator {
     const w = 50, h = 50;
     const cells = this.fillGrid(w, h, 'stone');
 
-    // Lava pools
+    // Lava pools — vary initial density
+    const lavaDensity = 0.04 + this.rng.next() * 0.08; // 4-12%
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        if (this.rng.next() < 0.08) {
+        if (this.rng.next() < lavaDensity) {
           cells[y][x] = makeCell('water', Infinity, false); // lava = deadly water
         }
       }
     }
 
     // Cellular automata for lava pools
-    for (let iter = 0; iter < 2; iter++) {
+    const iterations = 1 + Math.floor(this.rng.next() * 3); // 1-3
+    const lavaThreshold = 4 + Math.floor(this.rng.next() * 2); // 4-5
+    for (let iter = 0; iter < iterations; iter++) {
       const next = this.fillGrid(w, h, 'stone');
       for (let y = 1; y < h - 1; y++) {
         for (let x = 1; x < w - 1; x++) {
@@ -351,7 +565,7 @@ export class LocalMapGenerator {
               if (cells[y + dy][x + dx].terrain === 'water') lavaCount++;
             }
           }
-          next[y][x] = lavaCount >= 5
+          next[y][x] = lavaCount >= lavaThreshold
             ? makeCell('water', Infinity, false)
             : makeCell('stone', 1, false);
         }
@@ -363,12 +577,37 @@ export class LocalMapGenerator {
       }
     }
 
-    // Rock formations
-    for (let i = 0; i < 20; i++) {
+    // Rock formations — vary count
+    const rockCount = 10 + Math.floor(this.rng.next() * 25); // 10-34
+    for (let i = 0; i < rockCount; i++) {
       const rx = Math.floor(this.rng.next() * (w - 2)) + 1;
       const ry = Math.floor(this.rng.next() * (h - 2)) + 1;
       if (cells[ry][rx].terrain === 'stone') {
         cells[ry][rx] = wallCell();
+        // Occasional cluster
+        if (this.rng.next() < 0.3) {
+          const dx = Math.floor(this.rng.next() * 3) - 1;
+          const dy = Math.floor(this.rng.next() * 3) - 1;
+          const nx = rx + dx, ny = ry + dy;
+          if (nx > 0 && nx < w - 1 && ny > 0 && ny < h - 1 && cells[ny][nx].terrain === 'stone') {
+            cells[ny][nx] = wallCell();
+          }
+        }
+      }
+    }
+
+    // Lava rivers (0-2)
+    const lavaRivers = Math.floor(this.rng.next() * 3);
+    for (let r = 0; r < lavaRivers; r++) {
+      const isHoriz = this.rng.next() < 0.5;
+      let pos = Math.floor(this.rng.next() * (isHoriz ? h : w));
+      const len = isHoriz ? w : h;
+      for (let i = 0; i < len; i++) {
+        pos += Math.floor(this.rng.next() * 3) - 1;
+        pos = Math.max(1, Math.min((isHoriz ? h : w) - 2, pos));
+        const x = isHoriz ? i : pos;
+        const y = isHoriz ? pos : i;
+        cells[y][x] = makeCell('water', Infinity, false);
       }
     }
 
@@ -409,16 +648,16 @@ export class LocalMapGenerator {
     // Fountain in center
     cells[midY][midX] = makeCell('stone', 1, false, ['fountain']);
 
-    // Place buildings in quadrants
+    // Place buildings in quadrants — vary sizes
     const buildingSpots = [
-      { x: 5, y: 5, bw: 8, bh: 6 },    // NW
-      { x: 27, y: 5, bw: 8, bh: 6 },   // NE
-      { x: 5, y: 28, bw: 8, bh: 6 },   // SW
-      { x: 27, y: 28, bw: 8, bh: 6 },  // SE
-      { x: 5, y: 15, bw: 6, bh: 5 },   // W
-      { x: 29, y: 15, bw: 6, bh: 5 },  // E
-      { x: 15, y: 5, bw: 5, bh: 5 },   // N
-      { x: 15, y: 30, bw: 5, bh: 5 },  // S
+      { x: 5, y: 5, bw: 6 + Math.floor(this.rng.next() * 4), bh: 5 + Math.floor(this.rng.next() * 3) },
+      { x: 27, y: 5, bw: 6 + Math.floor(this.rng.next() * 4), bh: 5 + Math.floor(this.rng.next() * 3) },
+      { x: 5, y: 28, bw: 6 + Math.floor(this.rng.next() * 4), bh: 5 + Math.floor(this.rng.next() * 3) },
+      { x: 27, y: 28, bw: 6 + Math.floor(this.rng.next() * 4), bh: 5 + Math.floor(this.rng.next() * 3) },
+      { x: 5, y: 15, bw: 5 + Math.floor(this.rng.next() * 3), bh: 4 + Math.floor(this.rng.next() * 3) },
+      { x: 29, y: 15, bw: 5 + Math.floor(this.rng.next() * 3), bh: 4 + Math.floor(this.rng.next() * 3) },
+      { x: 15, y: 5, bw: 4 + Math.floor(this.rng.next() * 3), bh: 4 + Math.floor(this.rng.next() * 3) },
+      { x: 15, y: 30, bw: 4 + Math.floor(this.rng.next() * 3), bh: 4 + Math.floor(this.rng.next() * 3) },
     ];
 
     for (const spot of buildingSpots) {
@@ -529,17 +768,19 @@ export class LocalMapGenerator {
     // Start with random fill
     const cells = this.fillGrid(w, h, 'wall', Infinity, true);
 
-    // Random initial open cells (45% chance)
+    // Vary initial open density
+    const openDensity = 0.38 + this.rng.next() * 0.14; // 38-52%
     for (let y = 1; y < h - 1; y++) {
       for (let x = 1; x < w - 1; x++) {
-        if (this.rng.next() < 0.45) {
+        if (this.rng.next() < openDensity) {
           cells[y][x] = floorCell('stone');
         }
       }
     }
 
-    // Cellular automata smoothing (4 iterations)
-    for (let iter = 0; iter < 4; iter++) {
+    // Cellular automata smoothing (3-5 iterations)
+    const iterations = 3 + Math.floor(this.rng.next() * 3);
+    for (let iter = 0; iter < iterations; iter++) {
       const next = this.fillGrid(w, h, 'wall', Infinity, true);
       for (let y = 1; y < h - 1; y++) {
         for (let x = 1; x < w - 1; x++) {
@@ -569,11 +810,11 @@ export class LocalMapGenerator {
       cells[y][w - 1] = wallCell();
     }
 
-    // Place water pools
+    // Place water pools — vary density
+    const poolChance = 0.01 + this.rng.next() * 0.03; // 1-4%
     for (let y = 2; y < h - 2; y++) {
       for (let x = 2; x < w - 2; x++) {
-        if (cells[y][x].terrain === 'stone' && this.rng.next() < 0.02) {
-          // Small water pool
+        if (cells[y][x].terrain === 'stone' && this.rng.next() < poolChance) {
           cells[y][x] = makeCell('water', 2, false);
           if (cells[y + 1][x].terrain === 'stone') cells[y + 1][x] = makeCell('water', 2, false);
           if (cells[y][x + 1].terrain === 'stone') cells[y][x + 1] = makeCell('water', 2, false);
@@ -597,45 +838,86 @@ export class LocalMapGenerator {
     const baseTerrain = this.biomeToTerrain(biome);
     const cells = this.fillGrid(w, h, baseTerrain);
 
-    // Place tree clusters (walls that block LoS)
-    const treeCount = biome === 'forest' ? 120 : biome === 'plains' ? 20 : 60;
+    // Vary tree/obstacle count based on biome + randomness
+    const baseTreeCount = biome === 'forest' ? 120 : biome === 'plains' ? 20 : 60;
+    const treeCount = Math.floor(baseTreeCount * (0.6 + this.rng.next() * 0.8)); // 60-140% of base
     for (let i = 0; i < treeCount; i++) {
       const tx = Math.floor(this.rng.next() * (w - 4)) + 2;
       const ty = Math.floor(this.rng.next() * (h - 4)) + 2;
-      cells[ty][tx] = wallCell(); // Tree = wall
-      // Small cluster
-      if (this.rng.next() < 0.5) {
-        const dx = this.rng.next() < 0.5 ? 1 : -1;
-        if (tx + dx > 0 && tx + dx < w - 1) {
-          cells[ty][tx + dx] = wallCell();
+      cells[ty][tx] = wallCell();
+      // Cluster size varies
+      const clusterSize = Math.floor(this.rng.next() * 3); // 0-2 extra
+      for (let c = 0; c < clusterSize; c++) {
+        const dx = Math.floor(this.rng.next() * 3) - 1;
+        const dy = Math.floor(this.rng.next() * 3) - 1;
+        const nx = tx + dx, ny = ty + dy;
+        if (nx > 0 && nx < w - 1 && ny > 0 && ny < h - 1) {
+          cells[ny][nx] = wallCell();
         }
       }
     }
 
-    // Paths (stone terrain, easier movement)
-    const pathY = Math.floor(h / 2) + Math.floor(this.rng.next() * 6) - 3;
-    for (let x = 0; x < w; x++) {
-      const py = pathY + Math.floor(Math.sin(x * 0.3) * 2);
-      if (py >= 0 && py < h) {
-        cells[py][x] = floorCell('stone');
-        if (py + 1 < h) cells[py + 1][x] = floorCell('stone');
-      }
-    }
+    // Path — random direction
+    const pathDir = Math.floor(this.rng.next() * 4); // 0=EW, 1=NS, 2=NW-SE, 3=NE-SW
+    const pathOffset = 0.3 + this.rng.next() * 0.4;
+    const pathWave = 0.1 + this.rng.next() * 0.4;
 
-    // Stream (water, difficult terrain)
-    if (this.rng.next() < 0.6) {
-      let sx = Math.floor(this.rng.next() * w);
+    if (pathDir === 0) {
+      const pathY = Math.floor(h * pathOffset);
+      for (let x = 0; x < w; x++) {
+        const py = pathY + Math.floor(Math.sin(x * pathWave) * 3);
+        if (py >= 0 && py < h) {
+          cells[py][x] = floorCell('stone');
+          if (py + 1 < h) cells[py + 1][x] = floorCell('stone');
+        }
+      }
+    } else if (pathDir === 1) {
+      const pathX = Math.floor(w * pathOffset);
       for (let y = 0; y < h; y++) {
-        sx += Math.floor(this.rng.next() * 3) - 1;
-        sx = Math.max(0, Math.min(w - 1, sx));
-        cells[y][sx] = makeCell('water', 2, false);
+        const px = pathX + Math.floor(Math.sin(y * pathWave) * 3);
+        if (px >= 0 && px < w) {
+          cells[y][px] = floorCell('stone');
+          if (px + 1 < w) cells[y][px + 1] = floorCell('stone');
+        }
+      }
+    } else {
+      // Diagonal path
+      const startX = pathDir === 2 ? 0 : w - 1;
+      let px = startX, py = 0;
+      const stepX = pathDir === 2 ? 1 : -1;
+      while (py < h && px >= 0 && px < w) {
+        cells[py][px] = floorCell('stone');
+        if (px + 1 < w && px + 1 >= 0) cells[py][px + stepX > 0 ? px + 1 : px - 1 < 0 ? px : px - 1] = floorCell('stone');
+        py++;
+        px += this.rng.next() < 0.6 ? stepX : 0;
+        px = Math.max(0, Math.min(w - 1, px));
       }
     }
 
-    // Clearing in center area
-    const cx = Math.floor(w / 2) + Math.floor(this.rng.next() * 8) - 4;
-    const cy = Math.floor(h / 2) + Math.floor(this.rng.next() * 8) - 4;
-    const clearingRadius = 3 + Math.floor(this.rng.next() * 3);
+    // Stream — vary presence and direction
+    if (this.rng.next() < 0.5) {
+      const streamDir = this.rng.next() < 0.5; // true=vertical, false=horizontal
+      if (streamDir) {
+        let sx = Math.floor(this.rng.next() * w);
+        for (let y = 0; y < h; y++) {
+          sx += Math.floor(this.rng.next() * 3) - 1;
+          sx = Math.max(0, Math.min(w - 1, sx));
+          cells[y][sx] = makeCell('water', 2, false);
+        }
+      } else {
+        let sy = Math.floor(this.rng.next() * h);
+        for (let x = 0; x < w; x++) {
+          sy += Math.floor(this.rng.next() * 3) - 1;
+          sy = Math.max(0, Math.min(h - 1, sy));
+          cells[sy][x] = makeCell('water', 2, false);
+        }
+      }
+    }
+
+    // Clearing — vary position and size
+    const cx = Math.floor(w * (0.2 + this.rng.next() * 0.6));
+    const cy = Math.floor(h * (0.2 + this.rng.next() * 0.6));
+    const clearingRadius = 2 + Math.floor(this.rng.next() * 4);
     for (let dy = -clearingRadius; dy <= clearingRadius; dy++) {
       for (let dx = -clearingRadius; dx <= clearingRadius; dx++) {
         if (dx * dx + dy * dy <= clearingRadius * clearingRadius) {
@@ -661,18 +943,19 @@ export class LocalMapGenerator {
     const w = 40, h = 40;
     const cells = this.fillGrid(w, h, 'grass');
 
-    // Scattered broken walls (partially destroyed buildings)
-    for (let i = 0; i < 6; i++) {
+    // Vary number of ruined buildings
+    const ruinCount = 3 + Math.floor(this.rng.next() * 6); // 3-8
+    for (let i = 0; i < ruinCount; i++) {
       const bx = 3 + Math.floor(this.rng.next() * (w - 12));
       const by = 3 + Math.floor(this.rng.next() * (h - 12));
       const bw = 5 + Math.floor(this.rng.next() * 4);
       const bh = 4 + Math.floor(this.rng.next() * 3);
+      const decay = 0.5 + this.rng.next() * 0.3; // 50-80% walls remaining
 
-      // Place partial walls (gaps for "ruined" effect)
       for (let y = by; y < by + bh && y < h; y++) {
         for (let x = bx; x < bx + bw && x < w; x++) {
           if (y === by || y === by + bh - 1 || x === bx || x === bx + bw - 1) {
-            if (this.rng.next() < 0.7) { // 30% chance of gap
+            if (this.rng.next() < decay) {
               cells[y][x] = wallCell();
             }
           } else {
@@ -683,7 +966,8 @@ export class LocalMapGenerator {
     }
 
     // Scatter some chests among ruins
-    for (let i = 0; i < 3; i++) {
+    const chestCount = 1 + Math.floor(this.rng.next() * 4); // 1-4
+    for (let i = 0; i < chestCount; i++) {
       const rx = 3 + Math.floor(this.rng.next() * (w - 6));
       const ry = 3 + Math.floor(this.rng.next() * (h - 6));
       if (cells[ry][rx].terrain !== 'wall') {
