@@ -67,6 +67,8 @@ export class MapPanel extends Component {
   private dragStartOffsetX = 0;
   private dragStartOffsetY = 0;
   private active = false;
+  /** Optional callback to check if player can see map edge in a direction */
+  private edgeChecker: ((dx: number, dy: number) => boolean) | null = null;
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
@@ -175,6 +177,11 @@ export class MapPanel extends Component {
   }
 
   /** Set the player's current overworld position. */
+  /** Set a callback that checks if the party can see the map edge in a direction */
+  setEdgeChecker(fn: (dx: number, dy: number) => boolean): void {
+    this.edgeChecker = fn;
+  }
+
   setPlayerPosition(x: number, y: number): void {
     this.playerPos = { x, y };
     // Initialize cursor at player position
@@ -220,6 +227,13 @@ export class MapPanel extends Component {
 
     const tile = this.overworld.tiles[this.cursorPos.y][this.cursorPos.x];
     if (!isTraversable(tile.terrain)) return;
+
+    // Check edge visibility
+    if (this.edgeChecker && this.playerPos) {
+      const dx = this.cursorPos.x - this.playerPos.x;
+      const dy = this.cursorPos.y - this.playerPos.y;
+      if (!this.edgeChecker(dx, dy)) return;
+    }
 
     this.engine.events.emit({
       type: 'overworld:travel',
@@ -491,8 +505,12 @@ export class MapPanel extends Component {
       );
     }
 
-    // Travel button
-    if (!isPlayerHere && isAdjacent && traversable) {
+    // Travel button — must be adjacent, traversable, and player must see the map edge
+    const canSeeEdge = isAdjacent && this.playerPos
+      ? (!this.edgeChecker || this.edgeChecker(x - this.playerPos.x, y - this.playerPos.y))
+      : true;
+
+    if (!isPlayerHere && isAdjacent && traversable && canSeeEdge) {
       const travelBtn = el('button', { class: 'btn btn-primary map-detail-travel' }, [
         `Travel to ${name}`,
       ]);
@@ -505,6 +523,12 @@ export class MapPanel extends Component {
         this.hideDetail();
       });
       this.detailEl.appendChild(travelBtn);
+    } else if (!isPlayerHere && isAdjacent && traversable && !canSeeEdge) {
+      this.detailEl.appendChild(
+        el('div', { class: 'map-detail-unreachable font-mono' }, [
+          'Reach the edge of the local map in that direction first.',
+        ]),
+      );
     } else if (!isPlayerHere && !isAdjacent) {
       this.detailEl.appendChild(
         el('div', { class: 'map-detail-unreachable font-mono' }, [

@@ -64,6 +64,19 @@ function getWaterSides(overworld: OverworldData, x: number, y: number): number {
   return mask;
 }
 
+/** Get a human-readable cardinal direction from dx/dy offset */
+function getDirectionName(dx: number, dy: number): string {
+  if (dx === 0 && dy < 0) return 'north';
+  if (dx === 0 && dy > 0) return 'south';
+  if (dx < 0 && dy === 0) return 'west';
+  if (dx > 0 && dy === 0) return 'east';
+  if (dx > 0 && dy < 0) return 'northeast';
+  if (dx < 0 && dy < 0) return 'northwest';
+  if (dx > 0 && dy > 0) return 'southeast';
+  if (dx < 0 && dy > 0) return 'southwest';
+  return 'that direction';
+}
+
 /** Regenerate the base grid for a location from its overworld tile. */
 function regenerateBaseGrid(
   overworld: OverworldData,
@@ -420,6 +433,7 @@ async function main(): Promise<void> {
     // Set up overworld canvas map
     if (activeOverworld) {
       screen.setOverworld(activeOverworld);
+      screen.setEdgeChecker((dx, dy) => explorationController.canSeeMapEdge(dx, dy));
 
       // Derive overworld position from current location if not set (old saves)
       if (!state.overworldPosition) {
@@ -1030,6 +1044,25 @@ async function main(): Promise<void> {
 
     const tile = activeOverworld.tiles[y][x];
     if (!isTraversable(tile.terrain)) return;
+
+    // Gate travel: player must be able to see the map edge in the travel direction
+    const curPos = activeGameState.overworldPosition;
+    if (curPos) {
+      const dx = x - curPos.x;
+      const dy = y - curPos.y;
+      if (!explorationController.canSeeMapEdge(dx, dy)) {
+        const dirName = getDirectionName(dx, dy);
+        activeGameScreen.addNarrative({
+          text: `You cannot leave to the ${dirName} yet — the party must reach the ${dirName}ern edge of the map first.`,
+          category: 'action',
+        });
+        activeGameScreen.hideWorldMap();
+        if (keyboardInput.getContext() === 'worldmap') {
+          keyboardInput.popContext();
+        }
+        return;
+      }
+    }
 
     // Get or create a Location for this tile
     const rng = activeRng ?? new SeededRNG(Date.now());

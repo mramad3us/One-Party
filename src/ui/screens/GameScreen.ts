@@ -356,6 +356,11 @@ export class GameScreen extends Component {
     this.mapPanel.setOverworld(overworld);
   }
 
+  /** Set edge-visibility checker for travel gating */
+  setEdgeChecker(fn: (dx: number, dy: number) => boolean): void {
+    this.mapPanel.setEdgeChecker(fn);
+  }
+
   /** Update the player's overworld tile position on the map. */
   setOverworldPosition(x: number, y: number): void {
     this.mapPanel.setPlayerPosition(x, y);

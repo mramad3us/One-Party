@@ -253,6 +253,60 @@ export class ExplorationController implements GameSystem {
     return this.grid?.getDefinition() ?? null;
   }
 
+  /**
+   * Check whether the player can currently see the edge of the map
+   * in the given cardinal/diagonal direction.
+   * Used to gate overworld travel — the party must reach the map edge to leave.
+   *
+   * Direction: dx/dy relative to current overworld tile
+   * (e.g. dx=0,dy=-1 = north, dx=1,dy=1 = southeast)
+   */
+  canSeeMapEdge(dx: number, dy: number): boolean {
+    if (!this.grid || !this.fog) return false;
+
+    const fogState = this.fog.getState();
+    const w = this.grid.getWidth();
+    const h = this.grid.getHeight();
+
+    // For each direction component, check if any cell along that edge is visible
+    // North edge (dy < 0): row 0
+    // South edge (dy > 0): row h-1
+    // West edge (dx < 0): col 0
+    // East edge (dx > 0): col w-1
+
+    if (dy < 0) {
+      // Must see north edge
+      let found = false;
+      for (let x = 0; x < w; x++) {
+        if (fogState.visible.has(`${x},0`)) { found = true; break; }
+      }
+      if (!found) return false;
+    }
+    if (dy > 0) {
+      let found = false;
+      for (let x = 0; x < w; x++) {
+        if (fogState.visible.has(`${x},${h - 1}`)) { found = true; break; }
+      }
+      if (!found) return false;
+    }
+    if (dx < 0) {
+      let found = false;
+      for (let y = 0; y < h; y++) {
+        if (fogState.visible.has(`0,${y}`)) { found = true; break; }
+      }
+      if (!found) return false;
+    }
+    if (dx > 0) {
+      let found = false;
+      for (let y = 0; y < h; y++) {
+        if (fogState.visible.has(`${w - 1},${y}`)) { found = true; break; }
+      }
+      if (!found) return false;
+    }
+
+    return true;
+  }
+
   // ── Movement ──────────────────────────────────────────────
 
   private handleMove(dx: number, dy: number): void {
