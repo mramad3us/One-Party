@@ -160,18 +160,18 @@ export class GameScreen extends Component {
 
     const mapContent = el('div', { class: 'game-map-overlay-content' });
     this.mapPanel = new MapPanel(mapContent, this.engine);
-    mapOverlayInner.appendChild(mapContent);
 
-    // Travel info bar: sun arc + time (hidden until travel starts)
+    // Travel info bar + log: overlay inside the map content area (position: absolute)
     this.travelInfoBar = el('div', { class: 'travel-info-bar travel-info-bar--hidden' });
     const travelSunWrap = el('div', { class: 'travel-sun-wrap' });
     this.travelSunArc = new SunArc(travelSunWrap, this.engine, 'large');
     this.travelInfoBar.appendChild(travelSunWrap);
-    mapOverlayInner.appendChild(this.travelInfoBar);
+    mapContent.appendChild(this.travelInfoBar);
 
-    // Travel log (hidden until travel starts)
     this.travelLogEl = el('div', { class: 'travel-log travel-log--hidden' });
-    mapOverlayInner.appendChild(this.travelLogEl);
+    mapContent.appendChild(this.travelLogEl);
+
+    mapOverlayInner.appendChild(mapContent);
 
     mapOverlayInner.appendChild(el('div', { class: 'game-map-overlay-hint font-mono' }, ['Arrows/WASD: move cursor \u2022 Enter: travel \u2022 m/Esc: close']));
     this.mapOverlay.appendChild(mapOverlayInner);
