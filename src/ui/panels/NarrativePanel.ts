@@ -37,35 +37,37 @@ export class NarrativePanel extends Component {
   }
 
   protected setupEvents(): void {
-    // Track user scroll to disable auto-scroll when user scrolls up
+    // Track user scroll — disable auto-scroll-to-top when user scrolls down
     this.listen(this.scrollContainer, 'scroll', () => {
-      const { scrollTop, scrollHeight, clientHeight } = this.scrollContainer;
-      this.userHasScrolledUp = scrollHeight - scrollTop - clientHeight > 60;
+      this.userHasScrolledUp = this.scrollContainer.scrollTop > 60;
     });
   }
 
   addBlock(block: NarrativeBlock): void {
     const blockEl = this.createBlockElement(block);
-    this.blockContainer.appendChild(blockEl);
 
-    // Slide-up + fade-in animation
+    // Prepend: newest entries appear at the top
+    this.blockContainer.insertBefore(blockEl, this.blockContainer.firstChild);
+
+    // Slide-down + fade-in animation (enters from above)
     blockEl.style.opacity = '0';
-    blockEl.style.transform = 'translateY(20px)';
+    blockEl.style.transform = 'translateY(-12px)';
     requestAnimationFrame(() => {
       blockEl.style.transition = 'opacity 0.4s var(--ease-smooth), transform 0.4s var(--ease-out-back)';
       blockEl.style.opacity = '1';
       blockEl.style.transform = 'translateY(0)';
     });
 
-    this.scrollToBottom(true);
+    this.scrollToTop(true);
   }
 
   addBlocks(blocks: NarrativeBlock[]): void {
-    for (const block of blocks) {
-      const blockEl = this.createBlockElement(block);
-      this.blockContainer.appendChild(blockEl);
+    // Prepend in reverse order so they appear in correct chronological order
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const blockEl = this.createBlockElement(blocks[i]);
+      this.blockContainer.insertBefore(blockEl, this.blockContainer.firstChild);
     }
-    this.scrollToBottom(true);
+    this.scrollToTop(true);
   }
 
   clear(): void {
@@ -73,12 +75,12 @@ export class NarrativePanel extends Component {
     this.userHasScrolledUp = false;
   }
 
-  scrollToBottom(smooth = true): void {
+  scrollToTop(smooth = true): void {
     if (this.userHasScrolledUp) return;
 
     requestAnimationFrame(() => {
       this.scrollContainer.scrollTo({
-        top: this.scrollContainer.scrollHeight,
+        top: 0,
         behavior: smooth ? 'smooth' : 'instant',
       });
     });
