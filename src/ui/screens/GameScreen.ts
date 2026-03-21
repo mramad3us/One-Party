@@ -1,6 +1,7 @@
 import type { GameEngine } from '@/engine/GameEngine';
 import type { NarrativeBlock } from '@/types/narrative';
 import type { Character, Coordinate, EntityId, Region, SurvivalState } from '@/types';
+import type { GameTime } from '@/types/core';
 import { Component } from '@/ui/Component';
 import { NarrativePanel } from '@/ui/panels/NarrativePanel';
 import { PartyPanel, type PartyMember } from '@/ui/panels/PartyPanel';
@@ -12,6 +13,8 @@ import { IconSystem } from '@/ui/IconSystem';
 import type { EntityRenderInfo } from '@/grid/GridRenderer';
 import { Grid } from '@/grid/Grid';
 import { FogOfWar } from '@/grid/FogOfWar';
+import { TimeNarrator } from '@/narrative/TimeNarrator';
+import { SurvivalRules } from '@/rules/SurvivalRules';
 import { el } from '@/utils/dom';
 
 export interface GameScreenState {
@@ -22,9 +25,14 @@ export interface GameScreenState {
 }
 
 /**
- * Main game screen: party panel (left), narrative/grid (center),
- * action bar (bottom center), sidebar with map (right).
- * Switches between exploration (narrative) and combat (grid) modes.
+ * Main game screen — CDDA-inspired two-panel layout.
+ *
+ * Left:  Local map (ASCII grid) — dominant panel
+ * Right: Chronicle log (narrative) — scrollable side panel
+ * Top:   Compact status bar with roleplay time, character vitals, survival
+ * Bottom: Keyboard hints (hidden by default, toggle with ?)
+ *
+ * World map is a separate overlay triggered by 'm'.
  */
 export class GameScreen extends Component {
   private narrativePanel!: NarrativePanel;
@@ -34,11 +42,20 @@ export class GameScreen extends Component {
   private mapPanel!: MapPanel;
   private gridPanel!: GridPanel;
 
-  private mainViewEl!: HTMLElement;
-  private narrativeWrap!: HTMLElement;
   private gridWrap!: HTMLElement;
-  private sidebarEl!: HTMLElement;
-  private sidebarVisible = true;
+  private narrativeWrap!: HTMLElement;
+  private actionWrap!: HTMLElement;
+  private mapOverlay!: HTMLElement;
+  private mapOverlayVisible = false;
+  private hintsVisible = false;
+
+  // Status bar elements
+  private timeEl!: HTMLElement;
+  private lightEl!: HTMLElement;
+  private survivalStatusEl!: HTMLElement;
+  private locationEl!: HTMLElement;
+
+  // @ts-expect-error Written for future combat mode toggling
   private currentMode: 'exploration' | 'combat' = 'exploration';
 
   constructor(parent: HTMLElement, engine: GameEngine) {
@@ -48,78 +65,96 @@ export class GameScreen extends Component {
   protected createElement(): HTMLElement {
     const screen = el('div', { class: 'game-screen screen' });
 
-    // ── Top Bar ──
-    const topBar = el('div', { class: 'game-topbar' });
+    // ── Status Bar (compact, roleplay-driven) ──
+    const statusBar = el('div', { class: 'game-statusbar' });
 
-    const titleGroup = el('div', { class: 'game-topbar-title' });
-    titleGroup.appendChild(el('span', { class: 'game-topbar-logo font-heading' }, ['ONE PARTY']));
-    topBar.appendChild(titleGroup);
+    // Left group: time & light
+    const statusLeft = el('div', { class: 'game-statusbar-group' });
+    this.timeEl = el('span', { class: 'game-statusbar-time font-mono' }, ['Dawn, Day 1']);
+    this.lightEl = el('span', { class: 'game-statusbar-light font-mono' }, ['Pale dawn light']);
+    statusLeft.appendChild(this.timeEl);
+    statusLeft.appendChild(el('span', { class: 'game-statusbar-sep' }, ['\u2502']));
+    statusLeft.appendChild(this.lightEl);
+    statusBar.appendChild(statusLeft);
 
-    const timeDisplay = el('div', { class: 'game-topbar-time font-mono' }, ['Day 1']);
-    topBar.appendChild(timeDisplay);
+    // Center: location
+    this.locationEl = el('span', { class: 'game-statusbar-location font-heading' });
+    statusBar.appendChild(this.locationEl);
 
-    const topActions = el('div', { class: 'game-topbar-actions' });
-    topActions.appendChild(IconSystem.iconButton('save', 'Save Game', () => {
+    // Right group: survival summary + menu buttons
+    const statusRight = el('div', { class: 'game-statusbar-group' });
+    this.survivalStatusEl = el('span', { class: 'game-statusbar-survival font-mono' });
+    statusRight.appendChild(this.survivalStatusEl);
+
+    statusRight.appendChild(el('span', { class: 'game-statusbar-sep' }, ['\u2502']));
+
+    statusRight.appendChild(IconSystem.iconButton('save', 'Save Game', () => {
       this.engine.events.emit({ type: 'ui:action:save', category: 'ui', data: {} });
     }));
-    topActions.appendChild(IconSystem.iconButton('settings', 'Settings', () => {
-      this.engine.events.emit({ type: 'ui:action:settings', category: 'ui', data: {} });
-    }));
-    topActions.appendChild(IconSystem.iconButton('menu', 'Menu', () => {
+    statusRight.appendChild(IconSystem.iconButton('menu', 'Menu', () => {
       this.engine.events.emit({ type: 'ui:navigate', category: 'ui', data: { screen: 'menu', direction: 'right' } });
     }));
-    topBar.appendChild(topActions);
-    screen.appendChild(topBar);
+    statusBar.appendChild(statusRight);
 
-    // ── Main Layout (CSS Grid) ──
-    const layout = el('div', { class: 'game-layout' });
+    screen.appendChild(statusBar);
 
-    // Left: Status Panel + Party Panel
-    const leftCol = el('div', { class: 'game-col-left' });
-    this.statusPanel = new StatusPanel(leftCol, this.engine);
-    this.partyPanel = new PartyPanel(leftCol, this.engine);
-    layout.appendChild(leftCol);
+    // ── Two-Panel Layout ──
+    const layout = el('div', { class: 'game-layout-local' });
 
-    // Center: Main view + action bar
-    const centerCol = el('div', { class: 'game-col-center' });
-
-    // Main view area (switches narrative / grid)
-    this.mainViewEl = el('div', { class: 'game-main-view' });
-
-    this.narrativeWrap = el('div', { class: 'game-narrative-wrap' });
-    this.narrativePanel = new NarrativePanel(this.narrativeWrap, this.engine);
-    this.mainViewEl.appendChild(this.narrativeWrap);
-
-    this.gridWrap = el('div', { class: 'game-grid-wrap game-grid-wrap--hidden' });
+    // Left panel: ASCII grid map (dominant)
+    this.gridWrap = el('div', { class: 'game-panel-map' });
     this.gridPanel = new GridPanel(this.gridWrap, this.engine);
-    this.mainViewEl.appendChild(this.gridWrap);
+    layout.appendChild(this.gridWrap);
 
-    centerCol.appendChild(this.mainViewEl);
+    // Right panel: Chronicle log
+    this.narrativeWrap = el('div', { class: 'game-panel-log' });
 
-    // Action bar
-    const actionWrap = el('div', { class: 'game-action-wrap' });
-    this.actionPanel = new ActionPanel(actionWrap, this.engine);
-    centerCol.appendChild(actionWrap);
+    // Compact character status at top of log panel
+    const statusSection = el('div', { class: 'game-log-status' });
+    this.statusPanel = new StatusPanel(statusSection, this.engine);
+    this.narrativeWrap.appendChild(statusSection);
 
-    layout.appendChild(centerCol);
+    // Narrative log fills rest
+    const logSection = el('div', { class: 'game-log-narrative' });
+    this.narrativePanel = new NarrativePanel(logSection, this.engine);
+    this.narrativeWrap.appendChild(logSection);
 
-    // Sidebar toggle (outside sidebar so it's always visible)
-    const sidebarToggle = el('button', { class: 'game-sidebar-toggle btn btn-ghost' }, ['\u276E']);
-    sidebarToggle.addEventListener('click', () => this.toggleSidebar());
-    layout.appendChild(sidebarToggle);
-
-    // Right: Sidebar
-    this.sidebarEl = el('div', { class: 'game-col-right' });
-    this.mapPanel = new MapPanel(this.sidebarEl, this.engine);
-    layout.appendChild(this.sidebarEl);
+    layout.appendChild(this.narrativeWrap);
 
     screen.appendChild(layout);
+
+    // ── Action bar (keyboard hints, hidden by default) ──
+    this.actionWrap = el('div', { class: 'game-action-wrap game-action-wrap--hidden' });
+    this.actionPanel = new ActionPanel(this.actionWrap, this.engine);
+    screen.appendChild(this.actionWrap);
+
+    // ── Hidden panels ──
+    // Party panel (not shown in main layout, available for future use)
+    const hiddenParty = el('div', { style: 'display:none' });
+    this.partyPanel = new PartyPanel(hiddenParty, this.engine);
+
+    // World map overlay (triggered by 'm')
+    this.mapOverlay = el('div', { class: 'game-map-overlay game-map-overlay--hidden' });
+    const mapOverlayInner = el('div', { class: 'game-map-overlay-inner' });
+    const mapHeader = el('div', { class: 'game-map-overlay-header' });
+    mapHeader.appendChild(el('span', { class: 'game-map-overlay-title font-heading' }, ['World Map']));
+    const closeBtn = el('button', { class: 'btn btn-ghost game-map-overlay-close' }, ['\u2715']);
+    closeBtn.addEventListener('click', () => this.hideWorldMap());
+    mapHeader.appendChild(closeBtn);
+    mapOverlayInner.appendChild(mapHeader);
+
+    const mapContent = el('div', { class: 'game-map-overlay-content' });
+    this.mapPanel = new MapPanel(mapContent, this.engine);
+    mapOverlayInner.appendChild(mapContent);
+
+    mapOverlayInner.appendChild(el('div', { class: 'game-map-overlay-hint font-mono' }, ['Press [m] or [Esc] to close']));
+    this.mapOverlay.appendChild(mapOverlayInner);
+    screen.appendChild(this.mapOverlay);
 
     return screen;
   }
 
   protected setupEvents(): void {
-    // Mount child panels
     this.addChild(this.statusPanel);
     this.addChild(this.partyPanel);
     this.addChild(this.narrativePanel);
@@ -127,7 +162,6 @@ export class GameScreen extends Component {
     this.addChild(this.actionPanel);
     this.addChild(this.mapPanel);
 
-    // Listen for game events
     this.subscribe('narrative:*', (event) => {
       const block = event.data['block'] as NarrativeBlock | undefined;
       if (block) {
@@ -145,60 +179,17 @@ export class GameScreen extends Component {
     if (state.currentLocationId) {
       this.mapPanel.setCurrentLocation(state.currentLocationId);
     }
-
-    if (state.mode !== this.currentMode) {
-      if (state.mode === 'combat') {
-        this.enterCombatMode();
-      } else {
-        this.exitCombatMode();
-      }
-    }
   }
 
   enterCombatMode(grid?: Grid, fog?: FogOfWar): void {
     this.currentMode = 'combat';
-
     if (grid && fog) {
       this.gridPanel.initGrid(grid, fog);
     }
-
-    // Animate transition
-    this.narrativeWrap.style.transition = 'opacity 0.4s var(--ease-smooth), transform 0.4s var(--ease-smooth)';
-    this.narrativeWrap.style.opacity = '0';
-    this.narrativeWrap.style.transform = 'translateX(-30px)';
-
-    setTimeout(() => {
-      this.narrativeWrap.classList.add('game-narrative-wrap--hidden');
-      this.gridWrap.classList.remove('game-grid-wrap--hidden');
-
-      requestAnimationFrame(() => {
-        this.gridWrap.style.transition = 'opacity 0.4s var(--ease-smooth), transform 0.4s var(--ease-out-back)';
-        this.gridWrap.style.opacity = '1';
-        this.gridWrap.style.transform = 'translateX(0)';
-      });
-    }, 400);
   }
 
   exitCombatMode(): void {
     this.currentMode = 'exploration';
-
-    this.gridWrap.style.transition = 'opacity 0.4s var(--ease-smooth), transform 0.4s var(--ease-smooth)';
-    this.gridWrap.style.opacity = '0';
-    this.gridWrap.style.transform = 'translateX(30px)';
-
-    setTimeout(() => {
-      this.gridWrap.classList.add('game-grid-wrap--hidden');
-      this.narrativeWrap.classList.remove('game-narrative-wrap--hidden');
-
-      this.narrativeWrap.style.opacity = '0';
-      this.narrativeWrap.style.transform = 'translateX(-30px)';
-
-      requestAnimationFrame(() => {
-        this.narrativeWrap.style.transition = 'opacity 0.4s var(--ease-smooth), transform 0.4s var(--ease-out-back)';
-        this.narrativeWrap.style.opacity = '1';
-        this.narrativeWrap.style.transform = 'translateX(0)';
-      });
-    }, 400);
   }
 
   addNarrative(block: NarrativeBlock): void {
@@ -215,6 +206,7 @@ export class GameScreen extends Component {
 
   setCharacter(character: Character): void {
     this.statusPanel.setCharacter(character);
+    this.updateSurvivalStatus(character);
   }
 
   updateSurvival(survival: SurvivalState): void {
@@ -229,33 +221,57 @@ export class GameScreen extends Component {
     return this.narrativePanel;
   }
 
-  /** Enter local exploration mode: show grid + narrative together. */
+  // ── Time Display ──
+
+  /** Update the roleplay time display from game time. */
+  updateTime(time: GameTime): void {
+    this.timeEl.textContent = TimeNarrator.shortTime(time);
+    this.lightEl.textContent = TimeNarrator.getLightDescription(time);
+  }
+
+  /** Set the location name in the status bar. */
+  setLocationName(name: string): void {
+    this.locationEl.textContent = name;
+  }
+
+  // ── Survival Status (compact bar summary) ──
+
+  private updateSurvivalStatus(character: Character): void {
+    const s = character.survival;
+    const parts: string[] = [];
+
+    // Only show survival stats that are notable (above 20%)
+    const hungerT = SurvivalRules.getHungerThreshold(s.hunger);
+    const thirstT = SurvivalRules.getThirstThreshold(s.thirst);
+    const fatigueT = SurvivalRules.getFatigueThreshold(s.fatigue);
+
+    if (hungerT !== 'satiated') parts.push(this.formatSurvivalTag('hunger', hungerT, s.hunger));
+    if (thirstT !== 'quenched') parts.push(this.formatSurvivalTag('thirst', thirstT, s.thirst));
+    if (fatigueT !== 'rested') parts.push(this.formatSurvivalTag('fatigue', fatigueT, s.fatigue));
+
+    // HP
+    const hpPct = character.currentHp / character.maxHp;
+    if (hpPct < 1) {
+      const hpClass = hpPct > 0.5 ? 'status-warn' : hpPct > 0.25 ? 'status-danger' : 'status-critical';
+      parts.push(`<span class="${hpClass}">HP ${character.currentHp}/${character.maxHp}</span>`);
+    }
+
+    this.survivalStatusEl.innerHTML = parts.length > 0
+      ? parts.join(' <span class="game-statusbar-sep">\u2502</span> ')
+      : '<span class="status-good">Healthy</span>';
+  }
+
+  private formatSurvivalTag(type: string, threshold: string, value: number): string {
+    const cls = value <= 30 ? 'status-good' : value <= 50 ? 'status-warn' : value <= 75 ? 'status-danger' : 'status-critical';
+    void type;
+    return `<span class="${cls}">${threshold.charAt(0).toUpperCase() + threshold.slice(1)}</span>`;
+  }
+
+  // ── Local Mode ──
+
+  /** Enter local exploration mode: two-panel layout is already default. */
   enterLocalMode(grid: Grid, fog: FogOfWar): void {
     this.currentMode = 'exploration';
-
-    // Show both grid and narrative (grid dominant, narrative as log)
-    this.narrativeWrap.classList.remove('game-narrative-wrap--hidden');
-    this.gridWrap.classList.remove('game-grid-wrap--hidden');
-
-    // Switch to local layout
-    const centerCol = this.mainViewEl.parentElement;
-    if (centerCol) {
-      centerCol.classList.add('game-col-center--local');
-    }
-    this.mainViewEl.classList.add('game-main-view--local');
-
-    // Reorder: grid on top, narrative log below
-    this.mainViewEl.insertBefore(this.gridWrap, this.narrativeWrap);
-
-    // Reset transitions for immediate display
-    this.narrativeWrap.style.transition = 'none';
-    this.narrativeWrap.style.opacity = '1';
-    this.narrativeWrap.style.transform = 'none';
-    this.gridWrap.style.transition = 'none';
-    this.gridWrap.style.opacity = '1';
-    this.gridWrap.style.transform = 'none';
-
-    // Init grid panel (ResizeObserver inside renderer handles deferred sizing)
     this.gridPanel.initGrid(grid, fog);
   }
 
@@ -280,18 +296,39 @@ export class GameScreen extends Component {
     this.actionPanel.setKeyboardHints(hints);
   }
 
-  private toggleSidebar(): void {
-    this.sidebarVisible = !this.sidebarVisible;
+  // ── Help Toggle ──
 
-    const toggleBtn = this.$('.game-sidebar-toggle');
-    if (toggleBtn) {
-      toggleBtn.textContent = this.sidebarVisible ? '\u276E' : '\u276F';
-    }
-
-    if (this.sidebarVisible) {
-      this.sidebarEl.classList.remove('game-col-right--collapsed');
+  /** Toggle keyboard hints visibility (bound to ?) */
+  toggleHelp(): void {
+    this.hintsVisible = !this.hintsVisible;
+    if (this.hintsVisible) {
+      this.actionWrap.classList.remove('game-action-wrap--hidden');
     } else {
-      this.sidebarEl.classList.add('game-col-right--collapsed');
+      this.actionWrap.classList.add('game-action-wrap--hidden');
     }
+  }
+
+  // ── World Map Overlay ──
+
+  showWorldMap(): void {
+    this.mapOverlayVisible = true;
+    this.mapOverlay.classList.remove('game-map-overlay--hidden');
+  }
+
+  hideWorldMap(): void {
+    this.mapOverlayVisible = false;
+    this.mapOverlay.classList.add('game-map-overlay--hidden');
+  }
+
+  toggleWorldMap(): void {
+    if (this.mapOverlayVisible) {
+      this.hideWorldMap();
+    } else {
+      this.showWorldMap();
+    }
+  }
+
+  isWorldMapVisible(): boolean {
+    return this.mapOverlayVisible;
   }
 }

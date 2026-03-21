@@ -30,6 +30,7 @@ import { Grid } from '@/grid/Grid';
 import { FogOfWar } from '@/grid/FogOfWar';
 import type { KeyboardHint } from '@/ui/panels/ActionPanel';
 import type { EntityRenderInfo } from '@/grid/GridRenderer';
+import { TimeNarrator } from '@/narrative/TimeNarrator';
 
 async function main(): Promise<void> {
   // 1. Initialize storage engine
@@ -75,8 +76,20 @@ async function main(): Promise<void> {
     activeGameScreen = screen;
     return screen;
   });
-  ui.registerScreen('inventory', () => new InventoryScreen(container, engine));
-  ui.registerScreen('character', () => new CharacterScreen(container, engine));
+  ui.setPersistent('game');
+  let activeInventoryScreen: InventoryScreen | null = null;
+  let activeCharacterScreen: CharacterScreen | null = null;
+
+  ui.registerScreen('inventory', () => {
+    const screen = new InventoryScreen(container, engine);
+    activeInventoryScreen = screen;
+    return screen;
+  });
+  ui.registerScreen('character', () => {
+    const screen = new CharacterScreen(container, engine);
+    activeCharacterScreen = screen;
+    return screen;
+  });
 
   // 8. Listen for navigation events
   engine.events.on('ui:navigate', (event) => {
@@ -171,11 +184,35 @@ async function main(): Promise<void> {
     );
   });
 
-  // Populate the game screen when it becomes active
+  let gamePopulated = false;
+
+  // Populate screens when they become active
   engine.events.on('ui:screen:changed', (event) => {
     const { screen } = event.data as { screen: string };
-    if (screen === 'game' && activeGameScreen && activeGameState) {
+
+    if (screen === 'game' && activeGameScreen && activeGameState && !gamePopulated) {
       populateGameScreen(activeGameScreen, activeGameState, engine);
+      gamePopulated = true;
+    }
+
+    if (screen === 'character' && activeCharacterScreen) {
+      const character = engine.entities.getAll<Character>('character')[0];
+      if (character) {
+        activeCharacterScreen.setCharacter(character);
+      }
+    }
+
+    if (screen === 'inventory' && activeInventoryScreen) {
+      const character = engine.entities.getAll<Character>('character')[0];
+      if (character) {
+        const itemMap = new Map<string, import('@/types').Item>();
+        for (const entry of character.inventory.items) {
+          const item = getItem(entry.itemId);
+          if (item) itemMap.set(item.id, item);
+        }
+        activeInventoryScreen.setInventory(character.inventory, itemMap);
+        activeInventoryScreen.setEquipment(character.equipment, itemMap);
+      }
     }
   });
 
@@ -196,7 +233,11 @@ async function main(): Promise<void> {
     // Populate status panel
     screen.setCharacter(character);
 
-    // Populate party panel
+    // Set location name and time
+    screen.setLocationName(location.name);
+    screen.updateTime(state.world.time);
+
+    // Populate party panel + map
     screen.setGameState({
       mode: 'exploration',
       partyMembers: [{
@@ -571,13 +612,15 @@ async function main(): Promise<void> {
       { key: '<',   label: 'Ascend',    available: true, category: 'action' },
       { key: 'i',   label: 'Inventory', available: true, category: 'meta' },
       { key: 'c',   label: 'Character', available: true, category: 'meta' },
+      { key: 'm',   label: 'World Map', available: true, category: 'meta' },
+      { key: '?',   label: 'Help',      available: true, category: 'meta' },
       { key: 'Esc', label: 'Cancel',    available: true, category: 'meta' },
     ];
   }
 
   // Listen for exploration movement events — update UI
   engine.events.on('exploration:moved', (event) => {
-    if (!activeGameScreen) return;
+    if (!activeGameScreen || !activeGameState) return;
     const { position, roundsElapsed } = event.data as { position: { x: number; y: number }; roundsElapsed: number };
 
     // Center camera on player
@@ -598,18 +641,27 @@ async function main(): Promise<void> {
         conditions: character.conditions.map(c => c.type),
       });
 
-      // Update status panel if time passed
       if (roundsElapsed > 0) {
+        // Check for time-of-day transitions
+        const timeBefore = { totalRounds: activeGameState.world.time.totalRounds - roundsElapsed };
+        const timeAfter = activeGameState.world.time;
+        const transition = TimeNarrator.describeTimeTransition(timeBefore, timeAfter);
+        if (transition) {
+          activeGameScreen.addNarrative({ text: transition, category: 'description' });
+        }
+
         activeGameScreen.setCharacter(character);
+        activeGameScreen.updateTime(activeGameState.world.time);
       }
     }
   });
 
   engine.events.on('exploration:waited', () => {
-    if (!activeGameScreen) return;
+    if (!activeGameScreen || !activeGameState) return;
     const character = engine.entities.getAll<Character>('character')[0];
     if (character) {
       activeGameScreen.setCharacter(character);
+      activeGameScreen.updateTime(activeGameState.world.time);
     }
   });
 
@@ -638,9 +690,115 @@ async function main(): Promise<void> {
     });
   });
 
+  engine.events.on('input:help', () => {
+    if (!activeGameScreen) return;
+    activeGameScreen.toggleHelp();
+  });
+
+  engine.events.on('input:worldmap', () => {
+    if (!activeGameScreen) return;
+    activeGameScreen.toggleWorldMap();
+  });
+
   engine.events.on('input:cancel', () => {
-    // If in a sub-screen, return to game
-    // The UIManager handles this via existing navigation
+    // Close world map if open
+    if (activeGameScreen?.isWorldMapVisible()) {
+      activeGameScreen.hideWorldMap();
+      return;
+    }
+    // If on a sub-screen, return to game
+    const current = ui.getCurrentScreen();
+    if (current === 'character' || current === 'inventory') {
+      engine.events.emit({
+        type: 'ui:navigate',
+        category: 'ui',
+        data: { screen: 'game', direction: 'down' },
+      });
+    }
+  });
+
+  // Handle travel from world map
+  engine.events.on('map:travel', (event) => {
+    const { locationId } = event.data as { locationId: string };
+    if (!activeGameScreen || !activeGameState) return;
+
+    const region = activeGameState.getCurrentRegion();
+    const dest = region.locations.get(locationId);
+    if (!dest) return;
+
+    dest.discovered = true;
+    activeGameState.currentLocationId = dest.id;
+    activeGameState.currentSubLocationId = null;
+
+    // Travel takes 2-4 hours
+    const travelRounds = ROUNDS_PER_HOUR * (2 + Math.floor(Math.random() * 3));
+    const travelHours = Math.round(travelRounds / ROUNDS_PER_HOUR);
+    const timeBefore = { totalRounds: activeGameState.world.time.totalRounds };
+    activeGameState.advanceTime(travelRounds);
+
+    // Travel narrative
+    activeGameScreen.addNarrative({
+      text: `You gather your belongings and set out. The journey to ${dest.name} takes ${travelHours} hours of hard travel through the ${region.biome} terrain.`,
+      category: 'action',
+    });
+
+    // Time transition narrative
+    const transition = TimeNarrator.describeTimeTransition(timeBefore, activeGameState.world.time);
+    if (transition) {
+      activeGameScreen.addNarrative({ text: transition, category: 'description' });
+    }
+
+    // Tick survival
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (character) {
+      tickAndNarrate(character, travelRounds);
+    }
+
+    activeGameScreen.addNarrative(narrator.describeLocation(dest));
+
+    // Generate new local map
+    const rng = activeRng ?? new SeededRNG(Date.now());
+    const mapGen = new LocalMapGenerator(rng);
+    const { grid: gridDef, playerStart } = mapGen.generate(dest.locationType, region.biome);
+    const grid = new Grid(gridDef);
+    const fog = new FogOfWar();
+
+    // Re-enter exploration
+    explorationController.enterSpace(
+      grid, fog, character?.id ?? activeGameState.playerCharacterId, playerStart,
+      character?.speed ?? 30, 'bright',
+    );
+
+    activeGameScreen.enterLocalMode(grid, fog);
+    activeGameScreen.centerGrid(playerStart);
+
+    if (character) {
+      activeGameScreen.updatePlayerEntity(character.id, playerStart, {
+        name: character.name,
+        color: '#2a2520',
+        symbol: '@',
+        hp: character.currentHp,
+        maxHp: character.maxHp,
+        isPlayer: true,
+        isAlly: false,
+        size: 1,
+        conditions: character.conditions.map(c => c.type),
+      });
+      activeGameScreen.setCharacter(character);
+    }
+
+    // Update location name, time, and map
+    activeGameScreen.setLocationName(dest.name);
+    activeGameScreen.updateTime(activeGameState.world.time);
+    activeGameScreen.setGameState({
+      mode: 'exploration',
+      partyMembers: getPartyMembers(engine),
+      region,
+      currentLocationId: dest.id,
+    });
+
+    // Close world map
+    activeGameScreen.hideWorldMap();
   });
 
   // 10. Wire up save game event

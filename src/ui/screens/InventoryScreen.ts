@@ -111,11 +111,7 @@ export class InventoryScreen extends Component {
     this.listen(this.el, 'click', (e: Event) => {
       if (e.target === this.el) this.close();
     });
-
-    // Close on Escape
-    this.listen(document, 'keydown', (e: Event) => {
-      if ((e as KeyboardEvent).key === 'Escape') this.close();
-    });
+    // Escape is handled by KeyboardInput → input:cancel → main.ts navigation
   }
 
   setInventory(inventory: Inventory, items: Map<EntityId, Item>): void {
@@ -195,6 +191,10 @@ export class InventoryScreen extends Component {
   }
 
   async close(): Promise<void> {
-    await this.unmount();
+    this.engine.events.emit({
+      type: 'ui:navigate',
+      category: 'ui',
+      data: { screen: 'game', direction: 'down' },
+    });
   }
 }

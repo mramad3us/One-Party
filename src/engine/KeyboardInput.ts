@@ -33,6 +33,8 @@ const ACTION_BINDINGS: KeyBinding[] = [
 const META_BINDINGS: KeyBinding[] = [
   { keys: ['i'],      event: 'input:inventory',  data: {},  label: 'Inventory', context: 'global' },
   { keys: ['c'],      event: 'input:character',  data: {},  label: 'Character', context: 'global' },
+  { keys: ['m'],      event: 'input:worldmap',   data: {},  label: 'World Map', context: 'global' },
+  { keys: ['?'],      event: 'input:help',       data: {},  label: 'Help',      context: 'global' },
   { keys: ['Escape'], event: 'input:cancel',     data: {},  label: 'Cancel',    context: 'global' },
 ];
 

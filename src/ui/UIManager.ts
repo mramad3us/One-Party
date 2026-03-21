@@ -20,6 +20,8 @@ export class UIManager {
   private currentScreen: Component | null = null;
   private currentName: ScreenName | null = null;
   private screenFactories: Map<ScreenName, () => Component> = new Map();
+  private cachedScreens: Map<ScreenName, Component> = new Map();
+  private persistentScreens: Set<ScreenName> = new Set();
   private transitioning = false;
 
   constructor(
@@ -35,9 +37,15 @@ export class UIManager {
     this.screenFactories.set(name, factory);
   }
 
+  /** Mark a screen as persistent — it won't be destroyed on navigation away. */
+  setPersistent(name: ScreenName): void {
+    this.persistentScreens.add(name);
+  }
+
   /**
    * Transition to a new screen with directional animation.
    * The outgoing screen slides out, the incoming screen slides in.
+   * Persistent screens are cached and reused instead of recreated.
    */
   async switchScreen(
     name: ScreenName,
@@ -46,18 +54,31 @@ export class UIManager {
     if (this.transitioning) return;
     if (name === this.currentName) return;
 
-    const factory = this.screenFactories.get(name);
-    if (!factory) {
-      console.error(`Screen "${name}" not registered`);
-      return;
-    }
-
     this.transitioning = true;
 
-    const incoming = factory();
-    const outgoing = this.currentScreen;
+    // Reuse cached screen if persistent, otherwise create new
+    let incoming: Component;
+    const cached = this.cachedScreens.get(name);
+    if (cached) {
+      incoming = cached;
+    } else {
+      const factory = this.screenFactories.get(name);
+      if (!factory) {
+        console.error(`Screen "${name}" not registered`);
+        this.transitioning = false;
+        return;
+      }
+      incoming = factory();
+      // Cache if persistent
+      if (this.persistentScreens.has(name)) {
+        this.cachedScreens.set(name, incoming);
+      }
+    }
 
-    // Mount incoming (off-screen)
+    const outgoing = this.currentScreen;
+    const outgoingName = this.currentName;
+
+    // Mount incoming
     incoming.mount();
     const incomingEl = this.container.lastElementChild as HTMLElement;
 
@@ -66,8 +87,14 @@ export class UIManager {
       if (outgoingEl) {
         await AnimationSystem.screenTransition(outgoingEl, incomingEl, direction);
       }
-      outgoing.destroy();
-      outgoingEl?.remove();
+      // Only destroy non-persistent outgoing screens
+      if (outgoingName && this.persistentScreens.has(outgoingName)) {
+        // Just detach from DOM, don't destroy
+        outgoingEl?.remove();
+      } else {
+        outgoing.destroy();
+        outgoingEl?.remove();
+      }
     }
 
     this.currentScreen = incoming;

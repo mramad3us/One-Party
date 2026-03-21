@@ -18,14 +18,30 @@ const LOCATION_SYMBOLS: Record<LocationType, string> = {
   camp: '\u2605',       // star
 };
 
+const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
+  village: 'Village',
+  town: 'Town',
+  city: 'City',
+  dungeon: 'Dungeon',
+  wilderness: 'Wilderness',
+  ruins: 'Ruins',
+  castle: 'Castle',
+  cave: 'Cave',
+  temple: 'Temple',
+  camp: 'Camp',
+};
+
 /**
- * Simple node-based region/location map in the sidebar.
- * Shows discovered locations as connected circles with icons.
+ * World map panel with node-based region visualization.
+ * Clicking a location opens a detail tile showing what the party knows,
+ * with a "Travel" button to move there.
  */
 export class MapPanel extends Component {
   private svgEl!: SVGSVGElement;
+  private detailEl!: HTMLElement;
   private currentRegion: Region | null = null;
   private currentLocationId: EntityId | null = null;
+  private selectedLocationId: EntityId | null = null;
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
@@ -51,6 +67,10 @@ export class MapPanel extends Component {
     this.svgEl.setAttribute('viewBox', '0 0 200 200');
     wrapper.appendChild(this.svgEl);
 
+    // Location detail tile (hidden by default)
+    this.detailEl = el('div', { class: 'map-detail map-detail--hidden' });
+    wrapper.appendChild(this.detailEl);
+
     return wrapper;
   }
 
@@ -66,16 +86,21 @@ export class MapPanel extends Component {
       nameEl.textContent = region.name;
     }
 
+    this.selectedLocationId = null;
+    this.hideDetail();
     this.renderMap();
   }
 
   setCurrentLocation(locationId: EntityId): void {
     this.currentLocationId = locationId;
     this.renderMap();
+    // If the selected location is now current, refresh detail
+    if (this.selectedLocationId) {
+      this.showDetail(this.selectedLocationId);
+    }
   }
 
   highlightPath(locationIds: EntityId[]): void {
-    // Remove existing path highlights
     const existing = this.svgEl.querySelectorAll('.map-path-highlight');
     existing.forEach((el) => el.remove());
 
@@ -99,8 +124,151 @@ export class MapPanel extends Component {
     }
   }
 
+  // ── Detail Tile ──
+
+  private showDetail(locationId: EntityId): void {
+    if (!this.currentRegion) return;
+    const loc = this.currentRegion.locations.get(locationId);
+    if (!loc) return;
+
+    this.selectedLocationId = locationId;
+    this.detailEl.innerHTML = '';
+    this.detailEl.classList.remove('map-detail--hidden');
+
+    const isCurrent = locationId === this.currentLocationId;
+    const isConnected = this.isConnectedToCurrent(locationId);
+
+    // Header with symbol and name
+    const header = el('div', { class: 'map-detail-header' });
+    const symbol = el('span', { class: 'map-detail-symbol' }, [
+      LOCATION_SYMBOLS[loc.locationType] ?? '\u25CF',
+    ]);
+    header.appendChild(symbol);
+
+    if (loc.discovered) {
+      header.appendChild(el('span', { class: 'map-detail-name font-heading' }, [loc.name]));
+    } else {
+      header.appendChild(el('span', { class: 'map-detail-name map-detail-name--unknown font-heading' }, ['Unknown Place']));
+    }
+
+    // Close button
+    const closeBtn = el('button', { class: 'map-detail-close btn btn-ghost' }, ['\u2715']);
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.hideDetail();
+    });
+    header.appendChild(closeBtn);
+    this.detailEl.appendChild(header);
+
+    // Type badge
+    const typeBadge = el('div', { class: 'map-detail-type font-mono' }, [
+      LOCATION_TYPE_LABELS[loc.locationType] ?? loc.locationType,
+    ]);
+    if (isCurrent) {
+      typeBadge.appendChild(el('span', { class: 'map-detail-current-badge' }, [' \u2022 You are here']));
+    }
+    this.detailEl.appendChild(typeBadge);
+
+    // Description (only if discovered)
+    if (loc.discovered) {
+      this.detailEl.appendChild(
+        el('div', { class: 'map-detail-desc' }, [loc.description]),
+      );
+
+      // Known sub-locations
+      const knownSubs = Array.from(loc.subLocations.values()).filter(s => s.discovered);
+      if (knownSubs.length > 0) {
+        const subsSection = el('div', { class: 'map-detail-section' });
+        subsSection.appendChild(el('div', { class: 'map-detail-section-title font-mono' }, ['Known Places']));
+        for (const sub of knownSubs) {
+          subsSection.appendChild(el('div', { class: 'map-detail-sub font-mono' }, [
+            `\u2022 ${sub.name} (${sub.subType})`,
+          ]));
+        }
+        this.detailEl.appendChild(subsSection);
+      }
+
+      // Connected locations
+      const connectedLocs = loc.connections
+        .map(id => this.currentRegion!.locations.get(id))
+        .filter((l): l is Location => l != null);
+
+      if (connectedLocs.length > 0) {
+        const connSection = el('div', { class: 'map-detail-section' });
+        connSection.appendChild(el('div', { class: 'map-detail-section-title font-mono' }, ['Connected To']));
+        for (const conn of connectedLocs) {
+          const connName = conn.discovered ? conn.name : '???';
+          connSection.appendChild(el('div', { class: 'map-detail-sub font-mono' }, [
+            `\u2022 ${connName}`,
+          ]));
+        }
+        this.detailEl.appendChild(connSection);
+      }
+
+      // Last visited
+      if (loc.lastVisited) {
+        this.detailEl.appendChild(
+          el('div', { class: 'map-detail-visited font-mono' }, ['Previously visited']),
+        );
+      }
+
+      // Tags
+      if (loc.tags.length > 0) {
+        const tagsEl = el('div', { class: 'map-detail-tags' });
+        for (const tag of loc.tags) {
+          tagsEl.appendChild(el('span', { class: 'map-detail-tag badge' }, [tag]));
+        }
+        this.detailEl.appendChild(tagsEl);
+      }
+    } else {
+      // Undiscovered — mysterious description
+      this.detailEl.appendChild(
+        el('div', { class: 'map-detail-desc map-detail-desc--unknown' }, [
+          'This place remains shrouded in mystery. Perhaps the road will reveal its secrets in time.',
+        ]),
+      );
+    }
+
+    // Travel button (only if not current and reachable)
+    if (!isCurrent && isConnected) {
+      const travelBtn = el('button', { class: 'btn btn-primary map-detail-travel' }, [
+        `Travel to ${loc.discovered ? loc.name : 'this place'}`,
+      ]);
+      travelBtn.addEventListener('click', () => {
+        this.engine.events.emit({
+          type: 'map:travel',
+          category: 'ui',
+          data: { locationId },
+        });
+        this.hideDetail();
+      });
+      this.detailEl.appendChild(travelBtn);
+    } else if (!isCurrent && !isConnected) {
+      this.detailEl.appendChild(
+        el('div', { class: 'map-detail-unreachable font-mono' }, [
+          'No direct path from your current location.',
+        ]),
+      );
+    }
+  }
+
+  private hideDetail(): void {
+    this.selectedLocationId = null;
+    this.detailEl.classList.add('map-detail--hidden');
+    this.detailEl.innerHTML = '';
+    this.renderMap(); // Deselect visual highlight
+  }
+
+  private isConnectedToCurrent(locationId: EntityId): boolean {
+    if (!this.currentRegion || !this.currentLocationId) return false;
+    const currentLoc = this.currentRegion.locations.get(this.currentLocationId);
+    if (!currentLoc) return false;
+    return currentLoc.connections.includes(locationId);
+  }
+
+  // ── Rendering ──
+
   private renderMap(): void {
-    // Clear SVG
     while (this.svgEl.firstChild) {
       this.svgEl.removeChild(this.svgEl.firstChild);
     }
@@ -136,16 +304,36 @@ export class MapPanel extends Component {
       if (!pos) continue;
 
       const isCurrent = loc.id === this.currentLocationId;
+      const isSelected = loc.id === this.selectedLocationId;
       const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      group.setAttribute('class', `map-node ${isCurrent ? 'map-node--current' : ''} ${loc.discovered ? '' : 'map-node--hidden'}`);
-      group.setAttribute('data-tooltip', loc.discovered ? loc.name : '???');
+
+      let cls = 'map-node';
+      if (isCurrent) cls += ' map-node--current';
+      if (isSelected) cls += ' map-node--selected';
+      if (!loc.discovered) cls += ' map-node--hidden';
+      group.setAttribute('class', cls);
+      group.style.cursor = 'pointer';
+
+      // Click handler
+      group.addEventListener('click', () => {
+        if (this.selectedLocationId === loc.id) {
+          this.hideDetail();
+        } else {
+          this.showDetail(loc.id);
+          this.renderMap(); // Re-render to update selected highlight
+          this.showDetail(loc.id); // Re-show since renderMap clears it visually
+        }
+      });
 
       // Node circle
       const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       circle.setAttribute('cx', String(pos.x));
       circle.setAttribute('cy', String(pos.y));
-      circle.setAttribute('r', isCurrent ? '10' : '8');
-      circle.setAttribute('class', `map-node-circle ${isCurrent ? 'map-node-circle--current' : ''}`);
+      circle.setAttribute('r', isCurrent ? '10' : isSelected ? '10' : '8');
+      let circleClass = 'map-node-circle';
+      if (isCurrent) circleClass += ' map-node-circle--current';
+      if (isSelected) circleClass += ' map-node-circle--selected';
+      circle.setAttribute('class', circleClass);
       group.appendChild(circle);
 
       // Location symbol
@@ -165,6 +353,16 @@ export class MapPanel extends Component {
         group.appendChild(text);
       }
 
+      // Location name label (for discovered)
+      if (loc.discovered) {
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', String(pos.x));
+        label.setAttribute('y', String(pos.y + (isCurrent ? 18 : 16)));
+        label.setAttribute('class', 'map-node-label');
+        label.textContent = loc.name;
+        group.appendChild(label);
+      }
+
       this.svgEl.appendChild(group);
     }
   }
@@ -176,7 +374,6 @@ export class MapPanel extends Component {
 
     if (locations.length === 0) return posMap;
 
-    // Use location coordinates to determine relative positions
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const loc of locations) {
       minX = Math.min(minX, loc.coordinates.x);

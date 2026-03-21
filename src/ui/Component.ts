@@ -26,13 +26,18 @@ export abstract class Component {
 
   // ── Lifecycle ──
 
+  private initialized = false;
+
   /** Append element to parent and trigger enter animation. */
   mount(): void {
     if (!this.el) {
       this.el = this.createElement();
     }
     this.parent.appendChild(this.el);
-    this.setupEvents();
+    if (!this.initialized) {
+      this.setupEvents();
+      this.initialized = true;
+    }
     requestAnimationFrame(() => {
       this.el.classList.add('mounted');
     });
