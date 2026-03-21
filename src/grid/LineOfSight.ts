@@ -74,85 +74,104 @@ export class LineOfSight {
 
     // Cast shadows in all 8 octants
     for (let octant = 0; octant < 8; octant++) {
-      castShadow(grid, from, range, octant, 1, 1.0, 0.0, visible);
+      castShadow(grid, from.x, from.y, range, octant, 1, 1.0, 0.0, visible);
     }
 
     return visible;
   }
 }
 
-// ── Recursive shadowcasting (Björn Bergström's algorithm) ──────
-
-// Octant transforms: each octant maps (row, col) to (dx, dy)
-const OCTANT_TRANSFORMS: [number, number, number, number][] = [
-  [ 1,  0,  0,  1], // octant 0: E  → SE
-  [ 0,  1,  1,  0], // octant 1: SE → S
-  [ 0, -1,  1,  0], // octant 2: S  → SW
-  [-1,  0,  0,  1], // octant 3: SW → W
-  [-1,  0,  0, -1], // octant 4: W  → NW
-  [ 0, -1, -1,  0], // octant 5: NW → N
-  [ 0,  1, -1,  0], // octant 6: N  → NE
-  [ 1,  0,  0, -1], // octant 7: NE → E
+// ── Recursive shadowcasting ──────────────────────────────────────
+//
+// Each octant multiplier maps (depth, lateral) → (dx, dy).
+// depth = distance from origin along primary axis
+// lateral = offset along secondary axis
+//
+const MULT: number[][] = [
+  // xx  xy  yx  yy
+  [ 1,  0,  0,  1],
+  [ 0,  1,  1,  0],
+  [ 0, -1,  1,  0],
+  [-1,  0,  0,  1],
+  [-1,  0,  0, -1],
+  [ 0, -1, -1,  0],
+  [ 0,  1, -1,  0],
+  [ 1,  0,  0, -1],
 ];
 
 function castShadow(
   grid: Grid,
-  origin: Coordinate,
+  ox: number,
+  oy: number,
   range: number,
-  octant: number,
-  row: number,
+  oct: number,
+  depth: number,
   startSlope: number,
   endSlope: number,
   visible: Set<string>,
 ): void {
   if (startSlope < endSlope) return;
 
-  const [xx, xy, yx, yy] = OCTANT_TRANSFORMS[octant];
-  let nextStartSlope = startSlope;
+  const [xx, xy, yx, yy] = MULT[oct];
+  const rangeSquared = range * range;
 
-  for (let r = row; r <= range; r++) {
-    let blocked = false;
+  let start = startSlope;
 
-    for (let col = Math.floor(r * endSlope - 0.5); col <= Math.ceil(r * startSlope + 0.5); col++) {
-      // Map octant-local (row, col) to grid coordinates
-      const gx = origin.x + col * xx + r * yx;
-      const gy = origin.y + col * xy + r * yy;
+  for (let d = depth; d <= range; d++) {
+    let prevBlocked = false;
 
-      // Distance check (circular FOV)
-      const dist2 = (gx - origin.x) * (gx - origin.x) + (gy - origin.y) * (gy - origin.y);
-      if (dist2 > range * range) continue;
+    // Scan columns from the one nearest startSlope down to endSlope
+    // (high col → low col so shadow transitions work correctly)
+    const maxCol = Math.floor(d * start + 0.5);
+    const minCol = Math.ceil(d * endSlope - 0.5);
 
-      if (!grid.isValidPosition(gx, gy)) continue;
+    for (let col = maxCol; col >= minCol; col--) {
+      const gx = ox + col * xx + d * yx;
+      const gy = oy + col * xy + d * yy;
 
-      const leftSlope = (col - 0.5) / (r + 0.5);
-      const rightSlope = (col + 0.5) / (r - 0.5);
+      // Out of grid
+      if (!grid.isValidPosition(gx, gy)) {
+        prevBlocked = true;
+        continue;
+      }
+
+      // Circular range check
+      const ddx = gx - ox;
+      const ddy = gy - oy;
+      if (ddx * ddx + ddy * ddy > rangeSquared) {
+        prevBlocked = false;
+        continue;
+      }
+
+      // Slopes for this cell's edges
+      const leftSlope  = (col - 0.5) / (d + 0.5);
+      const rightSlope = (col + 0.5) / (d - 0.5 || 1); // avoid /0 at d=0
 
       if (rightSlope < endSlope) continue;
-      if (leftSlope > startSlope) continue;
+      if (leftSlope > start) continue;
 
-      // This cell is visible
+      // Mark visible
       visible.add(coordToKey({ x: gx, y: gy }));
 
       const cell = grid.getCell(gx, gy);
-      const isBlocking = !cell || cell.blocksLoS;
+      const blocking = !cell || cell.blocksLoS;
 
-      if (blocked) {
-        if (isBlocking) {
-          // Still in shadow — narrow the beam
-          nextStartSlope = rightSlope;
-        } else {
-          // Exiting shadow — start a new scan
-          blocked = false;
-          startSlope = nextStartSlope;
+      if (blocking) {
+        if (!prevBlocked) {
+          // Transitioning open → blocked: recurse for the open wedge
+          // that ended just before this cell
+          castShadow(grid, ox, oy, range, oct, d + 1, start, (col + 0.5) / d, visible);
         }
-      } else if (isBlocking && r < range) {
-        // Entering shadow — recurse with narrowed beam, then track shadow
-        blocked = true;
-        castShadow(grid, origin, range, octant, r + 1, startSlope, leftSlope, visible);
-        nextStartSlope = rightSlope;
+        prevBlocked = true;
+        // Narrow the start slope past this blocker
+        start = (col - 0.5) / d;
+      } else {
+        prevBlocked = false;
       }
     }
 
-    if (blocked) break;
+    // If the last cell in the row was blocked, the whole remaining
+    // beam is in shadow — stop scanning further rows.
+    if (prevBlocked) break;
   }
 }
