@@ -1,285 +1,275 @@
 /* ============================================================
-   ONE PARTY — Menu Screen · Obsidian Sanctum
-   Cinematic dark-fantasy opening — the forge, the flame.
+   ONE PARTY — Menu Screen · Candlelit Manuscript
+   Near-black scriptorium. One warm glow. Typography is the hero.
    ============================================================ */
 
+/* ── Screen ── */
 .menu-screen {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  padding: var(--space-xl);
+  padding: 48px 32px;
   position: relative;
   overflow: hidden;
-
-  /* Deep volcanic dark with visible warm hotspots */
-  background:
-    radial-gradient(ellipse 600px 400px at 50% 30%, rgba(212, 170, 60, 0.07) 0%, transparent 100%),
-    radial-gradient(ellipse 400px 500px at 15% 85%, rgba(160, 80, 20, 0.06) 0%, transparent 100%),
-    radial-gradient(ellipse 400px 500px at 85% 80%, rgba(212, 170, 60, 0.04) 0%, transparent 100%),
-    radial-gradient(circle 800px at 50% 100%, rgba(120, 60, 10, 0.05) 0%, transparent 100%),
-    linear-gradient(180deg, #030201 0%, #0a0806 35%, #080604 70%, #030201 100%);
+  background: #080706;
 }
 
-/* ── Ember Particles ── */
-.menu-embers {
+/* Warm ambient glow — the single light source */
+.menu-screen::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120%;
+  height: 70%;
+  background:
+    radial-gradient(
+      ellipse 45% 55% at 50% 35%,
+      rgba(180, 130, 50, 0.07) 0%,
+      rgba(140, 95, 30, 0.03) 35%,
+      transparent 65%
+    );
+  pointer-events: none;
+  animation: glowBreathe 8s ease-in-out infinite;
+}
+
+/* Subtle grain texture overlay */
+.menu-screen::after {
+  content: '';
   position: absolute;
   inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
   pointer-events: none;
-  overflow: hidden;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
 }
 
-.menu-ember {
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #ffc040 0%, rgba(220, 140, 30, 0.6) 40%, transparent 100%);
-  box-shadow: 0 0 10px rgba(255, 180, 40, 0.6),
-              0 0 24px rgba(220, 140, 30, 0.3);
-  opacity: 0;
-}
-
-@keyframes emberFloat {
-  0% {
-    opacity: 0;
-    transform: translateY(0) translateX(0) scale(0.3);
-  }
-  8% {
-    opacity: 1;
-  }
-  40% {
-    opacity: 0.7;
-  }
-  85% {
-    opacity: 0.2;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-100vh) translateX(50px) scale(0.1);
-  }
-}
-
-.menu-ember:nth-child(1) {
-  left: 12%; bottom: -10px;
-  animation: emberFloat 8s ease-out 0s infinite;
-}
-.menu-ember:nth-child(2) {
-  left: 28%; bottom: -10px;
-  animation: emberFloat 12s ease-out 2s infinite;
-  width: 2px; height: 2px;
-}
-.menu-ember:nth-child(3) {
-  left: 50%; bottom: -10px;
-  animation: emberFloat 7s ease-out 3.5s infinite;
-  width: 4px; height: 4px;
-  box-shadow: 0 0 14px rgba(255, 180, 40, 0.7), 0 0 32px rgba(220, 140, 30, 0.3);
-}
-.menu-ember:nth-child(4) {
-  left: 72%; bottom: -10px;
-  animation: emberFloat 10s ease-out 0.8s infinite;
-  width: 2px; height: 2px;
-}
-.menu-ember:nth-child(5) {
-  left: 40%; bottom: -10px;
-  animation: emberFloat 11s ease-out 2.5s infinite;
-  width: 4px; height: 4px;
-  box-shadow: 0 0 14px rgba(255, 180, 40, 0.7), 0 0 32px rgba(220, 140, 30, 0.3);
-}
-.menu-ember:nth-child(6) {
-  left: 20%; bottom: -10px;
-  animation: emberFloat 9s ease-out 5s infinite;
-  width: 2px; height: 2px;
-}
-.menu-ember:nth-child(7) {
-  left: 62%; bottom: -10px;
-  animation: emberFloat 10s ease-out 6s infinite;
-}
-.menu-ember:nth-child(8) {
-  left: 85%; bottom: -10px;
-  animation: emberFloat 14s ease-out 1.5s infinite;
-  width: 2px; height: 2px;
-}
-
-/* ── Ambient drift ── */
-@keyframes ambientShift {
+@keyframes glowBreathe {
   0%, 100% {
-    filter: brightness(1);
+    opacity: 0.7;
+    transform: translateX(-50%) scale(1);
   }
   50% {
-    filter: brightness(1.04);
+    opacity: 1;
+    transform: translateX(-50%) scale(1.08);
   }
-}
-
-.menu-screen {
-  animation: ambientShift 12s ease-in-out infinite;
 }
 
 /* ── Logo Area ── */
 .menu-logo {
   text-align: center;
-  margin-bottom: var(--space-3xl);
+  margin-bottom: 56px;
   position: relative;
   z-index: 1;
-}
-
-.menu-title {
-  font-family: var(--font-heading);
-  font-size: clamp(3rem, 10vw, 5.5rem);
-  font-weight: 900;
-  letter-spacing: 0.18em;
-  line-height: 1;
-  background: linear-gradient(
-    180deg,
-    #ffe488 0%,
-    #ecc44e 20%,
-    #d4aa3c 45%,
-    #a07828 70%,
-    #d4aa3c 90%,
-    #ecc44e 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.8))
-          drop-shadow(0 0 40px rgba(212, 170, 60, 0.2));
-  animation: textGlow 4s ease-in-out infinite, breathe 7s ease-in-out infinite;
-  margin-bottom: var(--space-lg);
-}
-
-.menu-subtitle {
-  font-family: var(--font-body);
-  font-size: var(--text-xl);
-  color: var(--text-muted);
-  font-style: italic;
-  letter-spacing: 0.06em;
-  margin-bottom: var(--space-sm);
-}
-
-.menu-version {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-dim);
-  letter-spacing: 0.08em;
-  opacity: 0.5;
-}
-
-/* ── Decorative Line ── */
-.menu-ornament {
-  width: 280px;
-  height: 2px;
-  margin: var(--space-xl) auto;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--gold-dim) 20%,
-    var(--gold) 50%,
-    var(--gold-dim) 80%,
-    transparent 100%
-  );
-  position: relative;
-  box-shadow: 0 0 12px rgba(212, 170, 60, 0.15);
-}
-
-.menu-ornament::before {
-  content: '\2666';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  color: var(--gold);
-  font-size: 12px;
-  background: #060503;
-  padding: 0 12px;
-  text-shadow: 0 0 12px rgba(212, 170, 60, 0.4);
-}
-
-/* ── Menu Buttons ── */
-.menu-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: 100%;
-  max-width: 360px;
-  position: relative;
-  z-index: 1;
-}
-
-.menu-actions .btn {
-  width: 100%;
-  padding: 14px var(--space-xl);
-  font-size: var(--text-sm);
-  letter-spacing: 0.16em;
-}
-
-.menu-actions .btn-primary {
-  padding: 18px var(--space-xl);
-  font-size: var(--text-lg);
-  letter-spacing: 0.2em;
-}
-
-/* Stagger animation on mount */
-.menu-actions .btn {
-  opacity: 0;
-  transform: translateY(16px);
-}
-
-.menu-screen.mounted .menu-actions .btn {
-  animation: slideInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.menu-screen.mounted .menu-actions .btn:nth-child(1) { animation-delay: 300ms; }
-.menu-screen.mounted .menu-actions .btn:nth-child(2) { animation-delay: 450ms; }
-.menu-screen.mounted .menu-actions .btn:nth-child(3) { animation-delay: 600ms; }
-.menu-screen.mounted .menu-actions .btn:nth-child(4) { animation-delay: 750ms; }
-.menu-screen.mounted .menu-actions .btn:nth-child(5) { animation-delay: 900ms; }
-
-/* Delete World button */
-.menu-delete-world {
-  margin-top: var(--space-lg);
-  color: #6a3228 !important;
-  border-color: rgba(106, 50, 40, 0.15) !important;
-  font-size: var(--text-xs) !important;
-  letter-spacing: 0.1em;
-}
-
-.menu-delete-world:hover {
-  color: #c04030 !important;
-  border-color: rgba(192, 64, 48, 0.4) !important;
-  background: rgba(192, 64, 48, 0.08) !important;
-  box-shadow: 0 0 20px rgba(192, 64, 48, 0.1) !important;
-}
-
-/* Logo entrance */
-.menu-logo {
   opacity: 0;
 }
 
 .menu-screen.mounted .menu-logo {
-  animation: fadeIn var(--duration-extra-slow) var(--ease-smooth) both;
+  opacity: 1;
 }
 
-.menu-screen.mounted .menu-title {
-  animation:
-    bounceIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) both,
-    textGlow 4s ease-in-out 1.2s infinite;
+/* ── Title — per-letter stagger reveal ── */
+.menu-title {
+  font-family: var(--font-heading);
+  font-size: clamp(3rem, 10vw, 6rem);
+  font-weight: 400;
+  letter-spacing: 0.28em;
+  line-height: 1;
+  color: var(--text-primary);
+  margin-bottom: 24px;
+  /* Remove default h1 gradient text */
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-fill-color: unset;
+  filter: drop-shadow(0 2px 20px rgba(180, 130, 50, 0.12));
+}
+
+.menu-title-letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.menu-screen.mounted .menu-title-letter {
+  animation: letterReveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes letterReveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Subtitle ── */
+.menu-subtitle {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--text-muted);
+  font-style: italic;
+  letter-spacing: 0.08em;
+  margin: 0;
+  opacity: 0;
+}
+
+.menu-screen.mounted .menu-subtitle {
+  animation: fadeIn 1s ease 0.9s both;
+}
+
+/* ── Menu Buttons — editorial text style ── */
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 300px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Strip all default btn styling for menu context */
+.menu-actions .btn {
+  width: 100%;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 18px 0;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 12.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.5s ease, letter-spacing 0.5s ease;
+  opacity: 0;
+  transform: translateY(12px);
+  position: relative;
+}
+
+/* Remove the default ::before overlay */
+.menu-actions .btn::before {
+  display: none !important;
+}
+
+.menu-actions .btn:hover {
+  color: var(--text-primary) !important;
+  letter-spacing: 0.3em;
+  transform: none !important;
+  background: transparent !important;
+}
+
+.menu-actions .btn:active {
+  transform: none !important;
+}
+
+.menu-actions .btn:disabled {
+  color: var(--text-dim) !important;
+  opacity: 0.3;
+  cursor: not-allowed;
+  letter-spacing: 0.22em;
+}
+
+.menu-actions .btn:disabled:hover {
+  color: var(--text-dim) !important;
+  letter-spacing: 0.22em;
+}
+
+/* Primary button — warm accent */
+.menu-actions .btn-primary {
+  color: var(--gold) !important;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.26em;
+  padding: 24px 0;
+  border-bottom: 1px solid rgba(212, 170, 60, 0.1) !important;
+}
+
+.menu-actions .btn-primary:hover {
+  color: var(--gold-light) !important;
+  letter-spacing: 0.34em;
+  text-shadow: 0 0 30px rgba(212, 170, 60, 0.2);
+}
+
+/* Stagger animation on mount */
+.menu-screen.mounted .menu-actions .btn {
+  animation: menuItemReveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.menu-screen.mounted .menu-actions .btn:nth-child(1) { animation-delay: 1.0s; }
+.menu-screen.mounted .menu-actions .btn:nth-child(2) { animation-delay: 1.12s; }
+.menu-screen.mounted .menu-actions .btn:nth-child(3) { animation-delay: 1.24s; }
+.menu-screen.mounted .menu-actions .btn:nth-child(4) { animation-delay: 1.36s; }
+.menu-screen.mounted .menu-actions .btn:nth-child(5) { animation-delay: 1.48s; }
+
+@keyframes menuItemReveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Delete World button */
+.menu-delete-world {
+  margin-top: 16px !important;
+  border-bottom: none !important;
+  color: var(--text-dim) !important;
+  font-size: 10px !important;
+  letter-spacing: 0.14em !important;
+  padding: 14px 0 !important;
+}
+
+.menu-delete-world:hover {
+  color: rgba(196, 64, 48, 0.7) !important;
 }
 
 /* ── Footer ── */
 .menu-footer {
   position: absolute;
-  bottom: var(--space-xl);
+  bottom: 32px;
   text-align: center;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+}
+
+.menu-screen.mounted .menu-footer {
+  animation: fadeIn 1.2s ease 1.8s both;
+}
+
+.menu-version {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  opacity: 0.4;
 }
 
 .menu-footer-text {
   font-family: var(--font-body);
-  font-size: var(--text-sm);
+  font-size: 12px;
   color: var(--text-dim);
   font-style: italic;
-  opacity: 0.4;
+  opacity: 0.3;
+  margin: 0;
 }
 
 /* ── Exit transition ── */

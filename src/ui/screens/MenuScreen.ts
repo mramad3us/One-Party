@@ -4,8 +4,8 @@ import { el } from '@/utils/dom';
 
 /**
  * Main menu screen — the first thing the player sees.
- * Full-screen dark fantasy layout with animated ember particles,
- * gold gradient title, and stagger-animated buttons.
+ * Candlelit manuscript aesthetic: near-black with a single warm glow,
+ * letter-by-letter title reveal, and editorial text-link buttons.
  */
 export class MenuScreen extends Component {
   constructor(parent: HTMLElement, engine: GameEngine) {
@@ -15,27 +15,26 @@ export class MenuScreen extends Component {
   protected createElement(): HTMLElement {
     const screen = el('div', { class: 'menu-screen screen' });
 
-    // ── Ember Particles ──
-    const embers = el('div', { class: 'menu-embers' });
-    for (let i = 0; i < 8; i++) {
-      embers.appendChild(el('div', { class: 'menu-ember' }));
-    }
-    screen.appendChild(embers);
-
     // ── Logo Area ──
     const logo = el('div', { class: 'menu-logo' });
 
-    const title = el('h1', { class: 'menu-title' }, ['ONE PARTY']);
+    // Title with per-letter stagger animation
+    const title = el('h1', { class: 'menu-title' });
+    const letters = 'ONE PARTY';
+    letters.split('').forEach((char, i) => {
+      const span = el('span', {
+        class: 'menu-title-letter',
+        style: `animation-delay: ${200 + i * 70}ms`,
+      }, [char === ' ' ? '\u2004' : char]); // thin space for visual gap
+      title.appendChild(span);
+    });
+
     const subtitle = el('p', { class: 'menu-subtitle' }, [
-      'A Solo D&D 5e Adventure',
+      'A Solo D\u2009&\u2009D 5e Adventure',
     ]);
-    const version = el('span', { class: 'menu-version' }, ['v0.4.3']);
-    const ornament = el('div', { class: 'menu-ornament' });
 
     logo.appendChild(title);
     logo.appendChild(subtitle);
-    logo.appendChild(ornament);
-    logo.appendChild(version);
     screen.appendChild(logo);
 
     // ── Menu Buttons ──
@@ -88,6 +87,9 @@ export class MenuScreen extends Component {
 
     // ── Footer ──
     const footer = el('div', { class: 'menu-footer' });
+    footer.appendChild(
+      el('span', { class: 'menu-version' }, ['v0.4.4']),
+    );
     footer.appendChild(
       el('p', { class: 'menu-footer-text' }, [
         'Built with dice and determination',
