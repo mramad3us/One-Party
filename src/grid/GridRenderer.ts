@@ -42,7 +42,7 @@ const FEATURE_GLYPHS: Record<CellFeature, { ch: string; fg: string; bg: string }
   fire:        { ch: '&', fg: '#ff6600', bg: '#331100' },
   altar:       { ch: '_', fg: '#cc66ff', bg: '#1a0033' },
   pillar:      { ch: 'O', fg: '#aaaaaa', bg: '#222222' },
-  tree:        { ch: 'T', fg: '#22aa22', bg: '#0a220a' },
+  tree:        { ch: 'T', fg: '#8b5a2b', bg: '#2a1a0a' },
   rock:        { ch: '.', fg: '#888888', bg: '#333333' },
 };
 
