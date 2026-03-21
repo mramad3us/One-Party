@@ -143,7 +143,9 @@ export class GameScreen extends Component {
     const mapHeader = el('div', { class: 'game-map-overlay-header' });
     mapHeader.appendChild(el('span', { class: 'game-map-overlay-title font-heading' }, ['World Map']));
     const closeBtn = el('button', { class: 'btn btn-ghost game-map-overlay-close' }, ['\u2715']);
-    closeBtn.addEventListener('click', () => this.hideWorldMap());
+    closeBtn.addEventListener('click', () => {
+      this.engine.events.emit({ type: 'input:cancel', category: 'ui', data: {} });
+    });
     mapHeader.appendChild(closeBtn);
     mapOverlayInner.appendChild(mapHeader);
 

@@ -152,7 +152,7 @@ export class MapPanel extends Component {
       we.preventDefault();
       const oldScale = this.scale;
       const delta = we.deltaY > 0 ? -0.5 : 0.5;
-      this.scale = Math.max(1, Math.min(8, this.scale + delta));
+      this.scale = Math.max(1, Math.min(12, this.scale + delta));
 
       // Zoom toward cursor
       if (this.scale !== oldScale) {
@@ -270,6 +270,11 @@ export class MapPanel extends Component {
       if (rect.width > 0 && rect.height > 0) {
         this.canvas.width = rect.width;
         this.canvas.height = rect.height;
+
+        // Recalculate scale to fill available space
+        const scaleX = rect.width / this.overworld.width;
+        const scaleY = rect.height / this.overworld.height;
+        this.scale = Math.max(1, Math.min(12, Math.min(scaleX, scaleY) * 0.95));
       }
     }
 
@@ -308,10 +313,11 @@ export class MapPanel extends Component {
     this.canvas.width = cw;
     this.canvas.height = ch;
 
-    // Fit the map to the canvas
+    // Fit the map to fill as much of the canvas as possible
     const scaleX = cw / this.overworld.width;
     const scaleY = ch / this.overworld.height;
-    this.scale = Math.max(1, Math.min(8, Math.floor(Math.min(scaleX, scaleY))));
+    // Use the smaller axis to fit, but allow fractional scale for maximum fill
+    this.scale = Math.max(1, Math.min(12, Math.min(scaleX, scaleY) * 0.95));
 
     // Center
     const mapW = this.overworld.width * this.scale;
@@ -356,9 +362,9 @@ export class MapPanel extends Component {
 
         ctx.fillStyle = color;
         ctx.fillRect(
-          this.offsetX + x * s,
-          this.offsetY + y * s,
-          s, s,
+          Math.floor(this.offsetX + x * s),
+          Math.floor(this.offsetY + y * s),
+          Math.ceil(s), Math.ceil(s),
         );
 
         // Settlement dot
