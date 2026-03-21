@@ -31,6 +31,9 @@ import { FogOfWar } from '@/grid/FogOfWar';
 import type { KeyboardHint } from '@/ui/panels/ActionPanel';
 import type { EntityRenderInfo } from '@/grid/GridRenderer';
 import { TimeNarrator } from '@/narrative/TimeNarrator';
+import { Modal } from '@/ui/widgets/Modal';
+import { el } from '@/utils/dom';
+import type { SaveMeta } from '@/types';
 
 async function main(): Promise<void> {
   // 1. Initialize storage engine
@@ -171,13 +174,10 @@ async function main(): Promise<void> {
     // Auto-save the new game
     saveManager
       .autoSave(gameState, engine.entities)
+      .then(() => { localStorage.setItem('oneparty-saves', 'true'); })
       .catch((err) => console.error('Initial auto-save failed:', err));
 
-    // Enable periodic auto-save (every 5 minutes)
-    saveManager.enableAutoSave(5 * 60 * 1000, () => ({
-      state: gameState,
-      entities: engine.entities,
-    }));
+    // Auto-save is now triggered on each move, no interval needed
 
     console.log(
       `[One Party] New game started: ${character.name} the ${race} ${classId} in ${world.name}`,
@@ -618,10 +618,13 @@ async function main(): Promise<void> {
     ];
   }
 
-  // Listen for exploration movement events — update UI
+  // Listen for exploration movement events — update UI + autosave
   engine.events.on('exploration:moved', (event) => {
     if (!activeGameScreen || !activeGameState) return;
     const { position, roundsElapsed } = event.data as { position: { x: number; y: number }; roundsElapsed: number };
+
+    // Autosave on every move (silent, non-blocking)
+    saveManager.autoSave(activeGameState, engine.entities).catch(() => {});
 
     // Center camera on player
     activeGameScreen.centerGrid(position);
@@ -801,35 +804,25 @@ async function main(): Promise<void> {
     activeGameScreen.hideWorldMap();
   });
 
-  // 10. Wire up save game event
-  engine.events.on('ui:save_game', () => {
+  // 10. Wire up save management modal
+  engine.events.on('ui:open_saves', () => {
     if (!activeGameState) return;
-    saveManager
-      .saveGame(activeGameState, engine.entities)
-      .then((meta) => {
-        console.log(`[One Party] Game saved: ${meta.name}`);
-        engine.events.emit({
-          type: 'ui:notification',
-          category: 'ui',
-          data: { message: 'Game saved', style: 'success' },
-        });
-      })
-      .catch((err) => console.error('Save failed:', err));
+    openSaveModal(engine, saveManager, activeGameState);
   });
 
-  // 11. Wire up quick save
-  engine.events.on('ui:quick_save', () => {
+  // 11. Wire up quit to menu with confirmation
+  engine.events.on('ui:quit_to_menu', async () => {
     if (!activeGameState) return;
-    saveManager
-      .quickSave(activeGameState, engine.entities)
-      .then(() => {
-        engine.events.emit({
-          type: 'ui:notification',
-          category: 'ui',
-          data: { message: 'Quick saved', style: 'success' },
-        });
-      })
-      .catch((err) => console.error('Quick save failed:', err));
+    // Auto-save before showing confirmation
+    await saveManager.autoSave(activeGameState, engine.entities).catch(() => {});
+    const confirmed = await Modal.confirm(
+      engine,
+      'Your game has been auto-saved. Return to the main menu?',
+      'Quit to Menu',
+    );
+    if (confirmed) {
+      engine.events.emit({ type: 'ui:return_to_menu', category: 'ui', data: {} });
+    }
   });
 
   // 12. Wire up continue game (load most recent save)
@@ -848,11 +841,7 @@ async function main(): Promise<void> {
         // Reset so game screen gets re-populated with loaded data
         gamePopulated = false;
 
-        // Re-enable auto-save
-        saveManager.enableAutoSave(5 * 60 * 1000, () => ({
-          state: result.state,
-          entities: engine.entities,
-        }));
+        // Auto-save is triggered on each move, no interval needed
 
         engine.events.emit({
           type: 'ui:navigate',
@@ -863,9 +852,21 @@ async function main(): Promise<void> {
       .catch((err) => console.error('Load failed:', err));
   });
 
+  // 12b. Wire up game loaded from save modal (already on game screen)
+  engine.events.on('ui:game_loaded', (event) => {
+    const { state } = event.data as { state: GameState };
+    activeGameState = state;
+    gamePopulated = false;
+
+    // Re-populate the game screen with loaded state
+    if (activeGameScreen && activeGameState) {
+      populateGameScreen(activeGameScreen, activeGameState, engine);
+      gamePopulated = true;
+    }
+  });
+
   // 13. Wire up return to menu
   engine.events.on('ui:return_to_menu', () => {
-    saveManager.disableAutoSave();
     activeGameState = null;
     gamePopulated = false;
     engine.entities.clear();
@@ -894,6 +895,120 @@ async function main(): Promise<void> {
 
   // 17. Start the engine loop
   engine.start();
+}
+
+/** Save management modal — list saves, create new, load, delete. */
+function openSaveModal(
+  engine: GameEngine,
+  saveManager: SaveManager,
+  gameState: GameState,
+): void {
+  const content = el('div', { class: 'save-modal-content' });
+
+  // Action buttons at top
+  const actions = el('div', { class: 'save-modal-actions' });
+  const newSaveBtn = el('button', { class: 'btn btn-primary' }, ['New Save']);
+  const quickSaveBtn = el('button', { class: 'btn btn-secondary' }, ['Quick Save']);
+  actions.appendChild(newSaveBtn);
+  actions.appendChild(quickSaveBtn);
+  content.appendChild(actions);
+
+  // Save list container
+  const listWrap = el('div', { class: 'save-modal-list' });
+  const loadingEl = el('div', { class: 'save-modal-loading font-mono' }, ['Loading saves...']);
+  listWrap.appendChild(loadingEl);
+  content.appendChild(listWrap);
+
+  const modal = new Modal(document.body, engine, {
+    title: 'Save Management',
+    content,
+    closable: true,
+    width: '520px',
+  });
+
+  function formatTime(timestamp: number): string {
+    const d = new Date(timestamp);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderSaveList(saves: SaveMeta[]): void {
+    listWrap.innerHTML = '';
+
+    if (saves.length === 0) {
+      listWrap.appendChild(el('div', { class: 'save-modal-empty font-mono' }, ['No saves yet']));
+      return;
+    }
+
+    for (const save of saves) {
+      const row = el('div', { class: 'save-modal-row' });
+
+      const info = el('div', { class: 'save-modal-row-info' });
+      const nameEl = el('div', { class: 'save-modal-row-name font-heading' }, [save.name]);
+      const detailEl = el('div', { class: 'save-modal-row-detail font-mono' }, [
+        `${save.characterName} \u2022 Lvl ${save.level} \u2022 ${formatTime(save.lastSaved)}`,
+      ]);
+      info.appendChild(nameEl);
+      info.appendChild(detailEl);
+      row.appendChild(info);
+
+      const btns = el('div', { class: 'save-modal-row-btns' });
+
+      const loadBtn = el('button', { class: 'btn btn-secondary btn-sm' }, ['Load']);
+      loadBtn.addEventListener('click', async () => {
+        const result = await saveManager.loadGame(save.id);
+        if (!result) return;
+        engine.entities.clear();
+        for (const entityData of result.entities) {
+          engine.entities.add(entityData as unknown as Entity);
+        }
+        // Update the outer gameState reference via event
+        engine.events.emit({
+          type: 'ui:game_loaded',
+          category: 'ui',
+          data: { state: result.state },
+        });
+        await modal.close();
+      });
+      btns.appendChild(loadBtn);
+
+      // Don't allow deleting autosave
+      if (save.id !== 'autosave') {
+        const delBtn = el('button', { class: 'btn btn-ghost btn-sm save-modal-delete' }, ['\u2715']);
+        delBtn.title = 'Delete save';
+        delBtn.addEventListener('click', async () => {
+          await saveManager.deleteSave(save.id);
+          const updated = await saveManager.listSaves();
+          renderSaveList(updated);
+        });
+        btns.appendChild(delBtn);
+      }
+
+      row.appendChild(btns);
+      listWrap.appendChild(row);
+    }
+  }
+
+  // New save
+  newSaveBtn.addEventListener('click', async () => {
+    const meta = await saveManager.saveGame(gameState, engine.entities);
+    console.log(`[One Party] Game saved: ${meta.name}`);
+    const saves = await saveManager.listSaves();
+    renderSaveList(saves);
+  });
+
+  // Quick save
+  quickSaveBtn.addEventListener('click', async () => {
+    await saveManager.quickSave(gameState, engine.entities);
+    const saves = await saveManager.listSaves();
+    renderSaveList(saves);
+  });
+
+  // Load saves and render
+  saveManager.listSaves().then((saves) => {
+    renderSaveList(saves);
+  });
+
+  modal.mount();
 }
 
 main().catch(console.error);

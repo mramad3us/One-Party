@@ -56,6 +56,15 @@
   text-align: center;
 }
 
+.game-statusbar-quit {
+  color: var(--red) !important;
+  opacity: 0.7;
+  transition: opacity var(--duration-fast) ease;
+}
+.game-statusbar-quit:hover {
+  opacity: 1;
+}
+
 .game-statusbar-survival {
   font-size: 10px;
   letter-spacing: 0.04em;
@@ -736,3 +745,75 @@
 .action-hint-item--dim { opacity: 0.35; }
 .action-hint-key { color: var(--gold); min-width: 40px; text-align: right; }
 .action-hint-label { color: var(--text-secondary); }
+
+/* ── Save Management Modal ── */
+.save-modal-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.save-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.save-modal-loading,
+.save-modal-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--space-lg);
+  font-size: var(--text-sm);
+}
+
+.save-modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-darker);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration-fast) ease;
+}
+
+.save-modal-row:hover {
+  border-color: var(--border-gold);
+}
+
+.save-modal-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.save-modal-row-name {
+  font-size: var(--text-sm);
+  color: var(--gold);
+  margin-bottom: 2px;
+}
+
+.save-modal-row-detail {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.save-modal-row-btns {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.save-modal-delete {
+  color: var(--red) !important;
+  opacity: 0.6;
+  font-size: var(--text-lg);
+  padding: 2px 6px !important;
+}
+
+.save-modal-delete:hover {
+  opacity: 1;
+}

@@ -88,12 +88,15 @@ export class GameScreen extends Component {
 
     statusRight.appendChild(el('span', { class: 'game-statusbar-sep' }, ['\u2502']));
 
-    statusRight.appendChild(IconSystem.iconButton('save', 'Save Game', () => {
-      this.engine.events.emit({ type: 'ui:save_game', category: 'ui', data: {} });
+    statusRight.appendChild(IconSystem.iconButton('save', 'Saves', () => {
+      this.engine.events.emit({ type: 'ui:open_saves', category: 'ui', data: {} });
     }));
-    statusRight.appendChild(IconSystem.iconButton('menu', 'Menu', () => {
-      this.engine.events.emit({ type: 'ui:navigate', category: 'ui', data: { screen: 'menu', direction: 'right' } });
-    }));
+
+    const quitBtn = IconSystem.iconButton('close', 'Quit to Menu', () => {
+      this.engine.events.emit({ type: 'ui:quit_to_menu', category: 'ui', data: {} });
+    });
+    quitBtn.classList.add('game-statusbar-quit');
+    statusRight.appendChild(quitBtn);
     statusBar.appendChild(statusRight);
 
     screen.appendChild(statusBar);
