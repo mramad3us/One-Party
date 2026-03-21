@@ -29,7 +29,7 @@ export class MenuScreen extends Component {
     const subtitle = el('p', { class: 'menu-subtitle' }, [
       'A Solo D&D 5e Adventure',
     ]);
-    const version = el('span', { class: 'menu-version' }, ['v0.2.1']);
+    const version = el('span', { class: 'menu-version' }, ['v0.2.2']);
     const ornament = el('div', { class: 'menu-ornament' });
 
     logo.appendChild(title);
@@ -104,14 +104,14 @@ export class MenuScreen extends Component {
       });
     }
 
-    // Continue Journey
+    // Continue Journey — load most recent save, then navigate
     const contBtn = this.el.querySelector('[data-action="continue"]');
     if (contBtn) {
       this.listen(contBtn, 'click', () => {
         this.engine.events.emit({
-          type: 'ui:navigate',
+          type: 'ui:continue_game',
           category: 'ui',
-          data: { screen: 'game', direction: 'left' },
+          data: {},
         });
       });
     }

@@ -845,6 +845,9 @@ async function main(): Promise<void> {
         }
         activeGameState = result.state;
 
+        // Reset so game screen gets re-populated with loaded data
+        gamePopulated = false;
+
         // Re-enable auto-save
         saveManager.enableAutoSave(5 * 60 * 1000, () => ({
           state: result.state,
@@ -864,6 +867,7 @@ async function main(): Promise<void> {
   engine.events.on('ui:return_to_menu', () => {
     saveManager.disableAutoSave();
     activeGameState = null;
+    gamePopulated = false;
     engine.entities.clear();
 
     engine.events.emit({

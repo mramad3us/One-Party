@@ -302,10 +302,11 @@
   border: 1px solid var(--border-gold);
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
-  min-width: 400px;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow-y: auto;
+  width: 90vw;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
@@ -330,15 +331,32 @@
 }
 
 .game-map-overlay-content {
-  min-height: 300px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.game-map-overlay-content .map-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-map-overlay-content .map-svg {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+  max-height: 100%;
 }
 
 .game-map-overlay-hint {
   text-align: center;
   font-size: 10px;
   color: var(--text-dim);
-  margin-top: var(--space-md);
+  margin-top: var(--space-sm);
   letter-spacing: 0.08em;
+  flex-shrink: 0;
 }
 
 /* ── Map Panel ── */
@@ -383,6 +401,34 @@
 .map-node:hover .map-node-circle { stroke: var(--gold-light); stroke-width: 2; }
 .map-node-circle--selected { fill: var(--bg-hover); stroke: var(--gold-light); stroke-width: 2.5; filter: drop-shadow(0 0 8px rgba(200, 168, 78, 0.4)); }
 .map-node-label { fill: var(--text-muted); font-size: 5px; text-anchor: middle; dominant-baseline: hanging; pointer-events: none; }
+
+/* Map panel inside overlay: side-by-side layout */
+.game-map-overlay-content .map-panel {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  grid-template-rows: auto 1fr;
+  gap: 0 var(--space-lg);
+}
+
+.game-map-overlay-content .map-header {
+  grid-column: 1 / -1;
+}
+
+.game-map-overlay-content .map-region-name {
+  grid-column: 1 / -1;
+}
+
+.game-map-overlay-content .map-svg {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.game-map-overlay-content .map-detail {
+  grid-row: 2;
+  grid-column: 2;
+  margin-top: 0;
+  align-self: start;
+}
 
 /* ── Map Detail Tile ── */
 .map-detail {
@@ -600,6 +646,11 @@
   height: 8px;
 }
 
+.status-bar-wrap .hp-bar-label {
+  font-size: 8px;
+  font-weight: 600;
+}
+
 .status-stats {
   display: flex;
   gap: var(--space-md);
@@ -628,7 +679,7 @@
   gap: 2px;
 }
 
-.status-dim { color: var(--text-dim); font-style: italic; }
+.status-dim { display: none; }
 .status-condition-badge { font-size: 9px; padding: 1px 4px; }
 
 /* ── Survival color coding ── */
@@ -637,10 +688,10 @@
 .status-danger { color: var(--red); }
 .status-critical { color: var(--red-light); text-shadow: 0 0 8px rgba(200, 64, 64, 0.5); }
 
-.survival-good { background: var(--green) !important; }
-.survival-warn { background: var(--orange) !important; }
-.survival-danger { background: var(--red-dim) !important; }
-.survival-critical { background: var(--red) !important; }
+.survival-good { background: var(--green) !important; box-shadow: none !important; }
+.survival-warn { background: var(--orange) !important; box-shadow: none !important; }
+.survival-danger { background: var(--red-dim) !important; box-shadow: none !important; }
+.survival-critical { background: var(--red) !important; box-shadow: none !important; }
 
 /* ── Keyboard Hint Panel ── */
 .action-panel-buttons--hidden { display: none; }

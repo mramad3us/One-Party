@@ -89,7 +89,7 @@ export class GameScreen extends Component {
     statusRight.appendChild(el('span', { class: 'game-statusbar-sep' }, ['\u2502']));
 
     statusRight.appendChild(IconSystem.iconButton('save', 'Save Game', () => {
-      this.engine.events.emit({ type: 'ui:action:save', category: 'ui', data: {} });
+      this.engine.events.emit({ type: 'ui:save_game', category: 'ui', data: {} });
     }));
     statusRight.appendChild(IconSystem.iconButton('menu', 'Menu', () => {
       this.engine.events.emit({ type: 'ui:navigate', category: 'ui', data: { screen: 'menu', direction: 'right' } });
@@ -245,9 +245,14 @@ export class GameScreen extends Component {
     const thirstT = SurvivalRules.getThirstThreshold(s.thirst);
     const fatigueT = SurvivalRules.getFatigueThreshold(s.fatigue);
 
-    if (hungerT !== 'satiated') parts.push(this.formatSurvivalTag('hunger', hungerT, s.hunger));
-    if (thirstT !== 'quenched') parts.push(this.formatSurvivalTag('thirst', thirstT, s.thirst));
-    if (fatigueT !== 'rested') parts.push(this.formatSurvivalTag('fatigue', fatigueT, s.fatigue));
+    // Only show when actually concerning (skip the "fine" early tiers)
+    const hungerFine = hungerT === 'satiated' || hungerT === 'comfortable';
+    const thirstFine = thirstT === 'quenched' || thirstT === 'hydrated';
+    const fatigueFine = fatigueT === 'rested' || fatigueT === 'alert';
+
+    if (!hungerFine) parts.push(this.formatSurvivalTag('hunger', hungerT, s.hunger));
+    if (!thirstFine) parts.push(this.formatSurvivalTag('thirst', thirstT, s.thirst));
+    if (!fatigueFine) parts.push(this.formatSurvivalTag('fatigue', fatigueT, s.fatigue));
 
     // HP
     const hpPct = character.currentHp / character.maxHp;
@@ -261,10 +266,10 @@ export class GameScreen extends Component {
       : '<span class="status-good">Healthy</span>';
   }
 
-  private formatSurvivalTag(type: string, threshold: string, value: number): string {
+  private formatSurvivalTag(_type: string, threshold: string, value: number): string {
     const cls = value <= 30 ? 'status-good' : value <= 50 ? 'status-warn' : value <= 75 ? 'status-danger' : 'status-critical';
-    void type;
-    return `<span class="${cls}">${threshold.charAt(0).toUpperCase() + threshold.slice(1)}</span>`;
+    const label = SurvivalRules.formatThreshold(threshold);
+    return `<span class="${cls}">${label}</span>`;
   }
 
   // ── Local Mode ──

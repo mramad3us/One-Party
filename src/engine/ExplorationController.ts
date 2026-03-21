@@ -32,13 +32,23 @@ const BUMP_NARRATIVES: Record<string, string[]> = {
   ],
 };
 
-/** Movement flavor text, shown occasionally */
+/** Movement flavor text, shown rarely for atmosphere */
 const MOVE_FLAVORS: string[] = [
-  'Your footsteps echo softly.',
-  'You move carefully through the shadows.',
-  'The air shifts as you advance.',
-  'Dust motes dance in your wake.',
-  'Your boots scrape against the ground.',
+  'A faint breeze carries the scent of damp stone and old earth.',
+  'Something skitters away in the darkness beyond your sight.',
+  'You pause for a heartbeat, listening. Only silence answers.',
+  'The weight of the silence here is almost physical.',
+  'A distant drip of water echoes through the stillness.',
+  'The air changes — thicker, colder. You press on.',
+  'Your shadow stretches long before you, a dark companion on this road.',
+  'The ground shifts underfoot, loose and treacherous.',
+  'You catch the faintest whiff of smoke on the air. Old, cold smoke.',
+  'For a moment, you could swear you heard voices. But there is nothing.',
+  'The walls press closer here, narrowing the path ahead.',
+  'A cold draft brushes your neck like the touch of spectral fingers.',
+  'You mark your path in memory — these passages all look the same.',
+  'The oppressive quiet makes your own breathing sound thunderous.',
+  'Cobwebs cling to your arms as you push through a narrow gap.',
 ];
 
 /** Feature discovery narratives */
@@ -282,7 +292,7 @@ export class ExplorationController implements GameSystem {
 
     // Occasional movement flavor text
     this.movesSinceLastFlavor++;
-    if (this.movesSinceLastFlavor >= 8 + Math.floor(Math.random() * 5)) {
+    if (this.movesSinceLastFlavor >= 20 + Math.floor(Math.random() * 15)) {
       this.emitNarrative(pick(MOVE_FLAVORS), 'description');
       this.movesSinceLastFlavor = 0;
     }

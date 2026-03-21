@@ -151,10 +151,14 @@ export class StatusPanel extends Component {
     this.thirstBar.setValue(100 - survival.thirst);
     this.fatigueBar.setValue(100 - survival.fatigue);
 
-    // Update labels with threshold names
-    this.hungerLabel.textContent = `${SurvivalRules.formatThreshold(hungerThreshold)}`;
-    this.thirstLabel.textContent = `${SurvivalRules.formatThreshold(thirstThreshold)}`;
-    this.fatigueLabel.textContent = `${SurvivalRules.formatThreshold(fatigueThreshold)}`;
+    // Update labels — show track name, add threshold when notable
+    const hungerFine = hungerThreshold === 'satiated' || hungerThreshold === 'comfortable';
+    const thirstFine = thirstThreshold === 'quenched' || thirstThreshold === 'hydrated';
+    const fatigueFine = fatigueThreshold === 'rested' || fatigueThreshold === 'alert';
+
+    this.hungerLabel.textContent = hungerFine ? 'Hunger' : SurvivalRules.formatThreshold(hungerThreshold);
+    this.thirstLabel.textContent = thirstFine ? 'Thirst' : SurvivalRules.formatThreshold(thirstThreshold);
+    this.fatigueLabel.textContent = fatigueFine ? 'Fatigue' : SurvivalRules.formatThreshold(fatigueThreshold);
 
     // Color code labels
     this.setTrackColor(this.hungerLabel, survival.hunger);
