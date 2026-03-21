@@ -282,9 +282,15 @@ export class LocalMapGenerator {
         const y = isVert ? i : pos;
         if (x >= 0 && x < w && y >= 0 && y < h) {
           cells[y][x] = makeCell('water', 2, false);
+          cells[y][x].features = ['running_water'];
           // River is 2 tiles wide
-          if (isVert && x + 1 < w) cells[y][x + 1] = makeCell('water', 2, false);
-          else if (!isVert && y + 1 < h) cells[y + 1][x] = makeCell('water', 2, false);
+          if (isVert && x + 1 < w) {
+            cells[y][x + 1] = makeCell('water', 2, false);
+            cells[y][x + 1].features = ['running_water'];
+          } else if (!isVert && y + 1 < h) {
+            cells[y + 1][x] = makeCell('water', 2, false);
+            cells[y + 1][x].features = ['running_water'];
+          }
         }
       }
     }
@@ -1509,11 +1515,14 @@ export class LocalMapGenerator {
       const y = vertical ? i : pos;
       if (x >= 0 && x < w && y >= 0 && y < h) {
         cells[y][x] = makeCell('water', 2, false);
+        cells[y][x].features = ['running_water'];
         // Stream is 1-2 tiles wide
         if (vertical && x + 1 < w && this.rng.next() < 0.4) {
           cells[y][x + 1] = makeCell('water', 2, false);
+          cells[y][x + 1].features = ['running_water'];
         } else if (!vertical && y + 1 < h && this.rng.next() < 0.4) {
           cells[y + 1][x] = makeCell('water', 2, false);
+          cells[y + 1][x].features = ['running_water'];
         }
       }
     }

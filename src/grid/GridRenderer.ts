@@ -48,6 +48,7 @@ export class GridRenderer {
   private selectedEntity: EntityId | null = null;
   private highlights: HighlightLayer[] = [];
   private pathPreview: Coordinate[] = [];
+  private lookCursor: Coordinate | null = null;
   private animationFrame: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
@@ -230,6 +231,19 @@ export class GridRenderer {
       }
     }
 
+    // Look mode cursor — distinct gold/cyan border
+    if (this.lookCursor) {
+      const lx = this.lookCursor.x - startX;
+      const ly = this.lookCursor.y - startY;
+      if (lx >= 0 && lx < this.viewCols && ly >= 0 && ly < this.viewRows) {
+        ctx.strokeStyle = '#c8a84e';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(lx * this.cellW + 1, ly * this.cellH + 1, this.cellW - 2, this.cellH - 2);
+        ctx.fillStyle = 'rgba(200, 168, 78, 0.12)';
+        ctx.fillRect(lx * this.cellW, ly * this.cellH, this.cellW, this.cellH);
+      }
+    }
+
     ctx.restore();
   }
 
@@ -316,6 +330,10 @@ export class GridRenderer {
 
   setSelectedEntity(entityId: EntityId | null): void {
     this.selectedEntity = entityId;
+  }
+
+  setLookCursor(pos: Coordinate | null): void {
+    this.lookCursor = pos;
   }
 
   // ── Camera ────────────────────────────────────────────────

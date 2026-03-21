@@ -27,7 +27,8 @@ export type CellFeature =
   | 'fountain'
   | 'pillar'
   | 'tree'
-  | 'rock';
+  | 'rock'
+  | 'running_water';
 
 /** A single cell in the tactical grid */
 export type GridCell = {

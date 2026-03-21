@@ -94,4 +94,8 @@ export interface Item extends Entity {
   properties: ItemProperties;
   stackable: boolean;
   requiresAttunement: boolean;
+  /** Current charges (for refillable items like waterskins) */
+  charges?: number;
+  /** Maximum charges capacity */
+  maxCharges?: number;
 }

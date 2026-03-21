@@ -83,6 +83,10 @@ export class GridPanel extends Component {
     this.renderer?.clearHighlights();
   }
 
+  setLookCursor(pos: Coordinate | null): void {
+    this.renderer?.setLookCursor(pos);
+  }
+
   setInteractionMode(mode: InteractionMode): void {
     this.interaction?.setMode(mode);
   }

@@ -319,10 +319,17 @@ export class POIMapGenerator extends LocalMapGenerator {
     ];
 
     const placed: { x: number; y: number; bw: number; bh: number }[] = [];
-    for (let attempt = 0; attempt < buildingCount * 15 && placed.length < buildingCount; attempt++) {
+    const multiRoomCount = Math.ceil(buildingCount * 0.5); // first ~50% are multi-room
+
+    for (let attempt = 0; attempt < buildingCount * 20 && placed.length < buildingCount; attempt++) {
       const q = quadrants[Math.floor(this.rng.next() * quadrants.length)];
-      const bw = 5 + Math.floor(this.rng.next() * 4); // 5-8
-      const bh = 4 + Math.floor(this.rng.next() * 3); // 4-6
+      const isMultiRoom = placed.length < multiRoomCount;
+      const bw = isMultiRoom
+        ? 8 + Math.floor(this.rng.next() * 6)   // 8-13
+        : 5 + Math.floor(this.rng.next() * 3);   // 5-7 (cottages/sheds)
+      const bh = isMultiRoom
+        ? 6 + Math.floor(this.rng.next() * 4)   // 6-9
+        : 4 + Math.floor(this.rng.next() * 2);   // 4-5
       const availW = q.xMax - q.xMin - bw;
       const availH = q.yMax - q.yMin - bh;
       if (availW < 0 || availH < 0) continue;
@@ -330,7 +337,7 @@ export class POIMapGenerator extends LocalMapGenerator {
       const bx = q.xMin + Math.floor(this.rng.next() * (availW + 1));
       const by = q.yMin + Math.floor(this.rng.next() * (availH + 1));
 
-      // Check overlap with existing buildings (1-cell gap)
+      // Check overlap with existing buildings (2-cell gap)
       let overlaps = false;
       for (const p of placed) {
         if (bx < p.x + p.bw + 2 && bx + bw + 2 > p.x &&
@@ -345,27 +352,20 @@ export class POIMapGenerator extends LocalMapGenerator {
       if (bx < 1 || by < 1 || bx + bw >= w - 1 || by + bh >= h - 1) continue;
 
       placed.push({ x: bx, y: by, bw, bh });
-      this.placeSolidBuilding(cells, w, h, bx, by, bw, bh);
 
-      // Building types: first few buildings get special interiors
       const bIdx = placed.length - 1;
-      const interiorX = bx + Math.floor(bw / 2);
-      const interiorY = by + Math.floor(bh / 2);
-      if (interiorX > 0 && interiorX < w && interiorY > 0 && interiorY < h) {
-        if (bIdx === 0) {
-          // Tavern — fire (hearth) inside
-          cells[interiorY][interiorX] = makeCell('wood', 1, false, ['fire']);
-        } else if (bIdx === 1) {
-          // Blacksmith — fire + chest
-          cells[interiorY][interiorX] = makeCell('wood', 1, false, ['fire']);
-          const chestX = interiorX + 1 < bx + bw - 1 ? interiorX + 1 : interiorX - 1;
-          if (chestX > bx && chestX < bx + bw - 1) {
-            cells[interiorY][chestX] = makeCell('wood', 1, false, ['chest']);
-          }
-        } else if (bIdx === 2) {
-          // Temple — altar
-          cells[interiorY][interiorX] = makeCell('wood', 1, false, ['altar']);
-        }
+      if (isMultiRoom) {
+        // Multi-room buildings get room types based on building purpose
+        const roomTypes = bIdx === 0
+          ? ['common', 'kitchen', 'storage']      // Tavern
+          : bIdx === 1
+          ? ['common', 'armory', 'storage']        // Blacksmith
+          : bIdx === 2
+          ? ['shrine', 'common', 'storage']        // Temple
+          : ['common', 'bedroom', 'storage', 'kitchen'];
+        this.placeMultiRoomBuilding(cells, w, h, bx, by, bw, bh, roomTypes);
+      } else {
+        this.placeSolidBuilding(cells, w, h, bx, by, bw, bh);
       }
     }
 
@@ -481,13 +481,18 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
     }
 
-    // Ruined buildings (partial walls with decay)
+    // Ruined buildings — multi-room with decay
     const buildingCount = 5 + Math.floor(this.rng.next() * 4);
     const placed: { x: number; y: number; bw: number; bh: number }[] = [];
 
-    for (let attempt = 0; attempt < buildingCount * 12 && placed.length < buildingCount; attempt++) {
-      const bw = 5 + Math.floor(this.rng.next() * 6);
-      const bh = 4 + Math.floor(this.rng.next() * 5);
+    for (let attempt = 0; attempt < buildingCount * 15 && placed.length < buildingCount; attempt++) {
+      const isLarge = placed.length < Math.ceil(buildingCount * 0.5);
+      const bw = isLarge
+        ? 8 + Math.floor(this.rng.next() * 5)   // 8-12
+        : 5 + Math.floor(this.rng.next() * 4);   // 5-8
+      const bh = isLarge
+        ? 6 + Math.floor(this.rng.next() * 3)   // 6-8
+        : 4 + Math.floor(this.rng.next() * 3);   // 4-6
       const bx = ruinsMin + 3 + Math.floor(this.rng.next() * (ruinsSize * 2 - bw - 6));
       const by = ruinsMin + 3 + Math.floor(this.rng.next() * (ruinsSize * 2 - bh - 6));
 
@@ -504,18 +509,30 @@ export class POIMapGenerator extends LocalMapGenerator {
       if (overlaps) continue;
 
       placed.push({ x: bx, y: by, bw, bh });
-      const decay = 0.35 + this.rng.next() * 0.4;
 
+      // Place building first (multi-room or solid)
+      if (isLarge) {
+        this.placeMultiRoomBuilding(cells, w, h, bx, by, bw, bh, ['common', 'storage', 'bedroom']);
+      } else {
+        this.placeSolidBuilding(cells, w, h, bx, by, bw, bh);
+      }
+
+      // Apply decay — randomly remove walls and doors
+      const decay = 0.3 + this.rng.next() * 0.35;
       for (let y = by; y < by + bh; y++) {
         for (let x = bx; x < bx + bw; x++) {
-          if (y === by || y === by + bh - 1 || x === bx || x === bx + bw - 1) {
-            if (this.rng.next() < decay) {
-              cells[y][x] = wallCell();
-            } else {
+          if (x >= 0 && x < w && y >= 0 && y < h) {
+            if (cells[y][x].terrain === 'wall' && this.rng.next() > decay) {
               cells[y][x] = rockCell(ground);
             }
-          } else {
-            cells[y][x] = floorCell('stone');
+            // Remove doors randomly
+            if (cells[y][x].features.some(f => f === 'door') && this.rng.next() > 0.5) {
+              cells[y][x] = floorCell('stone');
+            }
+            // Convert wood floors to stone (aged)
+            if (cells[y][x].terrain === 'wood') {
+              cells[y][x] = floorCell('stone');
+            }
           }
         }
       }
@@ -721,10 +738,10 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
     }
 
-    // Interior buildings
-    this.placeSolidBuilding(cells, w, h, fMin + 3, CENTER - 8, 8, 6);
-    this.placeSolidBuilding(cells, w, h, fMin + 3, CENTER + 3, 8, 6);
-    this.placeSolidBuilding(cells, w, h, fMax - 11, CENTER - 8, 8, 6);
+    // Interior buildings (multi-room)
+    this.placeMultiRoomBuilding(cells, w, h, fMin + 3, CENTER - 8, 8, 6, ['common', 'armory', 'storage']);
+    this.placeMultiRoomBuilding(cells, w, h, fMin + 3, CENTER + 3, 8, 6, ['bedroom', 'common', 'kitchen']);
+    this.placeMultiRoomBuilding(cells, w, h, fMax - 11, CENTER - 8, 8, 6, ['shrine', 'storage', 'armory']);
 
     // Armory chest
     const armoryChestX = fMax - 9;
@@ -1471,7 +1488,7 @@ export class POIMapGenerator extends LocalMapGenerator {
         const x = horizontal ? i : pos + w2;
         const y = horizontal ? pos + w2 : i;
         if (x >= 0 && x < w && y >= 0 && y < h) {
-          cells[y][x] = makeCell('water', Infinity, false);
+          cells[y][x] = makeCell('water', Infinity, false, ['running_water']);
         }
       }
     }
@@ -1720,6 +1737,135 @@ export class POIMapGenerator extends LocalMapGenerator {
           }
         }
         break;
+      }
+    }
+  }
+
+  // ── Multi-Room Building ───────────────────────────────────
+
+  /**
+   * Place a multi-room building with internal wall subdivisions and doors.
+   * Creates 2-4 rooms depending on building size.
+   * Minimum useful size: 8x6.
+   */
+  private placeMultiRoomBuilding(
+    cells: GridCell[][],
+    gridW: number, gridH: number,
+    bx: number, by: number,
+    bw: number, bh: number,
+    roomTypes?: string[],
+  ): void {
+    // Clamp to grid bounds
+    const x1 = Math.max(0, bx);
+    const y1 = Math.max(0, by);
+    const x2 = Math.min(gridW - 1, bx + bw - 1);
+    const y2 = Math.min(gridH - 1, by + bh - 1);
+
+    // Need at least 8x6 for multi-room, fallback to solid
+    if (x2 - x1 < 7 || y2 - y1 < 5) {
+      return this.placeSolidBuilding(cells, gridW, gridH, bx, by, bw, bh);
+    }
+
+    // Outer shell: walls + wood floor
+    for (let y = y1; y <= y2; y++) {
+      for (let x = x1; x <= x2; x++) {
+        if (y === y1 || y === y2 || x === x1 || x === x2) {
+          cells[y][x] = wallCell();
+        } else {
+          cells[y][x] = floorCell('wood');
+        }
+      }
+    }
+
+    // South door (main entrance)
+    const mainDoorX = x1 + Math.floor((x2 - x1) / 2);
+    cells[y2][mainDoorX] = makeCell('wood', Infinity, true, ['door']);
+
+    // Internal subdivisions
+    const innerW = x2 - x1 - 1; // interior width
+    const innerH = y2 - y1 - 1; // interior height
+
+    // Vertical split — always do one if wide enough
+    const splitX = x1 + Math.floor(innerW * (0.4 + this.rng.next() * 0.2)) + 1;
+    for (let y = y1 + 1; y < y2; y++) {
+      cells[y][splitX] = wallCell();
+    }
+    // Door in vertical wall
+    const vDoorY = y1 + 1 + Math.floor(this.rng.next() * (innerH - 1));
+    cells[vDoorY][splitX] = makeCell('wood', Infinity, true, ['door']);
+
+    // Determine which side the main door is on (left or right of split)
+    const mainDoorOnLeft = mainDoorX < splitX;
+
+    // Horizontal split on the larger side if building is tall enough
+    const rooms: { x1: number; y1: number; x2: number; y2: number; idx: number }[] = [];
+    let roomIdx = 0;
+
+    if (innerH >= 6) {
+      // Split the side WITHOUT the main door horizontally
+      const hSplitY = y1 + Math.floor(innerH * (0.4 + this.rng.next() * 0.2)) + 1;
+
+      if (mainDoorOnLeft) {
+        // Split right side horizontally
+        for (let x = splitX + 1; x < x2; x++) {
+          cells[hSplitY][x] = wallCell();
+        }
+        const hDoorX = splitX + 1 + Math.floor(this.rng.next() * (x2 - splitX - 2));
+        cells[hSplitY][hDoorX] = makeCell('wood', Infinity, true, ['door']);
+
+        // Left room (full height)
+        rooms.push({ x1: x1 + 1, y1: y1 + 1, x2: splitX - 1, y2: y2 - 1, idx: roomIdx++ });
+        // Top-right room
+        rooms.push({ x1: splitX + 1, y1: y1 + 1, x2: x2 - 1, y2: hSplitY - 1, idx: roomIdx++ });
+        // Bottom-right room
+        rooms.push({ x1: splitX + 1, y1: hSplitY + 1, x2: x2 - 1, y2: y2 - 1, idx: roomIdx++ });
+      } else {
+        // Split left side horizontally
+        for (let x = x1 + 1; x < splitX; x++) {
+          cells[hSplitY][x] = wallCell();
+        }
+        const hDoorX = x1 + 1 + Math.floor(this.rng.next() * (splitX - x1 - 2));
+        cells[hSplitY][hDoorX] = makeCell('wood', Infinity, true, ['door']);
+
+        // Top-left room
+        rooms.push({ x1: x1 + 1, y1: y1 + 1, x2: splitX - 1, y2: hSplitY - 1, idx: roomIdx++ });
+        // Bottom-left room
+        rooms.push({ x1: x1 + 1, y1: hSplitY + 1, x2: splitX - 1, y2: y2 - 1, idx: roomIdx++ });
+        // Right room (full height)
+        rooms.push({ x1: splitX + 1, y1: y1 + 1, x2: x2 - 1, y2: y2 - 1, idx: roomIdx++ });
+      }
+    } else {
+      // Just 2 rooms (left and right)
+      rooms.push({ x1: x1 + 1, y1: y1 + 1, x2: splitX - 1, y2: y2 - 1, idx: roomIdx++ });
+      rooms.push({ x1: splitX + 1, y1: y1 + 1, x2: x2 - 1, y2: y2 - 1, idx: roomIdx++ });
+    }
+
+    // Assign features to rooms based on type
+    const types = roomTypes ?? ['common', 'storage', 'kitchen', 'bedroom'];
+    for (const room of rooms) {
+      const type = types[room.idx % types.length];
+      const rcx = Math.floor((room.x1 + room.x2) / 2);
+      const rcy = Math.floor((room.y1 + room.y2) / 2);
+
+      if (rcx >= 0 && rcx < gridW && rcy >= 0 && rcy < gridH) {
+        switch (type) {
+          case 'common':
+          case 'kitchen':
+            cells[rcy][rcx] = makeCell('wood', 1, false, ['fire']);
+            break;
+          case 'storage':
+            cells[rcy][rcx] = makeCell('wood', 1, false, ['chest']);
+            break;
+          case 'bedroom':
+            // No furniture yet — just empty room
+            break;
+          case 'armory':
+            cells[rcy][rcx] = makeCell('wood', 1, false, ['chest']);
+            break;
+          case 'shrine':
+            cells[rcy][rcx] = makeCell('wood', 1, false, ['altar']);
+            break;
+        }
       }
     }
   }

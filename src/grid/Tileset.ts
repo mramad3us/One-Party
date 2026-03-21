@@ -141,6 +141,7 @@ const FEATURE_GLYPHS: Record<CellFeature, { ch: string; fg: string; bg: string }
   pillar:      { ch: 'O', fg: '#aaaaaa', bg: '#222222' },
   tree:        { ch: 'T', fg: '#8b5a2b', bg: '#2a1a0a' },
   rock:        { ch: '.', fg: '#888888', bg: '#333333' },
+  running_water: { ch: '~', fg: '#4ac4ff', bg: '#0a2a4a' },
 };
 
 export class AsciiTileset implements Tileset {

@@ -33,6 +33,7 @@ const FEATURE_COLORS: Record<CellFeature, { primary: RGB; secondary: RGB; bg: RG
   pillar:      { primary: [160, 155, 145], secondary: [130, 125, 115], bg: [70, 68, 62] },
   tree:        { primary: [50, 120, 40],   secondary: [100, 70, 30],   bg: [20, 45, 15] },
   rock:        { primary: [120, 115, 108], secondary: [95, 90, 82],    bg: [55, 52, 48] },
+  running_water: { primary: [60, 180, 255], secondary: [30, 140, 220], bg: [10, 40, 70] },
 };
 
 // ── Helper: blend two colors ──────────────────────────────────
@@ -150,6 +151,9 @@ export class FantasyTileset implements Tileset {
         break;
       case 'rock':
         this.drawRock(rc, colors.primary, colors.secondary);
+        break;
+      case 'running_water':
+        this.drawRunningWater(rc, colors.primary, colors.secondary);
         break;
     }
   }
@@ -623,5 +627,37 @@ export class FantasyTileset implements Tileset {
     ctx.beginPath();
     ctx.ellipse(cx - 1, cy - 1, rw * 0.6, rh * 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  private drawRunningWater(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {
+    const { ctx, px, py, cw, ch, dim, hash } = rc;
+
+    // Water background
+    ctx.fillStyle = rgb(secondary, dim * 0.6);
+    ctx.fillRect(px, py, cw, ch);
+
+    // Animated-look wavy lines across the cell
+    const cy = py + ch / 2;
+    const waveOffset = (hash % 5) * 2;
+    ctx.strokeStyle = rgb(primary, dim * 0.9);
+    ctx.lineWidth = 2;
+
+    for (let row = -1; row <= 1; row++) {
+      const wy = cy + row * Math.floor(ch * 0.28);
+      ctx.beginPath();
+      for (let i = 0; i <= 4; i++) {
+        const wx = px + (i / 4) * cw;
+        const dy = Math.sin((i + waveOffset) * 1.5) * (ch * 0.08);
+        if (i === 0) ctx.moveTo(wx, wy + dy);
+        else ctx.lineTo(wx, wy + dy);
+      }
+      ctx.stroke();
+    }
+
+    // Sparkle highlights
+    ctx.fillStyle = rgb([180, 230, 255], dim * 0.5);
+    const sx = px + (hash % 3 + 1) * cw * 0.25;
+    const sy = py + ((hash >> 4) % 3 + 1) * ch * 0.25;
+    ctx.fillRect(sx, sy, 2, 2);
   }
 }

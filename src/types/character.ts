@@ -68,6 +68,8 @@ export type EquipmentSlots = {
 export type InventoryEntry = {
   itemId: EntityId;
   quantity: number;
+  /** Current charges for refillable items (e.g. waterskin) */
+  charges?: number;
 };
 
 /** Full inventory state */

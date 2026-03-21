@@ -372,4 +372,19 @@ export class GameScreen extends Component {
   centerWorldMapOnPlayer(): void {
     this.mapPanel.centerOnPlayer();
   }
+
+  /** Update player position on map during travel animation. */
+  setOverworldPositionAnimated(x: number, y: number): void {
+    this.mapPanel.setPlayerPositionAnimated(x, y);
+  }
+
+  /** Set the travel path being animated. */
+  setTravelPath(path: import('@/types').Coordinate[], index: number): void {
+    this.mapPanel.setTravelPath(path, index);
+  }
+
+  /** Clear travel animation state. */
+  clearTravelPath(): void {
+    this.mapPanel.clearTravelPath();
+  }
 }

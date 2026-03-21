@@ -536,10 +536,12 @@ export const SRD_ITEMS: Item[] = [
     rarity: 'common',
     weight: 5,
     value: { gold: 0, silver: 2, copper: 0 },
-    description: 'A leather pouch that can hold up to 4 pints of liquid.',
+    description: 'A leather pouch that can hold up to 4 pints of liquid. Can be refilled at running water sources.',
     stackable: false,
     requiresAttunement: false,
     properties: { thirstReduction: 50, description: 'Cool water slakes your thirst.' },
+    charges: 2,
+    maxCharges: 2,
   },
 
   // ── Food & Drink ──────────────────────────────────────

@@ -1,8 +1,10 @@
 import type { GameEngine } from '@/engine/GameEngine';
+import type { Coordinate } from '@/types';
 import type { OverworldData, OverworldTerrain, SettlementType } from '@/types/overworld';
 import { Component } from '@/ui/Component';
 import { el } from '@/utils/dom';
 import { isTraversable, getTerrainName } from '@/world/OverworldBridge';
+import { findOverworldPath } from '@/grid/OverworldPathfinder';
 
 // ── Terrain colors (shared with WorldCreationScreen) ──
 
@@ -69,6 +71,11 @@ export class MapPanel extends Component {
   private active = false;
   /** Optional callback to check if player can see map edge in a direction */
   private edgeChecker: ((dx: number, dy: number) => boolean) | null = null;
+  /** Path preview for fast travel */
+  private pathPreview: Coordinate[] = [];
+  /** Current travel animation path (tiles being traversed) */
+  private travelingPath: Coordinate[] = [];
+  private travelingIndex = 0;
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
@@ -216,31 +223,80 @@ export class MapPanel extends Component {
     const nx = Math.max(0, Math.min(this.overworld.width - 1, this.cursorPos.x + dx));
     const ny = Math.max(0, Math.min(this.overworld.height - 1, this.cursorPos.y + dy));
     this.cursorPos = { x: nx, y: ny };
+    this.computePathPreview();
     this.showDetail(nx, ny);
     this.scrollCursorIntoView();
   }
 
+  /** Compute A* path from player to cursor for preview. */
+  private computePathPreview(): void {
+    if (!this.overworld || !this.playerPos || !this.cursorPos) {
+      this.pathPreview = [];
+      return;
+    }
+    if (this.cursorPos.x === this.playerPos.x && this.cursorPos.y === this.playerPos.y) {
+      this.pathPreview = [];
+      return;
+    }
+    const result = findOverworldPath(
+      this.overworld.tiles, this.overworld.width, this.overworld.height,
+      this.playerPos, this.cursorPos,
+    );
+    this.pathPreview = result.found ? result.path : [];
+  }
+
   /** Handle travel command from KeyboardInput events. */
   travelToCursor(): void {
-    if (!this.overworld || !this.cursorPos) return;
-    if (!this.isAdjacentToPlayer(this.cursorPos.x, this.cursorPos.y)) return;
+    if (!this.overworld || !this.cursorPos || !this.playerPos) return;
 
     const tile = this.overworld.tiles[this.cursorPos.y][this.cursorPos.x];
     if (!isTraversable(tile.terrain)) return;
 
-    // Check edge visibility
-    if (this.edgeChecker && this.playerPos) {
-      const dx = this.cursorPos.x - this.playerPos.x;
-      const dy = this.cursorPos.y - this.playerPos.y;
-      if (!this.edgeChecker(dx, dy)) return;
-    }
+    const isAdjacent = this.isAdjacentToPlayer(this.cursorPos.x, this.cursorPos.y);
 
-    this.engine.events.emit({
-      type: 'overworld:travel',
-      category: 'ui',
-      data: { x: this.cursorPos.x, y: this.cursorPos.y },
-    });
-    this.hideDetail();
+    if (isAdjacent) {
+      // Single-tile adjacent travel — keep edge-check gate
+      if (this.edgeChecker) {
+        const dx = this.cursorPos.x - this.playerPos.x;
+        const dy = this.cursorPos.y - this.playerPos.y;
+        if (!this.edgeChecker(dx, dy)) return;
+      }
+      this.engine.events.emit({
+        type: 'overworld:travel',
+        category: 'ui',
+        data: { x: this.cursorPos.x, y: this.cursorPos.y },
+      });
+      this.hideDetail();
+    } else if (this.pathPreview.length > 0) {
+      // Multi-tile fast travel — skip edge-check (journey abstraction)
+      this.engine.events.emit({
+        type: 'overworld:fast_travel',
+        category: 'ui',
+        data: { path: this.pathPreview },
+      });
+      this.hideDetail();
+    }
+  }
+
+  /** Update player position during travel animation. */
+  setPlayerPositionAnimated(x: number, y: number): void {
+    this.playerPos = { x, y };
+    this.renderMap();
+  }
+
+  /** Set the travel path being animated (for rendering). */
+  setTravelPath(path: Coordinate[], index: number): void {
+    this.travelingPath = path;
+    this.travelingIndex = index;
+    this.renderMap();
+  }
+
+  /** Clear travel animation state. */
+  clearTravelPath(): void {
+    this.travelingPath = [];
+    this.travelingIndex = 0;
+    this.pathPreview = [];
+    this.renderMap();
   }
 
   /** Scroll the view so the cursor is visible. */
@@ -381,6 +437,42 @@ export class MapPanel extends Component {
       }
     }
 
+    // Draw path preview (dotted line from player to cursor)
+    if (this.pathPreview.length > 0 && this.playerPos) {
+      ctx.fillStyle = 'rgba(200, 168, 78, 0.3)';
+      for (const p of this.pathPreview) {
+        const px = this.offsetX + p.x * s;
+        const py = this.offsetY + p.y * s;
+        ctx.fillRect(px, py, Math.ceil(s), Math.ceil(s));
+      }
+      // Draw dotted center line
+      ctx.strokeStyle = 'rgba(200, 168, 78, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      const startPx = this.offsetX + this.playerPos.x * s + s / 2;
+      const startPy = this.offsetY + this.playerPos.y * s + s / 2;
+      ctx.moveTo(startPx, startPy);
+      for (const p of this.pathPreview) {
+        ctx.lineTo(this.offsetX + p.x * s + s / 2, this.offsetY + p.y * s + s / 2);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Draw traveling path (during fast travel animation)
+    if (this.travelingPath.length > 0) {
+      for (let i = 0; i < this.travelingPath.length; i++) {
+        const p = this.travelingPath[i];
+        const px = this.offsetX + p.x * s;
+        const py = this.offsetY + p.y * s;
+        ctx.fillStyle = i < this.travelingIndex
+          ? 'rgba(100, 200, 100, 0.25)'  // traversed
+          : 'rgba(200, 168, 78, 0.2)';   // upcoming
+        ctx.fillRect(px, py, Math.ceil(s), Math.ceil(s));
+      }
+    }
+
     // Draw cursor (keyboard selection)
     if (this.cursorPos && this.active) {
       const cx = this.offsetX + this.cursorPos.x * s;
@@ -511,12 +603,15 @@ export class MapPanel extends Component {
       );
     }
 
-    // Travel button — must be adjacent, traversable, and player must see the map edge
+    // Travel button — adjacent with edge-check, or multi-tile with A* path
     const canSeeEdge = isAdjacent && this.playerPos
       ? (!this.edgeChecker || this.edgeChecker(x - this.playerPos.x, y - this.playerPos.y))
       : true;
 
+    const hasPath = this.pathPreview.length > 0;
+
     if (!isPlayerHere && isAdjacent && traversable && canSeeEdge) {
+      // Adjacent travel
       const travelBtn = el('button', { class: 'btn btn-primary map-detail-travel' }, [
         `Travel to ${name}`,
       ]);
@@ -529,22 +624,43 @@ export class MapPanel extends Component {
         this.hideDetail();
       });
       this.detailEl.appendChild(travelBtn);
+    } else if (!isPlayerHere && !isAdjacent && traversable && hasPath) {
+      // Multi-tile fast travel with path info
+      const tiles = this.pathPreview.length;
+      const estHours = tiles + Math.floor(tiles * 0.5); // ~1.5 hours per tile average
+      this.detailEl.appendChild(
+        el('div', { class: 'map-detail-sub font-mono' }, [
+          `${tiles} tile${tiles > 1 ? 's' : ''} · ~${estHours} hour${estHours > 1 ? 's' : ''} journey`,
+        ]),
+      );
+      const travelBtn = el('button', { class: 'btn btn-primary map-detail-travel' }, [
+        `Journey to ${name}`,
+      ]);
+      travelBtn.addEventListener('click', () => {
+        this.engine.events.emit({
+          type: 'overworld:fast_travel',
+          category: 'ui',
+          data: { path: this.pathPreview },
+        });
+        this.hideDetail();
+      });
+      this.detailEl.appendChild(travelBtn);
     } else if (!isPlayerHere && isAdjacent && traversable && !canSeeEdge) {
       this.detailEl.appendChild(
         el('div', { class: 'map-detail-unreachable font-mono' }, [
           'Reach the edge of the local map in that direction first.',
         ]),
       );
-    } else if (!isPlayerHere && !isAdjacent) {
-      this.detailEl.appendChild(
-        el('div', { class: 'map-detail-unreachable font-mono' }, [
-          'Too far — travel to an adjacent tile first.',
-        ]),
-      );
-    } else if (!traversable && !isPlayerHere) {
+    } else if (!isPlayerHere && !traversable) {
       this.detailEl.appendChild(
         el('div', { class: 'map-detail-unreachable font-mono' }, [
           'This terrain is impassable on foot.',
+        ]),
+      );
+    } else if (!isPlayerHere && !isAdjacent && !hasPath) {
+      this.detailEl.appendChild(
+        el('div', { class: 'map-detail-unreachable font-mono' }, [
+          'No traversable route exists.',
         ]),
       );
     }

@@ -147,6 +147,12 @@ export class InventoryScreen extends Component {
           `x${entry.quantity}`,
         ]));
       }
+      if (item.maxCharges != null) {
+        const charges = entry.charges ?? item.charges ?? 0;
+        cardWrap.appendChild(el('span', { class: 'inventory-item-qty badge badge-gold', style: 'bottom:2px;top:auto' }, [
+          `${charges}/${item.maxCharges}`,
+        ]));
+      }
 
       const card = new ItemCard(cardWrap, this.engine, item);
       this.addChild(card);

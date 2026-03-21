@@ -6,7 +6,9 @@ export type InputContext =
   | 'menu'
   | 'worldmap'
   | 'inventory'
-  | 'character';
+  | 'character'
+  | 'look'
+  | 'traveling';
 
 export interface KeyBinding {
   keys: string[];
@@ -62,6 +64,26 @@ const WORLDMAP_BINDINGS: KeyBinding[] = [
   { keys: ['m'],                     event: 'input:cancel',     data: {},                  label: 'Close Map',    context: 'worldmap' },
 ];
 
+// ── Look mode bindings ──────────────────────────────────────────
+
+const LOOK_BINDINGS: KeyBinding[] = [
+  { keys: ['k', 'ArrowUp'],     event: 'input:look_move', data: { dx: 0, dy: -1 },  label: 'Look North',     context: 'look' },
+  { keys: ['j', 'ArrowDown'],   event: 'input:look_move', data: { dx: 0, dy: 1 },   label: 'Look South',     context: 'look' },
+  { keys: ['h', 'ArrowLeft'],   event: 'input:look_move', data: { dx: -1, dy: 0 },  label: 'Look West',      context: 'look' },
+  { keys: ['l', 'ArrowRight'],  event: 'input:look_move', data: { dx: 1, dy: 0 },   label: 'Look East',      context: 'look' },
+  { keys: ['y'],                event: 'input:look_move', data: { dx: -1, dy: -1 }, label: 'Look NW',         context: 'look' },
+  { keys: ['u'],                event: 'input:look_move', data: { dx: 1, dy: -1 },  label: 'Look NE',         context: 'look' },
+  { keys: ['b'],                event: 'input:look_move', data: { dx: -1, dy: 1 },  label: 'Look SW',         context: 'look' },
+  { keys: ['n'],                event: 'input:look_move', data: { dx: 1, dy: 1 },   label: 'Look SE',         context: 'look' },
+  { keys: ['x'],                event: 'input:look_exit', data: {},                  label: 'Exit Look',       context: 'look' },
+];
+
+// ── Traveling bindings ──────────────────────────────────────────
+
+const TRAVELING_BINDINGS: KeyBinding[] = [
+  { keys: ['Escape'],           event: 'input:cancel_travel', data: {},              label: 'Cancel Travel',   context: 'traveling' },
+];
+
 // ── Inventory bindings ───────────────────────────────────────────
 
 const INVENTORY_BINDINGS: KeyBinding[] = [
@@ -85,6 +107,8 @@ const ALL_BINDINGS = [
   ...MOVE_BINDINGS,
   ...EXPLORATION_ACTION_BINDINGS,
   ...EXPLORATION_META_BINDINGS,
+  ...LOOK_BINDINGS,
+  ...TRAVELING_BINDINGS,
   ...WORLDMAP_BINDINGS,
   ...INVENTORY_BINDINGS,
   ...CHARACTER_BINDINGS,
@@ -146,6 +170,15 @@ const CONTEXT_HINTS: Record<InputContext, KeyboardHintDef[]> = {
     { key: 'c',   label: 'Close',     category: 'meta' },
     { key: 'Esc', label: 'Close',     category: 'meta' },
     { key: '?',   label: 'Help',      category: 'meta' },
+  ],
+  look: [
+    { key: 'h/j/k/l', label: 'Move Cursor', category: 'movement' },
+    { key: 'y/u/b/n', label: 'Diagonal',    category: 'movement' },
+    { key: 'x',       label: 'Exit Look',   category: 'meta' },
+    { key: 'Esc',     label: 'Exit Look',   category: 'meta' },
+  ],
+  traveling: [
+    { key: 'Esc',     label: 'Cancel Travel', category: 'meta' },
   ],
 };
 

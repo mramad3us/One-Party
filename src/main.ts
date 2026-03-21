@@ -50,6 +50,7 @@ import type { SaveMeta, EquipmentSlots } from '@/types';
 import { EquipmentRules } from '@/rules/EquipmentRules';
 import { RestRules } from '@/rules/RestRules';
 import { processWorldDecay, markLocationVisited } from '@/world/WorldDecay';
+import type { Coordinate } from '@/types';
 
 // ── Delta-storage helpers for local maps ────────────────────────
 // Instead of saving the full 2500-cell grid, we regenerate the base
@@ -368,14 +369,33 @@ async function main(): Promise<void> {
     if (!item) return;
 
     if (item.itemType === 'food' || item.itemType === 'drink') {
+      const invEntry = character.inventory.items.find(e => e.itemId === itemId);
+      if (!invEntry) return;
+
+      // Handle charge-based items (e.g. waterskin)
+      if (item.maxCharges !== undefined) {
+        const charges = invEntry.charges ?? item.charges ?? 0;
+        if (charges <= 0) {
+          if (activeGameScreen) {
+            activeGameScreen.addNarrative({
+              text: `The ${item.name.toLowerCase()} is empty. Find running water to refill it.`,
+              category: 'action',
+            });
+          }
+          const invScreen = activeInventoryScreen;
+          if (invScreen) refreshInventoryScreen(invScreen);
+          return;
+        }
+        invEntry.charges = charges - 1;
+      }
+
       const props = item.properties as ConsumableProperties;
       const hungerBefore = character.survival.hunger;
       const thirstBefore = character.survival.thirst;
       SurvivalRules.consume(character.survival, props);
 
-      // Remove from inventory
-      const invEntry = character.inventory.items.find(e => e.itemId === itemId);
-      if (invEntry) {
+      // Remove from inventory (only for non-charge items, or when charges are depleted)
+      if (item.maxCharges === undefined) {
         invEntry.quantity -= 1;
         if (invEntry.quantity <= 0) {
           character.inventory.items = character.inventory.items.filter(e => e.itemId !== itemId);
@@ -1027,6 +1047,9 @@ async function main(): Promise<void> {
   engine.events.on('input:cancel', () => {
     const context = keyboardInput.getContext();
 
+    // Look mode exit is handled by ExplorationController's input:cancel listener
+    if (context === 'look') return;
+
     // Close world map overlay (stays on game screen)
     if (context === 'worldmap' && activeGameScreen?.isWorldMapVisible()) {
       activeGameScreen.hideWorldMap();
@@ -1042,6 +1065,28 @@ async function main(): Promise<void> {
       });
       // Context reset happens via ui:screen:changed
       return;
+    }
+  });
+
+  // ── Look Mode ──
+  engine.events.on('exploration:look_enter', (event) => {
+    if (!activeGameScreen) return;
+    keyboardInput.pushContext('look');
+    const { position } = event.data as { position: { x: number; y: number } };
+    activeGameScreen.getGridPanel().setLookCursor(position);
+  });
+
+  engine.events.on('exploration:look_move', (event) => {
+    if (!activeGameScreen) return;
+    const { position } = event.data as { position: { x: number; y: number } };
+    activeGameScreen.getGridPanel().setLookCursor(position);
+  });
+
+  engine.events.on('exploration:look_exit', () => {
+    if (!activeGameScreen) return;
+    activeGameScreen.getGridPanel().setLookCursor(null);
+    if (keyboardInput.getContext() === 'look') {
+      keyboardInput.popContext();
     }
   });
 
@@ -1194,6 +1239,256 @@ async function main(): Promise<void> {
       keyboardInput.popContext();
     }
   });
+
+  // 9b. Fast travel — multi-tile overworld journey with animation
+  let fastTravelCancelled = false;
+
+  engine.events.on('input:cancel_travel', () => {
+    fastTravelCancelled = true;
+  });
+
+  engine.events.on('overworld:fast_travel', async (event) => {
+    const { path } = event.data as { path: Coordinate[] };
+    if (!activeGameScreen || !activeGameState || !activeOverworld) return;
+    if (path.length === 0) return;
+
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+
+    fastTravelCancelled = false;
+
+    // Push traveling context (only Escape works)
+    keyboardInput.pushContext('traveling');
+
+    // Keep world map visible during travel
+    activeGameScreen.setTravelPath(path, 0);
+
+    const rng = activeRng ?? new SeededRNG(Date.now());
+
+    for (let i = 0; i < path.length; i++) {
+      if (fastTravelCancelled) {
+        // Stop at current position
+        activeGameScreen.addNarrative({
+          text: 'The party halts their journey, making camp where they stand.',
+          category: 'action',
+        });
+        break;
+      }
+
+      const { x, y } = path[i];
+      const tile = activeOverworld.tiles[y][x];
+      if (!isTraversable(tile.terrain)) break;
+
+      // Get or create location for this tile
+      const { location: dest } = getOrCreateTileLocation(
+        activeOverworld, x, y, activeGameState.world, rng,
+      );
+      dest.discovered = true;
+      tile.discovered = true;
+
+      // Update position
+      activeGameState.currentLocationId = dest.id;
+      activeGameState.currentSubLocationId = null;
+      activeGameState.overworldPosition = { x, y };
+
+      // Travel time: 1-2 hours per tile
+      const travelRounds = ROUNDS_PER_HOUR * (1 + Math.floor(Math.random() * 2));
+      const travelHours = Math.round(travelRounds / ROUNDS_PER_HOUR);
+      const timeBefore = { totalRounds: activeGameState.world.time.totalRounds };
+      activeGameState.advanceTime(travelRounds);
+
+      // Tick survival
+      tickAndNarrate(character, travelRounds);
+
+      // Auto-consume food/water when thresholds hit
+      if (character.survival.hunger >= 60 || character.survival.thirst >= 60) {
+        autoConsumeSupplies(character);
+      }
+
+      // Per-tile travel narrative
+      const tileName = tile.settlement && tile.settlementName
+        ? tile.settlementName
+        : getTerrainName(tile.terrain);
+
+      if (i === 0) {
+        activeGameScreen.addNarrative({
+          text: `The party sets out on their journey. The first leg takes them across ${getTerrainName(tile.terrain).toLowerCase()} — ${travelHours} hour${travelHours > 1 ? 's' : ''} of travel.`,
+          category: 'action',
+        });
+      } else if (tile.settlement) {
+        activeGameScreen.addNarrative({
+          text: `After ${travelHours} hour${travelHours > 1 ? 's' : ''}, the party passes through ${tileName}.`,
+          category: 'action',
+        });
+      } else if (i === path.length - 1) {
+        activeGameScreen.addNarrative({
+          text: `The final stretch takes ${travelHours} hour${travelHours > 1 ? 's' : ''}. The party arrives at their destination.`,
+          category: 'action',
+        });
+      } else if (i % 3 === 0) {
+        // Periodic update every 3 tiles
+        activeGameScreen.addNarrative({
+          text: `The journey continues across ${getTerrainName(tile.terrain).toLowerCase()}...`,
+          category: 'description',
+        });
+      }
+
+      // Time transition
+      const transition = TimeNarrator.describeTimeTransition(timeBefore, activeGameState.world.time);
+      if (transition) {
+        activeGameScreen.addNarrative({ text: transition, category: 'description' });
+      }
+
+      // Update map animation
+      activeGameScreen.setOverworldPositionAnimated(x, y);
+      activeGameScreen.setTravelPath(path, i + 1);
+      activeGameScreen.updateTime(activeGameState.world.time);
+
+      // Animation delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    // Final destination setup — generate local map
+    const finalPos = activeGameState.overworldPosition;
+    if (finalPos) {
+      const { x, y } = finalPos;
+      const tile = activeOverworld.tiles[y][x];
+      const { location: dest } = getOrCreateTileLocation(
+        activeOverworld, x, y, activeGameState.world, rng,
+      );
+
+      const tileName = tile.settlement && tile.settlementName
+        ? tile.settlementName
+        : getTerrainName(tile.terrain);
+
+      activeGameScreen.addNarrative(narrator.describeLocation(dest));
+
+      // Generate or restore local map
+      let gridDef: import('@/types').GridDefinition;
+      let playerStart: import('@/types').Coordinate;
+      const fog = new FogOfWar();
+
+      if (dest.localMap) {
+        if (dest.localMap.grid) {
+          gridDef = dest.localMap.grid;
+        } else {
+          const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain));
+          gridDef = base.grid;
+          applyGridMods(gridDef, dest.localMap.modifications ?? []);
+        }
+        playerStart = dest.localMap.playerStart;
+        if (dest.localMap.exploredCells.length > 0) {
+          fog.setState({ explored: new Set(dest.localMap.exploredCells), visible: new Set() });
+        }
+      } else {
+        const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain));
+        gridDef = base.grid;
+        playerStart = base.playerStart;
+        dest.localMap = { playerStart, exploredCells: [], modifications: [] };
+      }
+
+      markLocationVisited(dest, activeGameState.world.time);
+      const decay = processWorldDecay(activeGameState.world, activeGameState.world.time);
+      if (decay.reset.length > 0 || decay.trimmed.length > 0) {
+        console.log(`[World Decay] Reset: ${decay.reset.length}, Trimmed: ${decay.trimmed.length}, ~${Math.round(decay.estimatedBytesSaved / 1024)} KB freed`);
+      }
+
+      const grid = new Grid(gridDef);
+      character.position = null;
+
+      explorationController.enterSpace(
+        grid, fog, character.id ?? activeGameState.playerCharacterId, playerStart,
+        character.speed ?? 30, 'bright',
+      );
+
+      activeGameScreen.enterLocalMode(grid, fog);
+      activeGameScreen.centerGrid(playerStart);
+      activeGameScreen.updatePlayerEntity(character.id, playerStart, {
+        name: character.name,
+        color: '#2a2520',
+        symbol: '@',
+        hp: character.currentHp,
+        maxHp: character.maxHp,
+        isPlayer: true,
+        isAlly: false,
+        size: 1,
+        conditions: character.conditions.map(c => c.type),
+      });
+      activeGameScreen.setCharacter(character);
+      activeGameScreen.setLocationName(tileName);
+      activeGameScreen.updateTime(activeGameState.world.time);
+      activeGameScreen.setOverworldPosition(x, y);
+    }
+
+    // Clean up
+    activeGameScreen.clearTravelPath();
+    activeGameScreen.hideWorldMap();
+    if (keyboardInput.getContext() === 'traveling') {
+      keyboardInput.popContext();
+    }
+    if (keyboardInput.getContext() === 'worldmap') {
+      keyboardInput.popContext();
+    }
+  });
+
+  // Auto-consume food/water supplies during travel
+  function autoConsumeSupplies(character: Character): void {
+    if (!activeGameScreen) return;
+    const inventory = character.inventory;
+
+    // Try to consume food if hungry
+    if (character.survival.hunger >= 60) {
+      for (const entry of inventory.items) {
+        const item = getItem(entry.itemId);
+        if (!item || item.itemType !== 'food') continue;
+        if (item.maxCharges != null) {
+          const charges = entry.charges ?? 0;
+          if (charges <= 0) continue;
+          entry.charges = charges - 1;
+        } else {
+          entry.quantity--;
+        }
+        const props = item.properties as ConsumableProperties;
+        if (props) SurvivalRules.consume(character.survival, props);
+        activeGameScreen.addNarrative({
+          text: `The party eats some ${item.name.toLowerCase()} while traveling.`,
+          category: 'description',
+        });
+        // Remove empty stacks
+        if (entry.quantity <= 0 && !(item.maxCharges != null)) {
+          const idx = inventory.items.indexOf(entry);
+          if (idx >= 0) inventory.items.splice(idx, 1);
+        }
+        break;
+      }
+    }
+
+    // Try to consume water if thirsty
+    if (character.survival.thirst >= 60) {
+      for (const entry of inventory.items) {
+        const item = getItem(entry.itemId);
+        if (!item || item.itemType !== 'drink') continue;
+        if (item.maxCharges != null) {
+          const charges = entry.charges ?? 0;
+          if (charges <= 0) continue;
+          entry.charges = charges - 1;
+        } else {
+          entry.quantity--;
+        }
+        const props = item.properties as ConsumableProperties;
+        if (props) SurvivalRules.consume(character.survival, props);
+        activeGameScreen.addNarrative({
+          text: `The party drinks from their ${item.name.toLowerCase()}.`,
+          category: 'description',
+        });
+        if (entry.quantity <= 0 && !(item.maxCharges != null)) {
+          const idx = inventory.items.indexOf(entry);
+          if (idx >= 0) inventory.items.splice(idx, 1);
+        }
+        break;
+      }
+    }
+  }
 
   // 10. Wire up save management modal
   engine.events.on('ui:open_saves', () => {

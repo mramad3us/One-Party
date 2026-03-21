@@ -98,6 +98,10 @@ const FEATURE_NARRATIVES: Record<CellFeature, string[]> = {
     'A weathered boulder juts from the ground, its surface pocked and cracked.',
     'A large stone rests here, half-buried and stubborn as the mountains that spawned it.',
   ],
+  running_water: [
+    'A stream flows here, swift and clear over smooth stones. The water looks safe to drink.',
+    'Running water courses along a natural channel, glinting in the light. You could refill your waterskin here.',
+  ],
 };
 
 function pick<T>(arr: T[]): T {
@@ -134,6 +138,10 @@ export class ExplorationController implements GameSystem {
   // Throttle movement flavor text
   private movesSinceLastFlavor = 0;
 
+  // Look mode cursor
+  private lookCursor: Coordinate | null = null;
+  private lookMode = false;
+
   init(engine: GameEngine): void {
     this.engine = engine;
 
@@ -167,6 +175,24 @@ export class ExplorationController implements GameSystem {
     engine.events.on('input:ascend', () => {
       if (!this.active) return;
       this.handleStairs('stairs_up');
+    });
+
+    engine.events.on('input:look_move', (event) => {
+      if (!this.active || !this.lookMode) return;
+      const { dx, dy } = event.data as { dx: number; dy: number };
+      this.handleLookMove(dx, dy);
+    });
+
+    engine.events.on('input:look_exit', () => {
+      if (!this.active || !this.lookMode) return;
+      this.handleLookExit();
+    });
+
+    // Escape also exits look mode (via global cancel)
+    engine.events.on('input:cancel', () => {
+      if (this.lookMode) {
+        this.handleLookExit();
+      }
     });
   }
 
@@ -433,6 +459,10 @@ export class ExplorationController implements GameSystem {
           this.interactFountain();
           return;
         }
+        if (feature === 'running_water') {
+          this.interactRunningWater();
+          return;
+        }
         if (feature === 'altar') {
           this.emitNarrative(
             'You lay your hands upon the ancient altar. The carved symbols seem to pulse faintly beneath your touch, but whatever power once resided here has long since faded — or perhaps it merely sleeps, waiting for the right offering.',
@@ -440,6 +470,15 @@ export class ExplorationController implements GameSystem {
           );
           return;
         }
+      }
+
+      // Standing water (no running_water feature) — unsafe
+      if (cell.terrain === 'water' && !cell.features.includes('running_water')) {
+        this.emitNarrative(
+          'The water is dark and still, its surface slick with a faint oily sheen. You would not drink from this — stagnant water breeds sickness.',
+          'description',
+        );
+        return;
       }
     }
 
@@ -503,6 +542,48 @@ export class ExplorationController implements GameSystem {
     });
   }
 
+  private interactRunningWater(): void {
+    const character = this.getCharacter?.();
+    if (!character) return;
+
+    // Drink from the stream
+    const thirstBefore = character.survival.thirst;
+    SurvivalRules.consume(character.survival, { thirstReduction: 30 });
+
+    this.emitNarrative(
+      SurvivalNarrator.describeDrinking(thirstBefore, character.survival.thirst,
+        'You kneel by the flowing water and drink deeply. The current is swift and clean, carrying the taste of mountain stone.').text,
+      'action',
+    );
+
+    // Refill any waterskins in inventory
+    let refilled = false;
+    for (const entry of character.inventory.items) {
+      const item = this.engine.entities.get(entry.itemId);
+      if (item && 'maxCharges' in item && (item as { maxCharges: number }).maxCharges > 0) {
+        const maxC = (item as { maxCharges: number }).maxCharges;
+        const curC = entry.charges ?? 0;
+        if (curC < maxC) {
+          entry.charges = maxC;
+          refilled = true;
+        }
+      }
+    }
+
+    if (refilled) {
+      this.emitNarrative(
+        'You fill your waterskin from the flowing stream. The leather bulges with fresh, clean water.',
+        'action',
+      );
+    }
+
+    this.engine.events.emit({
+      type: 'exploration:water_used',
+      category: 'world',
+      data: {},
+    });
+  }
+
   private interactFountain(): void {
     const character = this.getCharacter?.();
     if (!character) return;
@@ -545,43 +626,79 @@ export class ExplorationController implements GameSystem {
   }
 
   private handleLook(): void {
-    if (!this.grid || !this.playerPosition) return;
+    if (!this.grid || !this.playerPosition || !this.fog) return;
 
-    const cell = this.grid.getCell(this.playerPosition.x, this.playerPosition.y);
+    // Enter look mode with cursor at player position
+    this.lookMode = true;
+    this.lookCursor = { ...this.playerPosition };
+
+    // Push look context onto keyboard input
+    this.engine.events.emit({
+      type: 'exploration:look_enter',
+      category: 'ui',
+      data: { position: this.lookCursor },
+    });
+
+    this.emitNarrative('Look mode — move cursor with hjkl, press x or Esc to exit.', 'system');
+    this.describeCellAt(this.lookCursor.x, this.lookCursor.y);
+  }
+
+  private handleLookMove(dx: number, dy: number): void {
+    if (!this.grid || !this.fog || !this.lookCursor) return;
+
+    const nx = this.lookCursor.x + dx;
+    const ny = this.lookCursor.y + dy;
+
+    // Only allow movement within visible cells
+    if (!this.fog.isVisible(nx, ny)) return;
+
+    this.lookCursor = { x: nx, y: ny };
+
+    this.engine.events.emit({
+      type: 'exploration:look_move',
+      category: 'ui',
+      data: { position: this.lookCursor },
+    });
+
+    this.describeCellAt(nx, ny);
+  }
+
+  private handleLookExit(): void {
+    this.lookMode = false;
+    this.lookCursor = null;
+
+    this.engine.events.emit({
+      type: 'exploration:look_exit',
+      category: 'ui',
+      data: {},
+    });
+  }
+
+  /** Whether look mode is currently active. */
+  isLookMode(): boolean {
+    return this.lookMode;
+  }
+
+  private describeCellAt(x: number, y: number): void {
+    if (!this.grid) return;
+
+    const cell = this.grid.getCell(x, y);
     if (!cell) return;
 
-    const terrain = cell.terrain;
-    const features = cell.features;
+    const isPlayer = this.playerPosition?.x === x && this.playerPosition?.y === y;
+    let description = isPlayer
+      ? `You stand on ${this.describesTerrain(cell.terrain)}.`
+      : `You see ${this.describesTerrain(cell.terrain)}.`;
 
-    let description = `You stand on ${this.describesTerrain(terrain)}.`;
-
-    if (features.length > 0) {
-      const featureDescs = features.map(f => this.describeFeature(f));
-      description += ' ' + featureDescs.join(' ');
+    if (cell.features.length > 0) {
+      const featureDescs = cell.features.map(f => this.describeFeature(f));
+      description += ' There is ' + featureDescs.join(', ') + '.';
     }
 
-    // Describe visible surroundings
-    const directions = [
-      { dx: 0, dy: -1, name: 'north' }, { dx: 1, dy: 0, name: 'east' },
-      { dx: 0, dy: 1, name: 'south' }, { dx: -1, dy: 0, name: 'west' },
-    ];
-
-    const notable: string[] = [];
-    for (const d of directions) {
-      const nx = this.playerPosition.x + d.dx;
-      const ny = this.playerPosition.y + d.dy;
-      const adjCell = this.grid.getCell(nx, ny);
-      if (adjCell) {
-        for (const f of adjCell.features) {
-          if (f !== 'pillar') {
-            notable.push(`${this.describeFeature(f)} to the ${d.name}`);
-          }
-        }
-      }
-    }
-
-    if (notable.length > 0) {
-      description += ` You notice ${notable.join(', ')}.`;
+    // Check for entities at this position
+    const entityId = this.grid.getEntityAt({ x, y });
+    if (entityId && entityId !== this.playerEntityId) {
+      description += ' A creature stands here.';
     }
 
     this.emitNarrative(description, 'description');
@@ -685,6 +802,7 @@ export class ExplorationController implements GameSystem {
       pillar: 'a stone pillar',
       tree: 'a gnarled tree',
       rock: 'a large rock',
+      running_water: 'flowing water',
     };
     return descriptions[feature] ?? 'something';
   }
