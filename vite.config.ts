@@ -7,6 +7,9 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
     },
   },
+  esbuild: {
+    useDefineForClassFields: false,
+  },
   build: {
     target: 'es2022',
     outDir: 'dist',

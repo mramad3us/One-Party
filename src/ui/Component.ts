@@ -15,7 +15,7 @@ export abstract class Component {
     protected parent: HTMLElement,
     protected engine: GameEngine,
   ) {
-    this.el = this.createElement();
+    // Defer createElement to allow subclass constructors to finish first
   }
 
   /** Build and return the root DOM element for this component. */
@@ -28,6 +28,9 @@ export abstract class Component {
 
   /** Append element to parent and trigger enter animation. */
   mount(): void {
+    if (!this.el) {
+      this.el = this.createElement();
+    }
     this.parent.appendChild(this.el);
     this.setupEvents();
     requestAnimationFrame(() => {

@@ -100,6 +100,10 @@ export class CharacterFactory {
       }
     }
 
+    // Add starting provisions
+    inventoryItems.push({ itemId: 'item_rations', quantity: 3 });
+    inventoryItems.push({ itemId: 'item_waterskin', quantity: 1 });
+
     // Build features list from class
     const features: Character['features'] = [];
     for (const feature of classData.features) {
@@ -179,6 +183,7 @@ export class CharacterFactory {
       position: null,
       initiative: null,
       epicBoons: [],
+      survival: { hunger: 10, thirst: 5, fatigue: 0, exhaustionLevel: 0 },
     };
 
     return character;

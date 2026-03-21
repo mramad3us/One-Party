@@ -14,7 +14,9 @@ export type ItemType =
   | 'mundane'
   | 'wondrous'
   | 'ammunition'
-  | 'tool';
+  | 'tool'
+  | 'food'
+  | 'drink';
 
 /** Magic item rarity tiers */
 export type Rarity =
@@ -65,11 +67,19 @@ export type PotionProperties = {
   healing?: DamageRoll;
 };
 
+/** Properties specific to consumables (food/drink) */
+export type ConsumableProperties = {
+  hungerReduction?: number;
+  thirstReduction?: number;
+  description?: string;
+};
+
 /** Union of all item-specific property types */
 export type ItemProperties =
   | WeaponProperties
   | ArmorProperties
   | PotionProperties
+  | ConsumableProperties
   | Record<string, unknown>;
 
 /** A game item — weapon, armor, potion, or other object */

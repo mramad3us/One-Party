@@ -90,6 +90,23 @@ export type SpellcastingState = {
   cantripsKnown: string[];
 };
 
+/** Survival hunger thresholds */
+export type HungerThreshold = 'satiated' | 'comfortable' | 'peckish' | 'hungry' | 'very_hungry' | 'famished' | 'starving';
+
+/** Survival thirst thresholds */
+export type ThirstThreshold = 'quenched' | 'hydrated' | 'mild_thirst' | 'thirsty' | 'very_thirsty' | 'parched' | 'dehydrated';
+
+/** Survival fatigue thresholds */
+export type FatigueThreshold = 'rested' | 'alert' | 'tired' | 'weary' | 'exhausted' | 'delirious';
+
+/** Physical survival state tracking */
+export type SurvivalState = {
+  hunger: number;           // 0 (full) to 100 (starving)
+  thirst: number;           // 0 (quenched) to 100 (dehydrated)
+  fatigue: number;          // 0 (rested) to 100 (delirious)
+  exhaustionLevel: number;  // 0-6, maps to D&D 5e exhaustion
+};
+
 /** The player character */
 export interface Character extends Entity {
   type: 'character';
@@ -130,4 +147,5 @@ export interface Character extends Entity {
   position: Coordinate | null;
   initiative: number | null;
   epicBoons: EpicBoon[];
+  survival: SurvivalState;
 }

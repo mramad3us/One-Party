@@ -1,13 +1,15 @@
 import type { GameEngine } from '@/engine/GameEngine';
 import type { NarrativeBlock } from '@/types/narrative';
-import type { EntityId, Region } from '@/types';
+import type { Character, Coordinate, EntityId, Region, SurvivalState } from '@/types';
 import { Component } from '@/ui/Component';
 import { NarrativePanel } from '@/ui/panels/NarrativePanel';
 import { PartyPanel, type PartyMember } from '@/ui/panels/PartyPanel';
-import { ActionPanel, type ActionContext } from '@/ui/panels/ActionPanel';
+import { StatusPanel } from '@/ui/panels/StatusPanel';
+import { ActionPanel, type ActionContext, type KeyboardHint } from '@/ui/panels/ActionPanel';
 import { MapPanel } from '@/ui/panels/MapPanel';
 import { GridPanel } from '@/ui/panels/GridPanel';
 import { IconSystem } from '@/ui/IconSystem';
+import type { EntityRenderInfo } from '@/grid/GridRenderer';
 import { Grid } from '@/grid/Grid';
 import { FogOfWar } from '@/grid/FogOfWar';
 import { el } from '@/utils/dom';
@@ -26,6 +28,7 @@ export interface GameScreenState {
  */
 export class GameScreen extends Component {
   private narrativePanel!: NarrativePanel;
+  private statusPanel!: StatusPanel;
   private partyPanel!: PartyPanel;
   private actionPanel!: ActionPanel;
   private mapPanel!: MapPanel;
@@ -59,10 +62,10 @@ export class GameScreen extends Component {
     topActions.appendChild(IconSystem.iconButton('save', 'Save Game', () => {
       this.engine.events.emit({ type: 'ui:action:save', category: 'ui', data: {} });
     }));
-    topActions.appendChild(IconSystem.iconButton('cog', 'Settings', () => {
+    topActions.appendChild(IconSystem.iconButton('settings', 'Settings', () => {
       this.engine.events.emit({ type: 'ui:action:settings', category: 'ui', data: {} });
     }));
-    topActions.appendChild(IconSystem.iconButton('bars', 'Menu', () => {
+    topActions.appendChild(IconSystem.iconButton('menu', 'Menu', () => {
       this.engine.events.emit({ type: 'ui:navigate', category: 'ui', data: { screen: 'menu', direction: 'right' } });
     }));
     topBar.appendChild(topActions);
@@ -71,8 +74,9 @@ export class GameScreen extends Component {
     // ── Main Layout (CSS Grid) ──
     const layout = el('div', { class: 'game-layout' });
 
-    // Left: Party Panel
+    // Left: Status Panel + Party Panel
     const leftCol = el('div', { class: 'game-col-left' });
+    this.statusPanel = new StatusPanel(leftCol, this.engine);
     this.partyPanel = new PartyPanel(leftCol, this.engine);
     layout.appendChild(leftCol);
 
@@ -99,14 +103,13 @@ export class GameScreen extends Component {
 
     layout.appendChild(centerCol);
 
-    // Right: Sidebar
-    this.sidebarEl = el('div', { class: 'game-col-right' });
-
-    // Sidebar toggle
+    // Sidebar toggle (outside sidebar so it's always visible)
     const sidebarToggle = el('button', { class: 'game-sidebar-toggle btn btn-ghost' }, ['\u276E']);
     sidebarToggle.addEventListener('click', () => this.toggleSidebar());
-    this.sidebarEl.appendChild(sidebarToggle);
+    layout.appendChild(sidebarToggle);
 
+    // Right: Sidebar
+    this.sidebarEl = el('div', { class: 'game-col-right' });
     this.mapPanel = new MapPanel(this.sidebarEl, this.engine);
     layout.appendChild(this.sidebarEl);
 
@@ -117,6 +120,7 @@ export class GameScreen extends Component {
 
   protected setupEvents(): void {
     // Mount child panels
+    this.addChild(this.statusPanel);
     this.addChild(this.partyPanel);
     this.addChild(this.narrativePanel);
     this.addChild(this.gridPanel);
@@ -209,12 +213,71 @@ export class GameScreen extends Component {
     this.actionPanel.setContext(context);
   }
 
+  setCharacter(character: Character): void {
+    this.statusPanel.setCharacter(character);
+  }
+
+  updateSurvival(survival: SurvivalState): void {
+    this.statusPanel.updateSurvival(survival);
+  }
+
   getGridPanel(): GridPanel {
     return this.gridPanel;
   }
 
   getNarrativePanel(): NarrativePanel {
     return this.narrativePanel;
+  }
+
+  /** Enter local exploration mode: show grid + narrative together. */
+  enterLocalMode(grid: Grid, fog: FogOfWar): void {
+    this.currentMode = 'exploration';
+
+    // Show both grid and narrative (grid dominant, narrative as log)
+    this.narrativeWrap.classList.remove('game-narrative-wrap--hidden');
+    this.gridWrap.classList.remove('game-grid-wrap--hidden');
+
+    // Switch to local layout
+    const centerCol = this.mainViewEl.parentElement;
+    if (centerCol) {
+      centerCol.classList.add('game-col-center--local');
+    }
+    this.mainViewEl.classList.add('game-main-view--local');
+
+    // Reorder: grid on top, narrative log below
+    this.mainViewEl.insertBefore(this.gridWrap, this.narrativeWrap);
+
+    // Reset transitions for immediate display
+    this.narrativeWrap.style.transition = 'none';
+    this.narrativeWrap.style.opacity = '1';
+    this.narrativeWrap.style.transform = 'none';
+    this.gridWrap.style.transition = 'none';
+    this.gridWrap.style.opacity = '1';
+    this.gridWrap.style.transform = 'none';
+
+    // Init grid panel (ResizeObserver inside renderer handles deferred sizing)
+    this.gridPanel.initGrid(grid, fog);
+  }
+
+  /** Update the player entity on the grid. */
+  updatePlayerEntity(
+    playerId: EntityId,
+    position: { x: number; y: number },
+    info: EntityRenderInfo,
+  ): void {
+    const placements = new Map();
+    placements.set(playerId, { entityId: playerId, position, size: 1 });
+    this.gridPanel.updateEntities(placements, (id) => id === playerId ? info : undefined);
+  }
+
+  /** Center the grid camera on a position. */
+  centerGrid(position: Coordinate): void {
+    this.gridPanel.centerOn(position);
+  }
+
+  /** Set keyboard hints on the action panel. */
+  setKeyboardHints(hints: KeyboardHint[]): void {
+    this.actionPanel.setKeyboardHints(hints);
   }
 
   private toggleSidebar(): void {

@@ -8,12 +8,28 @@ import { TooltipSystem } from '@/ui/TooltipSystem';
 import { UIManager } from '@/ui/UIManager';
 import { MenuScreen } from '@/ui/screens/MenuScreen';
 import { CreationScreen } from '@/ui/screens/CreationScreen';
+import { GameScreen } from '@/ui/screens/GameScreen';
+import { InventoryScreen } from '@/ui/screens/InventoryScreen';
+import { CharacterScreen } from '@/ui/screens/CharacterScreen';
 import { StorageEngine } from '@/storage/StorageEngine';
 import { SaveManager } from '@/storage/SaveManager';
 import { CharacterFactory } from '@/character/CharacterFactory';
 import { WorldGenerator } from '@/world/WorldGenerator';
+import { LocalMapGenerator } from '@/world/LocalMapGenerator';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { DiceRoller } from '@/rules/DiceRoller';
+import { TextNarrativeEngine } from '@/narrative/NarrativeEngine';
+import { SurvivalRules } from '@/rules/SurvivalRules';
+import { SurvivalNarrator } from '@/narrative/SurvivalNarrator';
+import { getItem } from '@/data/items';
+import type { ConsumableProperties } from '@/types/item';
+import { ROUNDS_PER_HOUR } from '@/types/time';
+import { KeyboardInput } from '@/engine/KeyboardInput';
+import { ExplorationController } from '@/engine/ExplorationController';
+import { Grid } from '@/grid/Grid';
+import { FogOfWar } from '@/grid/FogOfWar';
+import type { KeyboardHint } from '@/ui/panels/ActionPanel';
+import type { EntityRenderInfo } from '@/grid/GridRenderer';
 
 async function main(): Promise<void> {
   // 1. Initialize storage engine
@@ -30,6 +46,12 @@ async function main(): Promise<void> {
   // 4. Create the game engine
   const engine = new GameEngine();
 
+  // 4b. Register game systems
+  const keyboardInput = new KeyboardInput();
+  engine.registerSystem(keyboardInput);
+  const explorationController = new ExplorationController();
+  engine.registerSystem(explorationController);
+
   // 5. Get the app container
   const container = document.getElementById('app');
   if (!container) {
@@ -41,10 +63,20 @@ async function main(): Promise<void> {
 
   // Track active game state
   let activeGameState: GameState | null = null;
+  let activeGameScreen: GameScreen | null = null;
+  let activeRng: SeededRNG | null = null;
+  const narrator = new TextNarrativeEngine();
 
   // 7. Register screens
   ui.registerScreen('menu', () => new MenuScreen(container, engine));
   ui.registerScreen('creation', () => new CreationScreen(container, engine));
+  ui.registerScreen('game', () => {
+    const screen = new GameScreen(container, engine);
+    activeGameScreen = screen;
+    return screen;
+  });
+  ui.registerScreen('inventory', () => new InventoryScreen(container, engine));
+  ui.registerScreen('character', () => new CharacterScreen(container, engine));
 
   // 8. Listen for navigation events
   engine.events.on('ui:navigate', (event) => {
@@ -71,6 +103,7 @@ async function main(): Promise<void> {
     // Create RNG and dice
     const seed = Date.now();
     const rng = new SeededRNG(seed);
+    activeRng = rng;
     const dice = new DiceRoller(rng);
 
     // Create character via factory
@@ -136,6 +169,478 @@ async function main(): Promise<void> {
     console.log(
       `[One Party] New game started: ${character.name} the ${race} ${classId} in ${world.name}`,
     );
+  });
+
+  // Populate the game screen when it becomes active
+  engine.events.on('ui:screen:changed', (event) => {
+    const { screen } = event.data as { screen: string };
+    if (screen === 'game' && activeGameScreen && activeGameState) {
+      populateGameScreen(activeGameScreen, activeGameState, engine);
+    }
+  });
+
+  function populateGameScreen(
+    screen: GameScreen,
+    state: GameState,
+    eng: GameEngine,
+  ): void {
+    const character = eng.entities.getAll<Character>('character')[0];
+    if (!character) return;
+
+    const region = state.getCurrentRegion();
+    const location = state.getCurrentLocation();
+
+    // Mark starting location as discovered
+    location.discovered = true;
+
+    // Populate status panel
+    screen.setCharacter(character);
+
+    // Populate party panel
+    screen.setGameState({
+      mode: 'exploration',
+      partyMembers: [{
+        id: character.id,
+        name: character.name,
+        level: character.level,
+        className: character.class.charAt(0).toUpperCase() + character.class.slice(1),
+        currentHp: character.currentHp,
+        maxHp: character.maxHp,
+        armorClass: character.armorClass,
+        conditions: character.conditions.map(c => c.type),
+        isPlayer: true,
+      }],
+      region,
+      currentLocationId: location.id,
+    });
+
+    // Add opening narrative
+    screen.addNarrative({
+      text: `Your adventure begins in the world of ${state.world.name}.`,
+      category: 'system',
+    });
+    screen.addNarrative(narrator.describeLocation(location));
+
+    // Generate local map for current location
+    const rng = activeRng ?? new SeededRNG(Date.now());
+    const mapGen = new LocalMapGenerator(rng);
+    const { grid: gridDef, playerStart } = mapGen.generate(location.locationType, region.biome);
+    const grid = new Grid(gridDef);
+    const fog = new FogOfWar();
+
+    // Configure exploration controller
+    explorationController.configure({
+      gameState: state,
+      getCharacter: () => eng.entities.getAll<Character>('character')[0] ?? null,
+    });
+
+    // Enter local exploration
+    explorationController.enterSpace(
+      grid, fog, character.id, playerStart,
+      character.speed, 'bright',
+    );
+
+    // Switch to local mode UI
+    screen.enterLocalMode(grid, fog);
+    screen.centerGrid(playerStart);
+
+    // Set up player entity rendering
+    const playerInfo: EntityRenderInfo = {
+      name: character.name,
+      color: '#2a2520',
+      symbol: '@',
+      hp: character.currentHp,
+      maxHp: character.maxHp,
+      isPlayer: true,
+      isAlly: false,
+      size: 1,
+      conditions: character.conditions.map(c => c.type),
+    };
+    screen.updatePlayerEntity(character.id, playerStart, playerInfo);
+
+    // Switch keyboard input to exploration mode
+    keyboardInput.setContext('exploration');
+
+    // Set keyboard hints
+    screen.setKeyboardHints(buildKeyboardHints());
+  }
+
+  function buildExplorationActions(
+    state: GameState,
+    eng: GameEngine,
+  ): import('@/ui/panels/ActionPanel').ActionOption[] {
+    const location = state.getCurrentLocation();
+    const actions: import('@/ui/panels/ActionPanel').ActionOption[] = [];
+
+    // Look around
+    actions.push({
+      id: 'look',
+      label: 'Look Around',
+      icon: 'eye',
+      description: 'Survey your surroundings',
+      enabled: true,
+      onClick: () => {
+        if (!activeGameScreen) return;
+        activeGameScreen.addNarrative({
+          text: location.description,
+          category: 'description',
+        });
+      },
+    });
+
+    // Explore sub-locations
+    for (const [, sub] of location.subLocations) {
+      actions.push({
+        id: `enter-${sub.id}`,
+        label: `Enter ${sub.name}`,
+        icon: 'door',
+        description: `Explore the ${sub.subType}`,
+        enabled: true,
+        onClick: () => {
+          if (!activeGameScreen) return;
+          sub.discovered = true;
+          state.currentSubLocationId = sub.id;
+          activeGameScreen.addNarrative({
+            text: `You enter ${sub.name}.`,
+            category: 'action',
+          });
+        },
+      });
+    }
+
+    // Travel to connected locations
+    const region = state.getCurrentRegion();
+    for (const connId of location.connections) {
+      const dest = region.locations.get(connId);
+      if (!dest) continue;
+      actions.push({
+        id: `travel-${connId}`,
+        label: `Travel to ${dest.discovered ? dest.name : '???'}`,
+        icon: 'compass',
+        description: dest.discovered ? `Journey to ${dest.name}` : 'Venture into the unknown',
+        enabled: true,
+        onClick: () => {
+          if (!activeGameScreen || !activeGameState) return;
+          dest.discovered = true;
+          activeGameState.currentLocationId = dest.id;
+          activeGameState.currentSubLocationId = null;
+
+          // Travel takes 2-4 hours
+          const travelRounds = ROUNDS_PER_HOUR * (2 + Math.floor(Math.random() * 3));
+          const travelHours = Math.round(travelRounds / ROUNDS_PER_HOUR);
+          activeGameState.advanceTime(travelRounds);
+
+          activeGameScreen.addNarrative({
+            text: `You gather your belongings and set out. The journey to ${dest.name} takes ${travelHours} hours of hard travel through the ${region.biome} terrain.`,
+            category: 'action',
+          });
+
+          // Tick survival and narrate crossings
+          const character = eng.entities.getAll<Character>('character')[0];
+          if (character) {
+            tickAndNarrate(character, travelRounds);
+          }
+
+          activeGameScreen.addNarrative(narrator.describeLocation(dest));
+
+          // Update map and status
+          activeGameScreen.setGameState({
+            mode: 'exploration',
+            partyMembers: getPartyMembers(eng),
+            region,
+            currentLocationId: dest.id,
+          });
+          if (character) activeGameScreen.setCharacter(character);
+
+          // Refresh actions for new location
+          activeGameScreen.setActions({
+            type: 'exploration',
+            actions: buildExplorationActions(activeGameState, eng),
+          });
+        },
+      });
+    }
+
+    // ── Eat ──
+    const character = eng.entities.getAll<Character>('character')[0];
+    if (character) {
+      const foodItems = character.inventory.items
+        .map(entry => ({ entry, item: getItem(entry.itemId) }))
+        .filter(({ item }) => item && item.itemType === 'food');
+
+      for (const { entry, item } of foodItems) {
+        if (!item) continue;
+        actions.push({
+          id: `eat-${item.id}`,
+          label: `Eat ${item.name}`,
+          icon: 'heart',
+          description: item.description,
+          enabled: entry.quantity > 0,
+          onClick: () => {
+            if (!activeGameScreen) return;
+            const char = eng.entities.getAll<Character>('character')[0];
+            if (!char) return;
+            const props = item.properties as ConsumableProperties;
+            const hungerBefore = char.survival.hunger;
+            SurvivalRules.consume(char.survival, props);
+            // Remove item from inventory
+            const invEntry = char.inventory.items.find(e => e.itemId === item.id);
+            if (invEntry) {
+              invEntry.quantity -= 1;
+              if (invEntry.quantity <= 0) {
+                char.inventory.items = char.inventory.items.filter(e => e.itemId !== item.id);
+              }
+            }
+            activeGameScreen.addNarrative(
+              SurvivalNarrator.describeEating(hungerBefore, char.survival.hunger, props.description),
+            );
+            activeGameScreen.setCharacter(char);
+            // Refresh actions
+            if (activeGameState) {
+              activeGameScreen.setActions({
+                type: 'exploration',
+                actions: buildExplorationActions(activeGameState, eng),
+              });
+            }
+          },
+        });
+      }
+
+      // ── Drink ──
+      const drinkItems = character.inventory.items
+        .map(entry => ({ entry, item: getItem(entry.itemId) }))
+        .filter(({ item }) => item && item.itemType === 'drink');
+
+      for (const { entry, item } of drinkItems) {
+        if (!item) continue;
+        actions.push({
+          id: `drink-${item.id}`,
+          label: `Drink ${item.name}`,
+          icon: 'potion',
+          description: item.description,
+          enabled: entry.quantity > 0,
+          onClick: () => {
+            if (!activeGameScreen) return;
+            const char = eng.entities.getAll<Character>('character')[0];
+            if (!char) return;
+            const props = item.properties as ConsumableProperties;
+            const thirstBefore = char.survival.thirst;
+            SurvivalRules.consume(char.survival, props);
+            const invEntry = char.inventory.items.find(e => e.itemId === item.id);
+            if (invEntry) {
+              invEntry.quantity -= 1;
+              if (invEntry.quantity <= 0) {
+                char.inventory.items = char.inventory.items.filter(e => e.itemId !== item.id);
+              }
+            }
+            activeGameScreen.addNarrative(
+              SurvivalNarrator.describeDrinking(thirstBefore, char.survival.thirst, props.description),
+            );
+            activeGameScreen.setCharacter(char);
+            if (activeGameState) {
+              activeGameScreen.setActions({
+                type: 'exploration',
+                actions: buildExplorationActions(activeGameState, eng),
+              });
+            }
+          },
+        });
+      }
+
+      // ── Check Status ──
+      actions.push({
+        id: 'check-status',
+        label: 'Check Status',
+        icon: 'heart',
+        description: 'Assess your physical condition',
+        enabled: true,
+        onClick: () => {
+          if (!activeGameScreen) return;
+          const char = eng.entities.getAll<Character>('character')[0];
+          if (!char) return;
+          activeGameScreen.addNarrative(SurvivalNarrator.describeOverallStatus(char.survival));
+        },
+      });
+    }
+
+    // Rest
+    actions.push({
+      id: 'short-rest',
+      label: 'Short Rest',
+      icon: 'campfire',
+      description: 'Take a breather (1 hour)',
+      enabled: true,
+      onClick: () => {
+        if (!activeGameScreen || !activeGameState) return;
+        const rounds = ROUNDS_PER_HOUR;
+        activeGameState.advanceTime(rounds);
+        const char = eng.entities.getAll<Character>('character')[0];
+        if (char) {
+          tickAndNarrate(char, rounds);
+          activeGameScreen.setCharacter(char);
+        }
+        activeGameScreen.addNarrative({
+          text: 'You find a sheltered spot and take a short rest. An hour passes as you catch your breath, bind your wounds, and gather your resolve. The road ahead remains unforgiving.',
+          category: 'system',
+        });
+      },
+    });
+
+    actions.push({
+      id: 'long-rest',
+      label: 'Long Rest',
+      icon: 'moon',
+      description: 'Make camp and sleep (8 hours)',
+      enabled: true,
+      onClick: () => {
+        if (!activeGameScreen || !activeGameState) return;
+        const rounds = ROUNDS_PER_HOUR * 8;
+        activeGameState.advanceTime(rounds);
+        const char = eng.entities.getAll<Character>('character')[0];
+        if (char) {
+          // Tick hunger/thirst during sleep, then reset fatigue
+          tickAndNarrate(char, rounds);
+          SurvivalRules.rest(char.survival);
+          // Restore HP
+          char.currentHp = char.maxHp;
+          activeGameScreen.setCharacter(char);
+        }
+        activeGameScreen.addNarrative({
+          text: 'You make camp as darkness falls. The fire crackles and pops, casting dancing shadows against the trees. Sleep comes slowly at first — the sounds of the wild keeping you alert — but exhaustion eventually claims you. Hours later you wake, stiff but restored, as pale dawn light filters through the canopy. A new day begins.',
+          category: 'description',
+        });
+        // Refresh actions
+        activeGameScreen.setActions({
+          type: 'exploration',
+          actions: buildExplorationActions(activeGameState, eng),
+        });
+      },
+    });
+
+    return actions;
+  }
+  // Keep for non-local mode fallback
+  void buildExplorationActions;
+
+  /** Tick survival and emit narrative for threshold crossings. */
+  function tickAndNarrate(character: Character, rounds: number): void {
+    const result = SurvivalRules.tick(character.survival, rounds);
+    if (!activeGameScreen) return;
+
+    if (result.hungerCrossing) {
+      activeGameScreen.addNarrative(SurvivalNarrator.describeHungerCrossing(result.hungerCrossing.to));
+    }
+    if (result.thirstCrossing) {
+      activeGameScreen.addNarrative(SurvivalNarrator.describeThirstCrossing(result.thirstCrossing.to));
+    }
+    if (result.fatigueCrossing) {
+      activeGameScreen.addNarrative(SurvivalNarrator.describeFatigueCrossing(result.fatigueCrossing.to));
+    }
+  }
+
+  function getPartyMembers(eng: GameEngine): import('@/ui/panels/PartyPanel').PartyMember[] {
+    return eng.entities.getAll<Character>('character')
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        level: c.level,
+        className: c.class.charAt(0).toUpperCase() + c.class.slice(1),
+        currentHp: c.currentHp,
+        maxHp: c.maxHp,
+        armorClass: c.armorClass,
+        conditions: c.conditions.map(cond => cond.type),
+        isPlayer: true,
+      }));
+  }
+
+  function buildKeyboardHints(): KeyboardHint[] {
+    return [
+      { key: 'k/\u2191', label: 'North',     available: true, category: 'movement' },
+      { key: 'j/\u2193', label: 'South',     available: true, category: 'movement' },
+      { key: 'h/\u2190', label: 'West',      available: true, category: 'movement' },
+      { key: 'l/\u2192', label: 'East',      available: true, category: 'movement' },
+      { key: 'y',   label: 'NW',        available: true, category: 'movement' },
+      { key: 'u',   label: 'NE',        available: true, category: 'movement' },
+      { key: 'b',   label: 'SW',        available: true, category: 'movement' },
+      { key: 'n',   label: 'SE',        available: true, category: 'movement' },
+      { key: 'e',   label: 'Interact',  available: true, category: 'action' },
+      { key: 'x',   label: 'Look',      available: true, category: 'action' },
+      { key: ',',   label: 'Pick up',   available: true, category: 'action' },
+      { key: '.',   label: 'Wait',      available: true, category: 'action' },
+      { key: '>',   label: 'Descend',   available: true, category: 'action' },
+      { key: '<',   label: 'Ascend',    available: true, category: 'action' },
+      { key: 'i',   label: 'Inventory', available: true, category: 'meta' },
+      { key: 'c',   label: 'Character', available: true, category: 'meta' },
+      { key: 'Esc', label: 'Cancel',    available: true, category: 'meta' },
+    ];
+  }
+
+  // Listen for exploration movement events — update UI
+  engine.events.on('exploration:moved', (event) => {
+    if (!activeGameScreen) return;
+    const { position, roundsElapsed } = event.data as { position: { x: number; y: number }; roundsElapsed: number };
+
+    // Center camera on player
+    activeGameScreen.centerGrid(position);
+
+    // Update player entity rendering
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (character) {
+      activeGameScreen.updatePlayerEntity(character.id, position, {
+        name: character.name,
+        color: '#2a2520',
+        symbol: '@',
+        hp: character.currentHp,
+        maxHp: character.maxHp,
+        isPlayer: true,
+        isAlly: false,
+        size: 1,
+        conditions: character.conditions.map(c => c.type),
+      });
+
+      // Update status panel if time passed
+      if (roundsElapsed > 0) {
+        activeGameScreen.setCharacter(character);
+      }
+    }
+  });
+
+  engine.events.on('exploration:waited', () => {
+    if (!activeGameScreen) return;
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (character) {
+      activeGameScreen.setCharacter(character);
+    }
+  });
+
+  engine.events.on('exploration:entered', () => {
+    if (!activeGameScreen) return;
+    activeGameScreen.addNarrative({
+      text: 'You take in your surroundings, eyes adjusting to the light. The world stretches out before you.',
+      category: 'description',
+    });
+  });
+
+  // Handle inventory/character screen navigation via keyboard
+  engine.events.on('input:inventory', () => {
+    engine.events.emit({
+      type: 'ui:navigate',
+      category: 'ui',
+      data: { screen: 'inventory', direction: 'up' },
+    });
+  });
+
+  engine.events.on('input:character', () => {
+    engine.events.emit({
+      type: 'ui:navigate',
+      category: 'ui',
+      data: { screen: 'character', direction: 'up' },
+    });
+  });
+
+  engine.events.on('input:cancel', () => {
+    // If in a sub-screen, return to game
+    // The UIManager handles this via existing navigation
   });
 
   // 10. Wire up save game event

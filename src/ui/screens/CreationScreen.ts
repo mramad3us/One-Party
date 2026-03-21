@@ -498,9 +498,13 @@ export class CreationScreen extends Component {
         } else {
           return;
         }
-        // Re-render skills
-        this.transitionStep('left');
-        this.step--; // Stay on same step
+        // Re-render skills in place
+        const oldPanel = this.contentEl.querySelector('.creation-step-panel');
+        if (oldPanel) oldPanel.remove();
+        const newPanel = this.renderSkillsStep();
+        newPanel.classList.add('creation-step-panel', 'active');
+        this.contentEl.appendChild(newPanel);
+        this.updateNavButtons();
       });
 
       grid.appendChild(option);

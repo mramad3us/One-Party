@@ -17,6 +17,11 @@
 /* ── Screen-specific styles ── */
 @import './screens/menu.css';
 @import './screens/creation.css';
+@import './screens/game.css';
+@import './screens/combat.css';
+@import './screens/character.css';
+@import './screens/inventory.css';
+@import './screens/death.css';
 
 /* ============================================================
    CSS Reset & Global Base

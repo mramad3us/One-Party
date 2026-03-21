@@ -13,6 +13,7 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "useDefineForClassFields": false,
     "outDir": "./dist",
     "rootDir": "./src",
     "baseUrl": ".",

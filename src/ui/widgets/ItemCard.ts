@@ -22,6 +22,8 @@ const ITEM_TYPE_SYMBOLS: Record<ItemType, string> = {
   wondrous: '\u2728',   // sparkles
   ammunition: '\u2192', // arrow
   tool: '\u2692',       // hammer and pick
+  food: '\u{1F356}',    // meat on bone
+  drink: '\u{1F3FA}',   // amphora
 };
 
 /**

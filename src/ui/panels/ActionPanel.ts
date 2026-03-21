@@ -20,15 +20,22 @@ export type ActionContext =
   | { type: 'dialogue'; actions: ActionOption[] }
   | { type: 'location'; actions: ActionOption[] };
 
+export interface KeyboardHint {
+  key: string;
+  label: string;
+  available: boolean;
+  category: 'movement' | 'action' | 'meta';
+}
+
 /**
  * Context-sensitive action button panel.
  * Buttons animate in with a stagger when context changes.
  */
 export class ActionPanel extends Component {
   private buttonContainer!: HTMLElement;
+  private hintContainer!: HTMLElement;
   private currentButtons: Button[] = [];
   private contextLabel!: HTMLElement;
-
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
   }
@@ -40,9 +47,13 @@ export class ActionPanel extends Component {
     this.contextLabel = el('div', { class: 'action-panel-context' });
     wrapper.appendChild(this.contextLabel);
 
-    // Button row
+    // Button row (classic mode)
     this.buttonContainer = el('div', { class: 'action-panel-buttons' });
     wrapper.appendChild(this.buttonContainer);
+
+    // Keyboard hint container (CDDA mode)
+    this.hintContainer = el('div', { class: 'action-hints action-hints--hidden' });
+    wrapper.appendChild(this.hintContainer);
 
     return wrapper;
   }
@@ -103,6 +114,60 @@ export class ActionPanel extends Component {
     for (const btn of this.currentButtons) {
       btn.setDisabled(false);
     }
+  }
+
+  /** Switch to keyboard hint mode (CDDA-style). */
+  setKeyboardHints(hints: KeyboardHint[]): void {
+    // keyboard hint mode active
+    this.buttonContainer.classList.add('action-panel-buttons--hidden');
+    this.hintContainer.classList.remove('action-hints--hidden');
+    this.hintContainer.innerHTML = '';
+
+    this.contextLabel.textContent = 'Exploration';
+    this.contextLabel.className = 'action-panel-context action-panel-context--exploration';
+
+    // Group hints by category
+    const groups: Record<string, KeyboardHint[]> = {
+      movement: [],
+      action: [],
+      meta: [],
+    };
+    for (const hint of hints) {
+      groups[hint.category].push(hint);
+    }
+
+    const groupLabels: Record<string, string> = {
+      movement: 'Movement',
+      action: 'Actions',
+      meta: 'Menu',
+    };
+
+    for (const [category, categoryHints] of Object.entries(groups)) {
+      if (categoryHints.length === 0) continue;
+
+      const group = el('div', { class: 'action-hint-group' });
+      group.appendChild(el('div', { class: 'action-hint-group-title font-mono' }, [groupLabels[category]]));
+
+      const list = el('div', { class: 'action-hint-list' });
+      for (const hint of categoryHints) {
+        const item = el('div', {
+          class: `action-hint-item${hint.available ? '' : ' action-hint-item--dim'}`,
+        });
+        item.appendChild(el('span', { class: 'action-hint-key font-mono' }, [`[${hint.key}]`]));
+        item.appendChild(el('span', { class: 'action-hint-label font-mono' }, [hint.label]));
+        list.appendChild(item);
+      }
+
+      group.appendChild(list);
+      this.hintContainer.appendChild(group);
+    }
+  }
+
+  /** Switch back to button mode. */
+  setButtonMode(): void {
+    // button mode active
+    this.buttonContainer.classList.remove('action-panel-buttons--hidden');
+    this.hintContainer.classList.add('action-hints--hidden');
   }
 
 }
