@@ -136,27 +136,27 @@ export class SunArc extends Component {
     return { group, glowGroup };
   }
 
-  /** Build a bold, storybook-style crescent moon — thick sickle with stars. */
+  /** Build a cartoon crescent moon — bold yellow fill, dark outline, with 5-pointed stars. */
   private buildMoonSVG(defs: SVGDefsElement): SVGGElement {
     const isLarge = this.size === 'large';
     const mr = this.moonR;
 
-    // ── Moon gradient: bright silver lit edge → cool shadow ──
+    // ── Moon gradient: warm pale yellow like the reference ──
     const moonFillGrad = document.createElementNS(SVG_NS, 'linearGradient');
     moonFillGrad.id = `moon-fill-${this.size}`;
-    moonFillGrad.setAttribute('x1', '0');
+    moonFillGrad.setAttribute('x1', '0.2');
     moonFillGrad.setAttribute('y1', '0');
-    moonFillGrad.setAttribute('x2', '1');
+    moonFillGrad.setAttribute('x2', '0.8');
     moonFillGrad.setAttribute('y2', '1');
     const mg1 = document.createElementNS(SVG_NS, 'stop');
     mg1.setAttribute('offset', '0%');
-    mg1.setAttribute('stop-color', '#f8fcff');
+    mg1.setAttribute('stop-color', '#f5efa0');
     const mg2 = document.createElementNS(SVG_NS, 'stop');
-    mg2.setAttribute('offset', '40%');
-    mg2.setAttribute('stop-color', '#e0e8f8');
+    mg2.setAttribute('offset', '50%');
+    mg2.setAttribute('stop-color', '#f0e68c');
     const mg3 = document.createElementNS(SVG_NS, 'stop');
     mg3.setAttribute('offset', '100%');
-    mg3.setAttribute('stop-color', '#c0c8e0');
+    mg3.setAttribute('stop-color', '#e8d870');
     moonFillGrad.appendChild(mg1);
     moonFillGrad.appendChild(mg2);
     moonFillGrad.appendChild(mg3);
@@ -165,86 +165,118 @@ export class SunArc extends Component {
     const group = document.createElementNS(SVG_NS, 'g');
     group.classList.add('sun-arc-moon');
 
-    // ── Bold ambient glow — large, visible halo ──
-    const glow1 = document.createElementNS(SVG_NS, 'circle');
-    glow1.setAttribute('cx', '0');
-    glow1.setAttribute('cy', '0');
-    glow1.setAttribute('r', String(mr * 3));
-    glow1.setAttribute('fill', 'rgba(180, 200, 255, 0.08)');
-    group.appendChild(glow1);
+    // ── Ambient glow ──
+    const glow = document.createElementNS(SVG_NS, 'circle');
+    glow.setAttribute('cx', '0');
+    glow.setAttribute('cy', '0');
+    glow.setAttribute('r', String(mr * 2.5));
+    glow.setAttribute('fill', 'rgba(240, 230, 140, 0.1)');
+    group.appendChild(glow);
 
-    const glow2 = document.createElementNS(SVG_NS, 'circle');
-    glow2.setAttribute('cx', '0');
-    glow2.setAttribute('cy', '0');
-    glow2.setAttribute('r', String(mr * 1.8));
-    glow2.setAttribute('fill', 'rgba(200, 215, 255, 0.15)');
-    group.appendChild(glow2);
-
-    // ── Fat crescent — bold, caricature shape ──
-    // Outer circle is the full moon body, inner circle cuts a big bite from the right
+    // ── Crescent shape: outer circle arc + inner cutout arc ──
+    // The crescent opens to the right (like the reference C shape)
     const outerR = mr;
-    const cutR = mr * 0.72;   // big inner cutout — thicker crescent
-    // Crescent path: arc around the left, then inner arc cuts back
-    const topY = -outerR;
-    const botY = outerR;
+    const cutR = mr * 0.68;           // cutout radius — smaller = fatter crescent
+    const cutOffset = mr * 0.38;      // how far right the cutout center is shifted
+    const strokeW = isLarge ? mr * 0.12 : mr * 0.15;
 
-    // Calculate intersection points of outer circle and shifted inner circle
-    // For simplicity, start from top of outer arc, sweep left (large arc), then cut back with inner arc
+    // Build crescent via two circular arcs
+    // Top intersection point, outer arc sweeping left (large arc), bottom, inner arc sweeping back
+    // We compute where the two circles intersect
+    // Outer circle: x² + y² = outerR²
+    // Inner circle: (x - cutOffset)² + y² = cutR²
+    // Solving: x = (outerR² - cutR² + cutOffset²) / (2 * cutOffset)
+    const ix = (outerR * outerR - cutR * cutR + cutOffset * cutOffset) / (2 * cutOffset);
+    const iy = Math.sqrt(Math.max(0, outerR * outerR - ix * ix));
+
     const d = [
-      `M 0 ${topY}`,
-      `A ${outerR} ${outerR} 0 1 0 0 ${botY}`,  // Full left sweep
-      `A ${cutR} ${cutR} 0 1 1 0 ${topY}`,        // Inner arc cuts right side
+      `M ${ix} ${-iy}`,
+      `A ${outerR} ${outerR} 0 1 0 ${ix} ${iy}`,             // large arc (left side of moon)
+      `A ${cutR} ${cutR} 0 1 1 ${ix} ${-iy}`,                 // inner cutout arc (right side bite)
     ].join(' ');
 
+    // Dark outline (drawn first, slightly larger)
+    const outlinePath = document.createElementNS(SVG_NS, 'path');
+    outlinePath.setAttribute('d', d);
+    outlinePath.setAttribute('fill', 'none');
+    outlinePath.setAttribute('stroke', '#2a2d3a');
+    outlinePath.setAttribute('stroke-width', String(strokeW * 2.5));
+    outlinePath.setAttribute('stroke-linejoin', 'round');
+    group.appendChild(outlinePath);
+
+    // Yellow crescent fill
     const crescentPath = document.createElementNS(SVG_NS, 'path');
     crescentPath.setAttribute('d', d);
     crescentPath.setAttribute('fill', `url(#moon-fill-${this.size})`);
-    crescentPath.setAttribute('stroke', '#d8e4ff');
-    crescentPath.setAttribute('stroke-width', isLarge ? '0.5' : '0.3');
-    crescentPath.setAttribute('filter', `url(#moon-glow-${this.size})`);
+    crescentPath.setAttribute('stroke', '#2a2d3a');
+    crescentPath.setAttribute('stroke-width', String(strokeW));
+    crescentPath.setAttribute('stroke-linejoin', 'round');
     group.appendChild(crescentPath);
 
-    // ── Tiny companion stars — storybook touch ──
+    // Highlight stroke — thin light line along the inner edge for shine
+    if (isLarge) {
+      const hlOffset = cutOffset + cutR * 0.08;
+      const hlR = cutR * 0.88;
+      const hlIx = (outerR * outerR - hlR * hlR + hlOffset * hlOffset) / (2 * hlOffset);
+      const hlIy = Math.sqrt(Math.max(0, outerR * outerR - hlIx * hlIx)) * 0.85;
+      const hlD = `M ${hlIx + mr * 0.05} ${-hlIy * 0.7} A ${hlR * 0.9} ${hlR * 0.9} 0 0 0 ${hlIx - mr * 0.1} ${-hlIy * 0.15}`;
+      const highlight = document.createElementNS(SVG_NS, 'path');
+      highlight.setAttribute('d', hlD);
+      highlight.setAttribute('fill', 'none');
+      highlight.setAttribute('stroke', 'rgba(255, 255, 240, 0.5)');
+      highlight.setAttribute('stroke-width', String(strokeW * 0.5));
+      highlight.setAttribute('stroke-linecap', 'round');
+      group.appendChild(highlight);
+    }
+
+    // ── 5-pointed outline stars (like the reference) ──
     const starPositions = isLarge
       ? [
-          { x: mr * 1.4, y: -mr * 0.6, s: mr * 0.12 },
-          { x: mr * 1.8, y: mr * 0.2, s: mr * 0.08 },
-          { x: mr * 0.8, y: -mr * 1.3, s: mr * 0.09 },
-          { x: -mr * 1.2, y: -mr * 1.0, s: mr * 0.06 },
+          { x: -mr * 0.9, y: -mr * 1.2, s: mr * 0.22 },
+          { x: mr * 1.1, y: -mr * 0.1, s: mr * 0.18 },
+          { x: mr * 0.1, y: mr * 1.0, s: mr * 0.20 },
         ]
       : [
-          { x: mr * 1.5, y: -mr * 0.5, s: mr * 0.15 },
-          { x: mr * 1.0, y: mr * 0.8, s: mr * 0.1 },
+          { x: -mr * 0.8, y: -mr * 1.1, s: mr * 0.25 },
+          { x: mr * 1.1, y: mr * 0.3, s: mr * 0.20 },
         ];
 
     for (const star of starPositions) {
-      const starEl = this.buildTinyStar(star.x, star.y, star.s);
+      const starEl = this.buildFivePointStar(star.x, star.y, star.s);
       group.appendChild(starEl);
     }
 
     return group;
   }
 
-  /** Build a tiny 4-pointed star sparkle. */
-  private buildTinyStar(cx: number, cy: number, size: number): SVGPathElement {
-    const star = document.createElementNS(SVG_NS, 'path');
-    // 4-pointed star: vertical and horizontal spikes
-    const d = [
-      `M ${cx} ${cy - size}`,
-      `L ${cx + size * 0.25} ${cy}`,
-      `L ${cx} ${cy + size}`,
-      `L ${cx - size * 0.25} ${cy}`,
-      `Z`,
-      `M ${cx - size} ${cy}`,
-      `L ${cx} ${cy + size * 0.25}`,
-      `L ${cx + size} ${cy}`,
-      `L ${cx} ${cy - size * 0.25}`,
-      `Z`,
-    ].join(' ');
-    star.setAttribute('d', d);
-    star.setAttribute('fill', '#e0e8ff');
-    star.setAttribute('opacity', '0.7');
-    return star;
+  /** Build a 5-pointed star with outline (like the reference image). */
+  private buildFivePointStar(cx: number, cy: number, outerR: number): SVGPathElement {
+    const innerR = outerR * 0.4;
+    const points: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? outerR : innerR;
+      const angle = (Math.PI / 2) + (i * Math.PI / 5); // start from top
+      const px = cx + r * Math.cos(angle);
+      const py = cy - r * Math.sin(angle);
+      points.push(`${px},${py}`);
+    }
+    const star = document.createElementNS(SVG_NS, 'polygon');
+    star.setAttribute('points', points.join(' '));
+    star.setAttribute('fill', '#f0e68c');
+    star.setAttribute('stroke', '#2a2d3a');
+    star.setAttribute('stroke-width', String(outerR * 0.2));
+    star.setAttribute('stroke-linejoin', 'round');
+
+    // Return as path (polygon works fine in SVG)
+    // Actually polygon is SVGPolygonElement not SVGPathElement, let me use a path
+    const path = document.createElementNS(SVG_NS, 'path');
+    const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p}`).join(' ') + ' Z';
+    path.setAttribute('d', d);
+    path.setAttribute('fill', '#f0e68c');
+    path.setAttribute('stroke', '#2a2d3a');
+    path.setAttribute('stroke-width', String(outerR * 0.2));
+    path.setAttribute('stroke-linejoin', 'round');
+    return path;
   }
 
   protected createElement(): HTMLElement {
