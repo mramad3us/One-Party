@@ -2,7 +2,20 @@
    ONE PARTY — Typography
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
+/* ── Local font files (offline-safe) ── */
+
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/cinzel-400.ttf') format('truetype'); }
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/cinzel-500.ttf') format('truetype'); }
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/cinzel-600.ttf') format('truetype'); }
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/cinzel-700.ttf') format('truetype'); }
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 800; font-display: swap; src: url('/fonts/cinzel-800.ttf') format('truetype'); }
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 900; font-display: swap; src: url('/fonts/cinzel-900.ttf') format('truetype'); }
+
+@font-face { font-family: 'Crimson Text'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/crimsontext-400.ttf') format('truetype'); }
+@font-face { font-family: 'Crimson Text'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/crimsontext-600.ttf') format('truetype'); }
+@font-face { font-family: 'Crimson Text'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/crimsontext-700.ttf') format('truetype'); }
+@font-face { font-family: 'Crimson Text'; font-style: italic; font-weight: 400; font-display: swap; src: url('/fonts/crimsontext-400i.ttf') format('truetype'); }
+@font-face { font-family: 'Crimson Text'; font-style: italic; font-weight: 600; font-display: swap; src: url('/fonts/crimsontext-600i.ttf') format('truetype'); }
 
 /* ── Base Body ── */
 body {
