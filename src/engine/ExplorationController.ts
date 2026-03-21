@@ -1,5 +1,5 @@
 import type { GameEngine, GameSystem } from './GameEngine';
-import type { Coordinate, EntityId, Character, CellFeature } from '@/types';
+import type { Coordinate, EntityId, Character, CellFeature, FogState, GridDefinition } from '@/types';
 import type { LightingLevel } from '@/types/world';
 import type { GameState } from '@/state/GameState';
 import type { NarrativeBlock } from '@/types/narrative';
@@ -235,6 +235,14 @@ export class ExplorationController implements GameSystem {
 
   getFog(): FogOfWar | null {
     return this.fog;
+  }
+
+  getFogState(): FogState | null {
+    return this.fog?.getState() ?? null;
+  }
+
+  getGridDefinition(): GridDefinition | null {
+    return this.grid?.getDefinition() ?? null;
   }
 
   // ── Movement ──────────────────────────────────────────────

@@ -35,6 +35,7 @@ import { Modal } from '@/ui/widgets/Modal';
 import { el } from '@/utils/dom';
 import type { SaveMeta, EquipmentSlots } from '@/types';
 import { EquipmentRules } from '@/rules/EquipmentRules';
+import { RestRules } from '@/rules/RestRules';
 
 async function main(): Promise<void> {
   // 1. Initialize storage engine
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   let activeGameState: GameState | null = null;
   let activeGameScreen: GameScreen | null = null;
   let activeRng: SeededRNG | null = null;
+  let activeDice: DiceRoller | null = null;
   const narrator = new TextNarrativeEngine();
   const equipmentRules = new EquipmentRules();
 
@@ -123,6 +125,7 @@ async function main(): Promise<void> {
     const rng = new SeededRNG(seed);
     activeRng = rng;
     const dice = new DiceRoller(rng);
+    activeDice = dice;
 
     // Create character via factory
     const factory = new CharacterFactory(dice);
@@ -354,12 +357,37 @@ async function main(): Promise<void> {
     });
     screen.addNarrative(narrator.describeLocation(location));
 
-    // Generate local map for current location
-    const rng = activeRng ?? new SeededRNG(Date.now());
-    const mapGen = new LocalMapGenerator(rng);
-    const { grid: gridDef, playerStart } = mapGen.generate(location.locationType, region.biome);
-    const grid = new Grid(gridDef);
+    // Generate or restore local map for current location
+    let gridDef: import('@/types').GridDefinition;
+    let playerStart: import('@/types').Coordinate;
     const fog = new FogOfWar();
+
+    if (location.localMap) {
+      // Restore persisted map state
+      gridDef = location.localMap.grid;
+      playerStart = location.localMap.playerStart;
+      // Restore fog of war explored cells
+      if (location.localMap.exploredCells.length > 0) {
+        fog.setState({
+          explored: new Set(location.localMap.exploredCells),
+          visible: new Set(),
+        });
+      }
+    } else {
+      // First visit — generate new local map
+      const rng = activeRng ?? new SeededRNG(Date.now());
+      const mapGen = new LocalMapGenerator(rng);
+      const result = mapGen.generate(location.locationType, region.biome);
+      gridDef = result.grid;
+      playerStart = result.playerStart;
+      // Store in location for persistence
+      location.localMap = { grid: gridDef, playerStart, exploredCells: [] };
+    }
+
+    const grid = new Grid(gridDef);
+
+    // Use saved character position if available, otherwise default start
+    const spawnPos = character.position ?? playerStart;
 
     // Configure exploration controller
     explorationController.configure({
@@ -369,13 +397,13 @@ async function main(): Promise<void> {
 
     // Enter local exploration
     explorationController.enterSpace(
-      grid, fog, character.id, playerStart,
+      grid, fog, character.id, spawnPos,
       character.speed, 'bright',
     );
 
     // Switch to local mode UI
     screen.enterLocalMode(grid, fog);
-    screen.centerGrid(playerStart);
+    screen.centerGrid(spawnPos);
 
     // Set up player entity rendering
     const playerInfo: EntityRenderInfo = {
@@ -389,7 +417,7 @@ async function main(): Promise<void> {
       size: 1,
       conditions: character.conditions.map(c => c.type),
     };
-    screen.updatePlayerEntity(character.id, playerStart, playerInfo);
+    screen.updatePlayerEntity(character.id, spawnPos, playerInfo);
 
     // Switch keyboard input to exploration mode
     keyboardInput.setContext('exploration');
@@ -700,6 +728,7 @@ async function main(): Promise<void> {
       { key: 'x',   label: 'Look',      available: true, category: 'action' },
       { key: ',',   label: 'Pick up',   available: true, category: 'action' },
       { key: '.',   label: 'Wait',      available: true, category: 'action' },
+      { key: 'r',   label: 'Rest',      available: true, category: 'action' },
       { key: '>',   label: 'Descend',   available: true, category: 'action' },
       { key: '<',   label: 'Ascend',    available: true, category: 'action' },
       { key: 'i',   label: 'Inventory', available: true, category: 'meta' },
@@ -715,14 +744,29 @@ async function main(): Promise<void> {
     if (!activeGameScreen || !activeGameState) return;
     const { position, roundsElapsed } = event.data as { position: { x: number; y: number }; roundsElapsed: number };
 
+    // Persist player position and fog state
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (character) {
+      character.position = { x: position.x, y: position.y };
+    }
+    const location = activeGameState.getCurrentLocation();
+    if (location.localMap) {
+      const fogState = explorationController.getFogState();
+      if (fogState) {
+        location.localMap.exploredCells = [...fogState.explored];
+      }
+      // Persist grid state (door changes etc.)
+      const gridDef = explorationController.getGridDefinition();
+      if (gridDef) {
+        location.localMap.grid = gridDef;
+      }
+    }
+
     // Autosave on every move (silent, non-blocking)
     saveManager.autoSave(activeGameState, engine.entities).catch(() => {});
 
     // Center camera on player
     activeGameScreen.centerGrid(position);
-
-    // Update player entity rendering
-    const character = engine.entities.getAll<Character>('character')[0];
     if (character) {
       activeGameScreen.updatePlayerEntity(character.id, position, {
         name: character.name,
@@ -812,6 +856,12 @@ async function main(): Promise<void> {
     }
   });
 
+  // ── Rest Menu ──
+  engine.events.on('input:rest', () => {
+    if (!activeGameScreen || !activeGameState || !activeDice) return;
+    openRestMenu(engine, activeGameState, activeGameScreen, activeDice, saveManager);
+  });
+
   // Handle travel from world map
   engine.events.on('map:travel', (event) => {
     const { locationId } = event.data as { locationId: string };
@@ -851,12 +901,30 @@ async function main(): Promise<void> {
 
     activeGameScreen.addNarrative(narrator.describeLocation(dest));
 
-    // Generate new local map
-    const rng = activeRng ?? new SeededRNG(Date.now());
-    const mapGen = new LocalMapGenerator(rng);
-    const { grid: gridDef, playerStart } = mapGen.generate(dest.locationType, region.biome);
-    const grid = new Grid(gridDef);
+    // Generate or restore local map for destination
+    let gridDef: import('@/types').GridDefinition;
+    let playerStart: import('@/types').Coordinate;
     const fog = new FogOfWar();
+
+    if (dest.localMap) {
+      gridDef = dest.localMap.grid;
+      playerStart = dest.localMap.playerStart;
+      if (dest.localMap.exploredCells.length > 0) {
+        fog.setState({ explored: new Set(dest.localMap.exploredCells), visible: new Set() });
+      }
+    } else {
+      const rng = activeRng ?? new SeededRNG(Date.now());
+      const mapGen = new LocalMapGenerator(rng);
+      const result = mapGen.generate(dest.locationType, region.biome);
+      gridDef = result.grid;
+      playerStart = result.playerStart;
+      dest.localMap = { grid: gridDef, playerStart, exploredCells: [] };
+    }
+
+    const grid = new Grid(gridDef);
+
+    // Clear saved position when traveling (new location = new start)
+    if (character) character.position = null;
 
     // Re-enter exploration
     explorationController.enterSpace(
@@ -930,6 +998,13 @@ async function main(): Promise<void> {
         }
         activeGameState = result.state;
 
+        // Ensure dice roller is available for rest/combat
+        if (!activeDice) {
+          const rng = new SeededRNG(Date.now());
+          activeRng = rng;
+          activeDice = new DiceRoller(rng);
+        }
+
         // Reset so game screen gets re-populated with loaded data
         gamePopulated = false;
 
@@ -955,6 +1030,11 @@ async function main(): Promise<void> {
       populateGameScreen(activeGameScreen, activeGameState, engine);
       gamePopulated = true;
     }
+  });
+
+  // 12c. Wire up Load Game from main menu
+  engine.events.on('ui:modal:load', () => {
+    openLoadModal(engine, saveManager);
   });
 
   // 13. Wire up return to menu
@@ -1100,6 +1180,300 @@ function openSaveModal(
     renderSaveList(saves);
   });
 
+  modal.mount();
+}
+
+/** Load-only modal for the main menu (no active game state needed). */
+function openLoadModal(
+  engine: GameEngine,
+  saveManager: SaveManager,
+): void {
+  const content = el('div', { class: 'save-modal-content' });
+  const listWrap = el('div', { class: 'save-modal-list' });
+  const loadingEl = el('div', { class: 'save-modal-loading font-mono' }, ['Loading saves...']);
+  listWrap.appendChild(loadingEl);
+  content.appendChild(listWrap);
+
+  const modal = new Modal(document.body, engine, {
+    title: 'Load Game',
+    content,
+    closable: true,
+    width: '520px',
+  });
+
+  function formatTime(timestamp: number): string {
+    const d = new Date(timestamp);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderSaveList(saves: SaveMeta[]): void {
+    listWrap.innerHTML = '';
+
+    if (saves.length === 0) {
+      listWrap.appendChild(el('div', { class: 'save-modal-empty font-mono' }, ['No saves found']));
+      return;
+    }
+
+    for (const save of saves) {
+      const row = el('div', { class: 'save-modal-row' });
+      const info = el('div', { class: 'save-modal-row-info' });
+      const nameEl = el('div', { class: 'save-modal-row-name font-heading' }, [save.name]);
+      const detailEl = el('div', { class: 'save-modal-row-detail font-mono' }, [
+        `${save.characterName} \u2022 Lvl ${save.level} \u2022 ${formatTime(save.lastSaved)}`,
+      ]);
+      info.appendChild(nameEl);
+      info.appendChild(detailEl);
+      row.appendChild(info);
+
+      const btns = el('div', { class: 'save-modal-row-btns' });
+      const loadBtn = el('button', { class: 'btn btn-primary btn-sm' }, ['Load']);
+      loadBtn.addEventListener('click', async () => {
+        const result = await saveManager.loadGame(save.id);
+        if (!result) return;
+        engine.entities.clear();
+        for (const entityData of result.entities) {
+          engine.entities.add(entityData as unknown as Entity);
+        }
+        engine.events.emit({
+          type: 'ui:game_loaded',
+          category: 'ui',
+          data: { state: result.state },
+        });
+        // Navigate to game screen
+        engine.events.emit({
+          type: 'ui:navigate',
+          category: 'ui',
+          data: { screen: 'game', direction: 'left' },
+        });
+        await modal.close();
+      });
+      btns.appendChild(loadBtn);
+      row.appendChild(btns);
+      listWrap.appendChild(row);
+    }
+  }
+
+  saveManager.listSaves().then((saves) => renderSaveList(saves));
+  modal.mount();
+}
+
+/**
+ * Rest menu — short rest (spend Hit Dice) or long rest (8 hours, full recovery).
+ * Follows D&D 5e PHB rules for both rest types.
+ */
+function openRestMenu(
+  engine: GameEngine,
+  gameState: GameState,
+  gameScreen: GameScreen,
+  dice: DiceRoller,
+  saveManager: SaveManager,
+): void {
+  const character = engine.entities.getAll<Character>('character')[0];
+  if (!character) return;
+
+  const restRules = new RestRules(dice);
+  const content = el('div', { class: 'rest-modal-content' });
+
+  // ── Character status summary ──
+  const status = el('div', { class: 'rest-status font-mono' });
+  status.innerHTML = `HP: ${character.currentHp}/${character.maxHp} &bull; Hit Dice: ${character.hitDice.current}/${character.hitDice.max}d${character.hitDice.die}`;
+  content.appendChild(status);
+
+  content.appendChild(el('div', { class: 'rest-divider' }));
+
+  // ── Short Rest ──
+  const shortSection = el('div', { class: 'rest-section' });
+  shortSection.appendChild(el('h4', { class: 'rest-section-title font-heading' }, ['Short Rest']));
+  shortSection.appendChild(el('p', { class: 'rest-section-desc' }, [
+    'Rest for 1 hour. You may spend Hit Dice to recover HP. Each die heals 1d'
+    + character.hitDice.die + ' + CON modifier.',
+  ]));
+
+  // Hit Dice selector
+  const hdRow = el('div', { class: 'rest-hd-row' });
+  hdRow.appendChild(el('span', { class: 'rest-hd-label font-mono' }, ['Hit Dice to spend:']));
+  const hdSelect = el('select', { class: 'rest-hd-select font-mono' }) as HTMLSelectElement;
+  for (let i = 0; i <= character.hitDice.current; i++) {
+    const opt = el('option', { value: String(i) }, [String(i)]) as HTMLOptionElement;
+    if (i === Math.min(character.hitDice.current, character.currentHp < character.maxHp ? character.hitDice.current : 0)) {
+      opt.selected = true;
+    }
+    hdSelect.appendChild(opt);
+  }
+  hdRow.appendChild(hdSelect);
+  shortSection.appendChild(hdRow);
+
+  const shortBtn = el('button', { class: 'btn btn-secondary rest-btn' }, ['Take Short Rest']);
+  shortBtn.addEventListener('click', () => {
+    const hdToSpend = parseInt(hdSelect.value, 10);
+    const result = restRules.shortRest(character, hdToSpend);
+
+    // Advance time by 1 hour
+    gameState.advanceTime(ROUNDS_PER_HOUR);
+    // Tick survival for 1 hour
+    const tickResult = SurvivalRules.tick(character.survival, ROUNDS_PER_HOUR);
+
+    // Build narrative
+    const parts: string[] = [];
+    parts.push('You settle down for a short rest, catching your breath and tending to your wounds.');
+    if (result.hpHealed > 0) {
+      parts.push(`You spend ${result.hitDiceUsed} Hit ${result.hitDiceUsed === 1 ? 'Die' : 'Dice'} and recover ${result.hpHealed} hit points.`);
+    } else if (hdToSpend === 0) {
+      parts.push('You rest without spending any Hit Dice.');
+    }
+    if (result.featuresRecharged.length > 0) {
+      parts.push(`Recharged: ${result.featuresRecharged.join(', ')}.`);
+    }
+    if (tickResult.hungerCrossing) {
+      parts.push(`You feel ${SurvivalRules.formatThreshold(tickResult.hungerCrossing.to)}.`);
+    }
+    if (tickResult.thirstCrossing) {
+      parts.push(`Your throat grows ${SurvivalRules.formatThreshold(tickResult.thirstCrossing.to)}.`);
+    }
+
+    gameScreen.addNarrative({ text: parts.join(' '), category: 'system' });
+    gameScreen.setCharacter(character);
+    gameScreen.updateTime(gameState.world.time);
+
+    // Check time transitions
+    const timeBefore = { totalRounds: gameState.world.time.totalRounds - ROUNDS_PER_HOUR };
+    const transition = TimeNarrator.describeTimeTransition(timeBefore, gameState.world.time);
+    if (transition) {
+      gameScreen.addNarrative({ text: transition, category: 'description' });
+    }
+
+    // Autosave
+    saveManager.autoSave(gameState, engine.entities).catch(() => {});
+    modal.close();
+  });
+  if (character.currentHp >= character.maxHp && character.hitDice.current === 0) {
+    shortBtn.setAttribute('disabled', '');
+    shortBtn.title = 'No Hit Dice remaining and HP is full';
+  }
+  shortSection.appendChild(shortBtn);
+  content.appendChild(shortSection);
+
+  content.appendChild(el('div', { class: 'rest-divider' }));
+
+  // ── Long Rest ──
+  const longSection = el('div', { class: 'rest-section' });
+  longSection.appendChild(el('h4', { class: 'rest-section-title font-heading' }, ['Long Rest']));
+  longSection.appendChild(el('p', { class: 'rest-section-desc' }, [
+    'Rest for 8 hours. Recover all HP, regain half your maximum Hit Dice (minimum 1), '
+    + 'recover all spell slots, and reset fatigue. You must have food and water.',
+  ]));
+
+  // Check if rest conditions are met
+  const hasFood = character.inventory.items.some(e => {
+    const item = getItem(e.itemId);
+    return item && item.itemType === 'food' && e.quantity > 0;
+  });
+  const hasWater = character.inventory.items.some(e => {
+    const item = getItem(e.itemId);
+    return item && item.itemType === 'drink' && e.quantity > 0;
+  });
+
+  const longBtn = el('button', { class: 'btn btn-primary rest-btn' }, ['Take Long Rest']);
+
+  if (!hasFood || !hasWater) {
+    const warning = el('p', { class: 'rest-warning font-mono' });
+    const missing: string[] = [];
+    if (!hasFood) missing.push('food');
+    if (!hasWater) missing.push('water');
+    warning.textContent = `You lack ${missing.join(' and ')}. Resting without provisions will increase exhaustion.`;
+    longSection.appendChild(warning);
+  }
+
+  longBtn.addEventListener('click', () => {
+    const result = restRules.longRest(character);
+
+    // Consume 1 food + 1 drink if available (5e: need food/water during long rest)
+    if (hasFood) {
+      const foodEntry = character.inventory.items.find(e => {
+        const item = getItem(e.itemId);
+        return item && item.itemType === 'food';
+      });
+      if (foodEntry) {
+        foodEntry.quantity -= 1;
+        if (foodEntry.quantity <= 0) {
+          character.inventory.items = character.inventory.items.filter(e => e !== foodEntry);
+        }
+      }
+    }
+    if (hasWater) {
+      const waterEntry = character.inventory.items.find(e => {
+        const item = getItem(e.itemId);
+        return item && item.itemType === 'drink';
+      });
+      if (waterEntry) {
+        waterEntry.quantity -= 1;
+        if (waterEntry.quantity <= 0) {
+          character.inventory.items = character.inventory.items.filter(e => e !== waterEntry);
+        }
+      }
+    }
+
+    // Advance time by 8 hours
+    const longRestRounds = ROUNDS_PER_HOUR * 8;
+    gameState.advanceTime(longRestRounds);
+
+    // Tick survival for 8 hours (hunger/thirst advance, but fatigue resets)
+    SurvivalRules.tick(character.survival, longRestRounds);
+    // Then reset fatigue (long rest overrides fatigue)
+    SurvivalRules.rest(character.survival);
+
+    // If no food/water was available, add exhaustion
+    if (!hasFood || !hasWater) {
+      character.survival.exhaustionLevel = Math.min(6, character.survival.exhaustionLevel + 1);
+    }
+
+    // Build narrative
+    const parts: string[] = [];
+    parts.push('You make camp and settle in for a long rest. The hours pass as your body mends itself through deep, restorative sleep.');
+    if (result.hpHealed > 0) {
+      parts.push(`You awaken fully restored, recovering ${result.hpHealed} hit points.`);
+    } else {
+      parts.push('You awaken feeling refreshed.');
+    }
+    if (result.hitDiceRecovered > 0) {
+      parts.push(`You recover ${result.hitDiceRecovered} Hit ${result.hitDiceRecovered === 1 ? 'Die' : 'Dice'}.`);
+    }
+    if (result.spellSlotsRecovered) {
+      parts.push('Your magical reserves are fully replenished.');
+    }
+    if (result.featuresRecharged.length > 0) {
+      parts.push(`Abilities recharged: ${result.featuresRecharged.join(', ')}.`);
+    }
+    if (hasFood && hasWater) {
+      parts.push('You eat a meal and drink deeply before breaking camp.');
+    } else {
+      parts.push('Your stomach growls — you had no proper provisions. The lack of sustenance takes its toll.');
+    }
+
+    gameScreen.addNarrative({ text: parts.join(' '), category: 'system' });
+    gameScreen.setCharacter(character);
+    gameScreen.updateTime(gameState.world.time);
+
+    // Check time transitions
+    const timeBefore = { totalRounds: gameState.world.time.totalRounds - longRestRounds };
+    const transition = TimeNarrator.describeTimeTransition(timeBefore, gameState.world.time);
+    if (transition) {
+      gameScreen.addNarrative({ text: transition, category: 'description' });
+    }
+
+    // Autosave
+    saveManager.autoSave(gameState, engine.entities).catch(() => {});
+    modal.close();
+  });
+  longSection.appendChild(longBtn);
+  content.appendChild(longSection);
+
+  const modal = new Modal(document.body, engine, {
+    title: 'Rest',
+    content,
+    closable: true,
+    width: '480px',
+  });
   modal.mount();
 }
 

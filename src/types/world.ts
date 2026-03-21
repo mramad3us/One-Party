@@ -94,6 +94,12 @@ export type Location = {
   /** IDs of connected locations for travel */
   connections: EntityId[];
   tags: string[];
+  /** Persisted local map state (generated grid, fog, player start) */
+  localMap?: {
+    grid: GridDefinition;
+    playerStart: Coordinate;
+    exploredCells: string[];
+  };
 };
 
 /** A room or area within a location */
@@ -120,4 +126,8 @@ export type Space = {
   interiorType: 'interior' | 'exterior';
   lighting: LightingLevel;
   entities: GridEntityPlacement[];
+  /** Cells the player has explored (persisted fog of war) — "x,y" keys */
+  exploredCells?: string[];
+  /** Default player start position for this space */
+  playerStart?: Coordinate;
 };

@@ -26,6 +26,7 @@ const ACTION_BINDINGS: KeyBinding[] = [
   { keys: ['x'],      event: 'input:look',      data: {},  label: 'Look',      context: 'exploration' },
   { keys: ['e'],      event: 'input:interact',   data: {},  label: 'Interact',  context: 'exploration' },
   { keys: [','],      event: 'input:pickup',     data: {},  label: 'Pick up',   context: 'exploration' },
+  { keys: ['r'],      event: 'input:rest',       data: {},  label: 'Rest',      context: 'exploration' },
   { keys: ['>'],      event: 'input:descend',    data: {},  label: 'Descend',   context: 'exploration' },
   { keys: ['<'],      event: 'input:ascend',     data: {},  label: 'Ascend',    context: 'exploration' },
 ];
