@@ -29,7 +29,7 @@ function floorCell(terrain: CellTerrain = 'floor'): GridCell {
  * Derive a deterministic seed for a specific overworld tile.
  * Same world seed + same coordinates = same local map every time.
  */
-function tileSeed(worldSeed: number, x: number, y: number): number {
+export function tileSeed(worldSeed: number, x: number, y: number): number {
   // Mix coordinates into seed using large primes to avoid patterns
   let h = worldSeed ^ 0x9e3779b9;
   h = Math.imul(h ^ x, 0x85ebca6b);
@@ -52,28 +52,57 @@ export class LocalMapGenerator {
     this.rng = rng;
   }
 
-  generate(locationType: LocationType, biome: BiomeType = 'forest'): MapResult {
-    switch (locationType) {
-      case 'village':
-      case 'town':
-      case 'city':
-        return this.generateTown();
-      case 'dungeon':
-        return this.generateDungeon();
-      case 'cave':
-        return this.generateCave();
-      case 'wilderness':
-      case 'camp':
-        return this.generateWilderness(biome);
-      case 'ruins':
-        return this.generateRuins();
-      case 'castle':
-        return this.generateCastle();
-      case 'temple':
-        return this.generateTemple();
-      default:
-        return this.generateWilderness(biome);
+  /**
+   * Run a generation function with a tile-specific deterministic RNG.
+   * Same world seed + same coordinates = same map every time.
+   */
+  private withTileSeed<T>(worldSeed: number, tileX: number, tileY: number, fn: () => T): T {
+    const saved = this.rng;
+    this.rng = new SeededRNG(tileSeed(worldSeed, tileX, tileY));
+    const result = fn();
+    this.rng = saved;
+    return result;
+  }
+
+  generate(
+    locationType: LocationType,
+    biome: BiomeType = 'forest',
+    worldSeed?: number,
+    tileX?: number,
+    tileY?: number,
+  ): MapResult {
+    const doGenerate = () => {
+      switch (locationType) {
+        case 'village':
+        case 'town':
+        case 'city':
+          return this.generateTown();
+        case 'dungeon':
+          return this.generateDungeon();
+        case 'cave':
+          return this.generateCave();
+        case 'wilderness':
+        case 'camp':
+          return this.generateWilderness(biome);
+        case 'ruins':
+          return this.generateRuins();
+        case 'castle':
+          return this.generateCastle();
+        case 'temple':
+          return this.generateTemple();
+        default:
+          return this.generateWilderness(biome);
+      }
+    };
+
+    if (worldSeed !== undefined && tileX !== undefined && tileY !== undefined) {
+      // Use a different salt so settlement and terrain maps at the same
+      // coordinates don't collide (settlement tiles use generate(),
+      // but if the settlement is later removed the tile would use
+      // generateFromTerrain() — different salt ensures independence).
+      return this.withTileSeed(worldSeed ^ 0x5e77_1e00, tileX, tileY, doGenerate);
     }
+    return doGenerate();
   }
 
   /**
@@ -88,9 +117,7 @@ export class LocalMapGenerator {
     tileX: number,
     tileY: number,
   ): MapResult {
-    // Create a tile-specific RNG — deterministic per position
-    const savedRng = this.rng;
-    this.rng = new SeededRNG(tileSeed(worldSeed, tileX, tileY));
+    return this.withTileSeed(worldSeed, tileX, tileY, () => {
 
     const biomeMap: Record<OverworldTerrain, BiomeType> = {
       deep_water: 'coast',
@@ -110,39 +137,26 @@ export class LocalMapGenerator {
     };
 
     const biome = biomeMap[terrain];
-    let result: MapResult;
-
     switch (terrain) {
       case 'mountain':
-        result = this.generateCave();
-        break;
+        return this.generateCave();
       case 'beach':
       case 'shallow_water':
-        result = this.generateCoast(hasRiver);
-        break;
+        return this.generateCoast(hasRiver);
       case 'dense_forest':
-        result = this.generateDenseForest();
-        break;
+        return this.generateDenseForest();
       case 'hills':
-        result = this.generateHills();
-        break;
+        return this.generateHills();
       case 'swamp':
-        result = this.generateSwamp();
-        break;
+        return this.generateSwamp();
       case 'desert':
-        result = this.generateDesert();
-        break;
+        return this.generateDesert();
       case 'volcanic':
-        result = this.generateVolcanic();
-        break;
+        return this.generateVolcanic();
       default:
-        result = this.generateWilderness(biome);
-        break;
+        return this.generateWilderness(biome);
     }
-
-    // Restore the original RNG
-    this.rng = savedRng;
-    return result;
+    });
   }
 
   // ── Coast (50x50) ──────────────────────────────────────────

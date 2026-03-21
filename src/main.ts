@@ -15,6 +15,7 @@ import { StorageEngine } from '@/storage/StorageEngine';
 import { SaveManager } from '@/storage/SaveManager';
 import { CharacterFactory } from '@/character/CharacterFactory';
 import { LocalMapGenerator } from '@/world/LocalMapGenerator';
+import type { GridCell, GridDefinition } from '@/types/grid';
 import { WorldCreationScreen } from '@/ui/screens/WorldCreationScreen';
 import {
   overworldToWorld,
@@ -45,6 +46,57 @@ import { el } from '@/utils/dom';
 import type { SaveMeta, EquipmentSlots } from '@/types';
 import { EquipmentRules } from '@/rules/EquipmentRules';
 import { RestRules } from '@/rules/RestRules';
+
+// ── Delta-storage helpers for local maps ────────────────────────
+// Instead of saving the full 2500-cell grid, we regenerate the base
+// from the deterministic seed and only persist cells that changed.
+
+/** Regenerate the base grid for a location from its overworld tile. */
+function regenerateBaseGrid(
+  overworld: OverworldData,
+  tileX: number,
+  tileY: number,
+  locationType: import('@/types/world').LocationType,
+  biome: import('@/types/world').BiomeType,
+): { grid: GridDefinition; playerStart: import('@/types').Coordinate } {
+  const mapGen = new LocalMapGenerator(new SeededRNG(0)); // seed unused, withTileSeed overrides
+  const tile = overworld.tiles[tileY][tileX];
+  if (tile.settlement) {
+    return mapGen.generate(locationType, biome, overworld.seed, tileX, tileY);
+  }
+  return mapGen.generateFromTerrain(tile.terrain, tile.river, overworld.seed, tileX, tileY);
+}
+
+/** Compare current grid against the regenerated base; return only changed cells. */
+function computeGridDiff(base: GridDefinition, current: GridDefinition): [number, number, GridCell][] {
+  const mods: [number, number, GridCell][] = [];
+  for (let y = 0; y < base.height; y++) {
+    for (let x = 0; x < base.width; x++) {
+      const bc = base.cells[y][x];
+      const cc = current.cells[y][x];
+      if (
+        bc.terrain !== cc.terrain ||
+        bc.movementCost !== cc.movementCost ||
+        bc.blocksLoS !== cc.blocksLoS ||
+        bc.elevation !== cc.elevation ||
+        bc.features.length !== cc.features.length ||
+        bc.features.some((f, i) => f !== cc.features[i])
+      ) {
+        mods.push([x, y, cc]);
+      }
+    }
+  }
+  return mods;
+}
+
+/** Apply stored modifications onto a regenerated base grid. */
+function applyGridMods(grid: GridDefinition, mods: [number, number, GridCell][]): void {
+  for (const [x, y, cell] of mods) {
+    if (y >= 0 && y < grid.height && x >= 0 && x < grid.width) {
+      grid.cells[y][x] = cell;
+    }
+  }
+}
 
 async function main(): Promise<void> {
   // 1. Initialize storage engine
@@ -376,7 +428,20 @@ async function main(): Promise<void> {
 
     if (location.localMap) {
       // Restore persisted map state
-      gridDef = location.localMap.grid;
+      if (location.localMap.grid) {
+        // Old save format: full grid stored directly
+        gridDef = location.localMap.grid;
+      } else if (activeOverworld && state.overworldPosition) {
+        // New delta format: regenerate base and apply modifications
+        const { x: tx, y: ty } = state.overworldPosition;
+        const base = regenerateBaseGrid(activeOverworld, tx, ty, location.locationType, region.biome);
+        gridDef = base.grid;
+        applyGridMods(gridDef, location.localMap.modifications ?? []);
+      } else {
+        // Fallback: no overworld context, generate non-deterministically
+        const rng = activeRng ?? new SeededRNG(Date.now());
+        gridDef = new LocalMapGenerator(rng).generate(location.locationType, region.biome).grid;
+      }
       playerStart = location.localMap.playerStart;
       // Restore fog of war explored cells
       if (location.localMap.exploredCells.length > 0) {
@@ -386,26 +451,20 @@ async function main(): Promise<void> {
         });
       }
     } else {
-      // First visit — generate new local map
-      const rng = activeRng ?? new SeededRNG(Date.now());
-      const mapGen = new LocalMapGenerator(rng);
-
-      // Use terrain-aware generation if we have overworld context
-      let result;
+      // First visit — generate local map from deterministic seed
       if (activeOverworld && state.overworldPosition) {
-        const owTile = activeOverworld.tiles[state.overworldPosition.y][state.overworldPosition.x];
         const { x: tx, y: ty } = state.overworldPosition;
-        result = owTile.settlement
-          ? mapGen.generate(location.locationType, region.biome)
-          : mapGen.generateFromTerrain(owTile.terrain, owTile.river, activeOverworld.seed, tx, ty);
+        const base = regenerateBaseGrid(activeOverworld, tx, ty, location.locationType, region.biome);
+        gridDef = base.grid;
+        playerStart = base.playerStart;
       } else {
-        result = mapGen.generate(location.locationType, region.biome);
+        const rng = activeRng ?? new SeededRNG(Date.now());
+        const result = new LocalMapGenerator(rng).generate(location.locationType, region.biome);
+        gridDef = result.grid;
+        playerStart = result.playerStart;
       }
-
-      gridDef = result.grid;
-      playerStart = result.playerStart;
-      // Store in location for persistence
-      location.localMap = { grid: gridDef, playerStart, exploredCells: [] };
+      // Store with empty modifications (delta format)
+      location.localMap = { playerStart, exploredCells: [], modifications: [] };
     }
 
     const grid = new Grid(gridDef);
@@ -817,10 +876,17 @@ async function main(): Promise<void> {
       if (fogState) {
         location.localMap.exploredCells = [...fogState.explored];
       }
-      // Persist grid state (door changes etc.)
-      const gridDef = explorationController.getGridDefinition();
-      if (gridDef) {
-        location.localMap.grid = gridDef;
+      // Persist grid modifications as delta (door changes etc.)
+      const currentGrid = explorationController.getGridDefinition();
+      if (currentGrid && activeOverworld && activeGameState.overworldPosition) {
+        const { x: tx, y: ty } = activeGameState.overworldPosition;
+        const base = regenerateBaseGrid(activeOverworld, tx, ty, location.locationType, activeGameState.getCurrentRegion().biome);
+        location.localMap.modifications = computeGridDiff(base.grid, currentGrid);
+        // Drop legacy full grid if present (migrated to delta)
+        delete location.localMap.grid;
+      } else if (currentGrid) {
+        // No overworld context — fall back to full grid storage
+        location.localMap.grid = currentGrid;
       }
     }
 
@@ -994,20 +1060,25 @@ async function main(): Promise<void> {
     const fog = new FogOfWar();
 
     if (dest.localMap) {
-      gridDef = dest.localMap.grid;
+      if (dest.localMap.grid) {
+        // Old save format
+        gridDef = dest.localMap.grid;
+      } else {
+        // Delta format: regenerate + apply mods
+        const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain));
+        gridDef = base.grid;
+        applyGridMods(gridDef, dest.localMap.modifications ?? []);
+      }
       playerStart = dest.localMap.playerStart;
       if (dest.localMap.exploredCells.length > 0) {
         fog.setState({ explored: new Set(dest.localMap.exploredCells), visible: new Set() });
       }
     } else {
-      const mapGen = new LocalMapGenerator(rng);
-      // Use terrain-aware generation for non-settlement tiles
-      const result = tile.settlement
-        ? mapGen.generate(dest.locationType, getTerrainBiome(tile.terrain))
-        : mapGen.generateFromTerrain(tile.terrain, tile.river, activeOverworld.seed, x, y);
-      gridDef = result.grid;
-      playerStart = result.playerStart;
-      dest.localMap = { grid: gridDef, playerStart, exploredCells: [] };
+      // First visit — generate from deterministic seed
+      const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain));
+      gridDef = base.grid;
+      playerStart = base.playerStart;
+      dest.localMap = { playerStart, exploredCells: [], modifications: [] };
     }
 
     const grid = new Grid(gridDef);

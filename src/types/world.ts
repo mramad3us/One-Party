@@ -1,5 +1,5 @@
 import type { Coordinate, EntityId, GameTime } from './core';
-import type { GridDefinition, GridEntityPlacement } from './grid';
+import type { GridCell, GridDefinition, GridEntityPlacement } from './grid';
 
 /** Biome classification for regions */
 export type BiomeType =
@@ -94,11 +94,16 @@ export type Location = {
   /** IDs of connected locations for travel */
   connections: EntityId[];
   tags: string[];
-  /** Persisted local map state (generated grid, fog, player start) */
+  /** Persisted local map state — uses delta storage for efficiency.
+   *  The base grid is regenerated from the world seed + tile coordinates;
+   *  only cells that differ from the base are stored in `modifications`. */
   localMap?: {
-    grid: GridDefinition;
     playerStart: Coordinate;
     exploredCells: string[];
+    /** Sparse list of [x, y, cell] tuples for cells modified since generation. */
+    modifications: [number, number, GridCell][];
+    /** @deprecated Full grid from old saves — used only for backward compat. */
+    grid?: GridDefinition;
   };
 };
 
