@@ -884,26 +884,41 @@ async function main(): Promise<void> {
 
       for (const { entry, item } of drinkItems) {
         if (!item) continue;
+        const isChargeBased = item.maxCharges != null;
+        const charges = isChargeBased ? (entry.charges ?? item.charges ?? 0) : entry.quantity;
         actions.push({
           id: `drink-${item.id}`,
           label: `Drink ${item.name}`,
           icon: 'potion',
           description: item.description,
-          enabled: entry.quantity > 0,
+          enabled: charges > 0,
           onClick: () => {
             if (!activeGameScreen) return;
             const char = eng.entities.getAll<Character>('character')[0];
             if (!char) return;
             const props = item.properties as ConsumableProperties;
-            const thirstBefore = char.survival.thirst;
-            SurvivalRules.consume(char.survival, props);
             const invEntry = char.inventory.items.find(e => e.itemId === item.id);
-            if (invEntry) {
+            if (!invEntry) return;
+
+            if (isChargeBased) {
+              const curCharges = invEntry.charges ?? item.charges ?? 0;
+              if (curCharges <= 0) {
+                activeGameScreen.addNarrative({
+                  text: `The ${item.name.toLowerCase()} is empty. Find running water to refill it.`,
+                  category: 'action',
+                });
+                return;
+              }
+              invEntry.charges = curCharges - 1;
+            } else {
               invEntry.quantity -= 1;
               if (invEntry.quantity <= 0) {
                 char.inventory.items = char.inventory.items.filter(e => e.itemId !== item.id);
               }
             }
+
+            const thirstBefore = char.survival.thirst;
+            SurvivalRules.consume(char.survival, props);
             activeGameScreen.addNarrative(
               SurvivalNarrator.describeDrinking(thirstBefore, char.survival.thirst, props.description),
             );
@@ -1406,6 +1421,41 @@ async function main(): Promise<void> {
 
   // 9b. Fast travel — multi-tile overworld journey with animation
   let fastTravelCancelled = false;
+
+  // ── Interaction picker — when multiple interactables are nearby ──
+  engine.events.on('exploration:interact_picker', (event) => {
+    if (!activeGameScreen) return;
+    const { options, onSelect } = event.data as {
+      options: { key: string; label: string; icon: string }[];
+      onSelect: (key: string) => void;
+    };
+
+    const list = el('div', { class: 'interact-picker' });
+
+    for (let idx = 0; idx < options.length; idx++) {
+      const opt = options[idx];
+      const btn = el('button', { class: 'interact-picker-option' });
+      btn.style.animationDelay = `${idx * 60}ms`;
+
+      btn.appendChild(el('span', { class: 'interact-picker-icon' }, [opt.icon]));
+      btn.appendChild(el('span', { class: 'interact-picker-label' }, [opt.label]));
+      btn.appendChild(el('span', { class: 'interact-picker-arrow' }, ['\u203A']));
+
+      btn.addEventListener('click', () => {
+        modal.close();
+        onSelect(opt.key);
+      });
+      list.appendChild(btn);
+    }
+
+    const modal = new Modal(document.body, engine, {
+      title: 'Interact',
+      content: list,
+      closable: true,
+      width: '340px',
+    });
+    modal.mount();
+  });
 
   // ── Forage menu — shows available actions ──
   engine.events.on('forage:menu', (event) => {

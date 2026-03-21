@@ -438,62 +438,111 @@ export class ExplorationController implements GameSystem {
 
   // ── Interaction ───────────────────────────────────────────
 
+  /** Interaction option for the picker */
+  private static readonly INTERACTION_LABELS: Record<string, { label: string; icon: string }> = {
+    door: { label: 'Open Door', icon: '🚪' },
+    door_locked: { label: 'Try Locked Door', icon: '🔒' },
+    chest: { label: 'Open Chest', icon: '📦' },
+    fountain: { label: 'Drink from Fountain', icon: '⛲' },
+    running_water: { label: 'Drink & Refill Waterskin', icon: '🌊' },
+    altar: { label: 'Touch Altar', icon: '🗿' },
+    stagnant_water: { label: 'Inspect Stagnant Water', icon: '💧' },
+  };
+
   private handleInteract(): void {
     if (!this.grid || !this.playerPosition) return;
 
-    // Check all adjacent cells for interactive features
     const directions = [
       { dx: 0, dy: -1 }, { dx: 1, dy: -1 }, { dx: 1, dy: 0 }, { dx: 1, dy: 1 },
       { dx: 0, dy: 1 }, { dx: -1, dy: 1 }, { dx: -1, dy: 0 }, { dx: -1, dy: -1 },
     ];
 
-    // Also check the cell the player is standing on
     const cellsToCheck: Coordinate[] = [this.playerPosition];
     for (const d of directions) {
       cellsToCheck.push({ x: this.playerPosition.x + d.dx, y: this.playerPosition.y + d.dy });
     }
 
+    // Collect all available interactions
+    const interactions: { key: string; coord: Coordinate; feature?: CellFeature }[] = [];
+    const seen = new Set<string>();
+
     for (const coord of cellsToCheck) {
       const cell = this.grid.getCell(coord.x, coord.y);
-      if (!cell || cell.features.length === 0) continue;
+      if (!cell) continue;
 
       for (const feature of cell.features) {
-        if (feature === 'door' || feature === 'door_locked') {
-          this.interactDoor(coord, feature);
-          return;
-        }
-        if (feature === 'chest') {
-          this.interactChest(coord);
-          return;
-        }
-        if (feature === 'fountain') {
-          this.interactFountain();
-          return;
-        }
-        if (feature === 'running_water') {
-          this.interactRunningWater();
-          return;
-        }
-        if (feature === 'altar') {
-          this.emitNarrative(
-            'You lay your hands upon the ancient altar. The carved symbols seem to pulse faintly beneath your touch, but whatever power once resided here has long since faded — or perhaps it merely sleeps, waiting for the right offering.',
-            'description',
-          );
-          return;
+        const interactable = ['door', 'door_locked', 'chest', 'fountain', 'running_water', 'altar'];
+        if (interactable.includes(feature) && !seen.has(feature)) {
+          seen.add(feature);
+          interactions.push({ key: feature, coord, feature });
         }
       }
 
-      // Standing water (no running_water feature) — unsafe
-      if (cell.terrain === 'water' && !cell.features.includes('running_water')) {
+      // Standing water
+      if (cell.terrain === 'water' && !cell.features.includes('running_water') && !seen.has('stagnant_water')) {
+        seen.add('stagnant_water');
+        interactions.push({ key: 'stagnant_water', coord });
+      }
+    }
+
+    if (interactions.length === 0) {
+      this.emitNarrative('There is nothing nearby to interact with.', 'system');
+      return;
+    }
+
+    // Single interaction — execute immediately
+    if (interactions.length === 1) {
+      this.executeInteraction(interactions[0]);
+      return;
+    }
+
+    // Multiple interactions — emit picker event
+    this.engine.events.emit({
+      type: 'exploration:interact_picker',
+      category: 'ui',
+      data: {
+        options: interactions.map(i => ({
+          key: i.key,
+          label: ExplorationController.INTERACTION_LABELS[i.key]?.label ?? i.key,
+          icon: ExplorationController.INTERACTION_LABELS[i.key]?.icon ?? '❓',
+        })),
+        onSelect: (key: string) => {
+          const interaction = interactions.find(i => i.key === key);
+          if (interaction) this.executeInteraction(interaction);
+        },
+      },
+    });
+  }
+
+  private executeInteraction(interaction: { key: string; coord: Coordinate; feature?: CellFeature }): void {
+    const { key, coord, feature } = interaction;
+    switch (key) {
+      case 'door':
+      case 'door_locked':
+        this.interactDoor(coord, feature!);
+        break;
+      case 'chest':
+        this.interactChest(coord);
+        break;
+      case 'fountain':
+        this.interactFountain();
+        break;
+      case 'running_water':
+        this.interactRunningWater();
+        break;
+      case 'altar':
+        this.emitNarrative(
+          'You lay your hands upon the ancient altar. The carved symbols seem to pulse faintly beneath your touch, but whatever power once resided here has long since faded — or perhaps it merely sleeps, waiting for the right offering.',
+          'description',
+        );
+        break;
+      case 'stagnant_water':
         this.emitNarrative(
           'The water is dark and still, its surface slick with a faint oily sheen. You would not drink from this — stagnant water breeds sickness.',
           'description',
         );
-        return;
-      }
+        break;
     }
-
-    this.emitNarrative('There is nothing nearby to interact with.', 'system');
   }
 
   private interactDoor(coord: Coordinate, feature: CellFeature): void {

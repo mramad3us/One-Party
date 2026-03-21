@@ -32,7 +32,7 @@ export class SunArc extends Component {
   private cy = 22;
   private r = 18;
   private sunR = 2.5;
-  private moonR = 2;
+  private moonR = 3;
 
   constructor(parent: HTMLElement, engine: GameEngine, size: SunArcSize = 'compact') {
     super(parent, engine);
@@ -136,25 +136,27 @@ export class SunArc extends Component {
     return { group, glowGroup };
   }
 
-  /** Build a crescent moon — two overlapping arcs creating a sickle shape. */
+  /** Build a bold, storybook-style crescent moon — thick sickle with stars. */
   private buildMoonSVG(defs: SVGDefsElement): SVGGElement {
     const isLarge = this.size === 'large';
     const mr = this.moonR;
 
-    // ── Moon gradient: silver edge to dark interior ──
-    const moonFillGrad = document.createElementNS(SVG_NS, 'radialGradient');
+    // ── Moon gradient: bright silver lit edge → cool shadow ──
+    const moonFillGrad = document.createElementNS(SVG_NS, 'linearGradient');
     moonFillGrad.id = `moon-fill-${this.size}`;
-    moonFillGrad.setAttribute('cx', '0.35');
-    moonFillGrad.setAttribute('cy', '0.4');
+    moonFillGrad.setAttribute('x1', '0');
+    moonFillGrad.setAttribute('y1', '0');
+    moonFillGrad.setAttribute('x2', '1');
+    moonFillGrad.setAttribute('y2', '1');
     const mg1 = document.createElementNS(SVG_NS, 'stop');
     mg1.setAttribute('offset', '0%');
-    mg1.setAttribute('stop-color', '#e8eef8');
+    mg1.setAttribute('stop-color', '#f8fcff');
     const mg2 = document.createElementNS(SVG_NS, 'stop');
-    mg2.setAttribute('offset', '60%');
-    mg2.setAttribute('stop-color', '#b8c4d8');
+    mg2.setAttribute('offset', '40%');
+    mg2.setAttribute('stop-color', '#e0e8f8');
     const mg3 = document.createElementNS(SVG_NS, 'stop');
     mg3.setAttribute('offset', '100%');
-    mg3.setAttribute('stop-color', '#8a96b0');
+    mg3.setAttribute('stop-color', '#c0c8e0');
     moonFillGrad.appendChild(mg1);
     moonFillGrad.appendChild(mg2);
     moonFillGrad.appendChild(mg3);
@@ -162,50 +164,87 @@ export class SunArc extends Component {
 
     const group = document.createElementNS(SVG_NS, 'g');
     group.classList.add('sun-arc-moon');
-    group.setAttribute('filter', `url(#moon-glow-${this.size})`);
 
-    // Crescent: outer arc (full circle) minus inner arc (shifted circle cutout)
-    // Using two arcs to form the crescent path
+    // ── Bold ambient glow — large, visible halo ──
+    const glow1 = document.createElementNS(SVG_NS, 'circle');
+    glow1.setAttribute('cx', '0');
+    glow1.setAttribute('cy', '0');
+    glow1.setAttribute('r', String(mr * 3));
+    glow1.setAttribute('fill', 'rgba(180, 200, 255, 0.08)');
+    group.appendChild(glow1);
+
+    const glow2 = document.createElementNS(SVG_NS, 'circle');
+    glow2.setAttribute('cx', '0');
+    glow2.setAttribute('cy', '0');
+    glow2.setAttribute('r', String(mr * 1.8));
+    glow2.setAttribute('fill', 'rgba(200, 215, 255, 0.15)');
+    group.appendChild(glow2);
+
+    // ── Fat crescent — bold, caricature shape ──
+    // Outer circle is the full moon body, inner circle cuts a big bite from the right
     const outerR = mr;
-    const innerR = mr * 0.78;
-    const shiftX = mr * 0.45; // How far right the cutout circle is shifted
+    const cutR = mr * 0.72;   // big inner cutout — thicker crescent
+    // Crescent path: arc around the left, then inner arc cuts back
+    const topY = -outerR;
+    const botY = outerR;
 
-    // Build crescent path: outer arc from top to bottom (left side) then inner arc back
-    // The crescent opens to the right (waxing crescent)
-    const path = document.createElementNS(SVG_NS, 'path');
-
-    // Outer circle arc (counterclockwise, left side visible)
-    // Start at top of outer circle, sweep left and down to bottom
+    // Calculate intersection points of outer circle and shifted inner circle
+    // For simplicity, start from top of outer arc, sweep left (large arc), then cut back with inner arc
     const d = [
-      `M ${shiftX * 0.5} ${-outerR}`, // top
-      `A ${outerR} ${outerR} 0 1 0 ${shiftX * 0.5} ${outerR}`, // big arc left side
-      `A ${innerR} ${innerR} 0 1 1 ${shiftX * 0.5} ${-outerR}`, // inner arc back (cuts out right side)
+      `M 0 ${topY}`,
+      `A ${outerR} ${outerR} 0 1 0 0 ${botY}`,  // Full left sweep
+      `A ${cutR} ${cutR} 0 1 1 0 ${topY}`,        // Inner arc cuts right side
     ].join(' ');
 
-    path.setAttribute('d', d);
-    path.setAttribute('fill', `url(#moon-fill-${this.size})`);
-    path.setAttribute('stroke', 'rgba(184, 196, 216, 0.4)');
-    path.setAttribute('stroke-width', isLarge ? '0.4' : '0.25');
-    group.appendChild(path);
+    const crescentPath = document.createElementNS(SVG_NS, 'path');
+    crescentPath.setAttribute('d', d);
+    crescentPath.setAttribute('fill', `url(#moon-fill-${this.size})`);
+    crescentPath.setAttribute('stroke', '#d8e4ff');
+    crescentPath.setAttribute('stroke-width', isLarge ? '0.5' : '0.3');
+    crescentPath.setAttribute('filter', `url(#moon-glow-${this.size})`);
+    group.appendChild(crescentPath);
 
-    // Subtle crater dots for texture (large size only)
-    if (isLarge) {
-      const craters = [
-        { x: -mr * 0.25, y: -mr * 0.15, r: mr * 0.08 },
-        { x: -mr * 0.1, y: mr * 0.3, r: mr * 0.06 },
-        { x: -mr * 0.4, y: mr * 0.05, r: mr * 0.05 },
-      ];
-      for (const c of craters) {
-        const crater = document.createElementNS(SVG_NS, 'circle');
-        crater.setAttribute('cx', String(c.x));
-        crater.setAttribute('cy', String(c.y));
-        crater.setAttribute('r', String(c.r));
-        crater.setAttribute('fill', 'rgba(100, 110, 140, 0.3)');
-        group.appendChild(crater);
-      }
+    // ── Tiny companion stars — storybook touch ──
+    const starPositions = isLarge
+      ? [
+          { x: mr * 1.4, y: -mr * 0.6, s: mr * 0.12 },
+          { x: mr * 1.8, y: mr * 0.2, s: mr * 0.08 },
+          { x: mr * 0.8, y: -mr * 1.3, s: mr * 0.09 },
+          { x: -mr * 1.2, y: -mr * 1.0, s: mr * 0.06 },
+        ]
+      : [
+          { x: mr * 1.5, y: -mr * 0.5, s: mr * 0.15 },
+          { x: mr * 1.0, y: mr * 0.8, s: mr * 0.1 },
+        ];
+
+    for (const star of starPositions) {
+      const starEl = this.buildTinyStar(star.x, star.y, star.s);
+      group.appendChild(starEl);
     }
 
     return group;
+  }
+
+  /** Build a tiny 4-pointed star sparkle. */
+  private buildTinyStar(cx: number, cy: number, size: number): SVGPathElement {
+    const star = document.createElementNS(SVG_NS, 'path');
+    // 4-pointed star: vertical and horizontal spikes
+    const d = [
+      `M ${cx} ${cy - size}`,
+      `L ${cx + size * 0.25} ${cy}`,
+      `L ${cx} ${cy + size}`,
+      `L ${cx - size * 0.25} ${cy}`,
+      `Z`,
+      `M ${cx - size} ${cy}`,
+      `L ${cx} ${cy + size * 0.25}`,
+      `L ${cx + size} ${cy}`,
+      `L ${cx} ${cy - size * 0.25}`,
+      `Z`,
+    ].join(' ');
+    star.setAttribute('d', d);
+    star.setAttribute('fill', '#e0e8ff');
+    star.setAttribute('opacity', '0.7');
+    return star;
   }
 
   protected createElement(): HTMLElement {
@@ -250,7 +289,7 @@ export class SunArc extends Component {
     moonFilter.setAttribute('width', '300%');
     moonFilter.setAttribute('height', '300%');
     const moonBlur = document.createElementNS(SVG_NS, 'feGaussianBlur');
-    moonBlur.setAttribute('stdDeviation', this.size === 'large' ? '2' : '1');
+    moonBlur.setAttribute('stdDeviation', this.size === 'large' ? '3' : '1.5');
     moonBlur.setAttribute('result', 'glow');
     moonFilter.appendChild(moonBlur);
     const moonMerge = document.createElementNS(SVG_NS, 'feMerge');
@@ -375,8 +414,8 @@ export class SunArc extends Component {
         nightT = (fractionalHour + 24 - 18.5) / 11;
       }
       const moonAngle = Math.PI * nightT; // left to right
-      const mx = this.cx + (this.r * 0.6) * Math.cos(moonAngle);
-      const my = this.cy - (this.r * 0.6) * Math.sin(moonAngle);
+      const mx = this.cx + this.r * Math.cos(moonAngle);
+      const my = this.cy - this.r * Math.sin(moonAngle);
 
       this.moonGroup.setAttribute('transform', `translate(${mx}, ${my})`);
       this.moonGroup.style.opacity = '1';
