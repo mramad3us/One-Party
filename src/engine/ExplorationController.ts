@@ -443,11 +443,28 @@ export class ExplorationController implements GameSystem {
     door: { label: 'Open Door', icon: '🚪' },
     door_locked: { label: 'Try Locked Door', icon: '🔒' },
     chest: { label: 'Open Chest', icon: '📦' },
-    fountain: { label: 'Drink from Fountain', icon: '⛲' },
-    running_water: { label: 'Drink & Refill Waterskin', icon: '🌊' },
+    fountain_drink: { label: 'Drink from Fountain', icon: '⛲' },
+    fountain_refill: { label: 'Refill Waterskin', icon: '💧' },
+    running_water_drink: { label: 'Drink from Stream', icon: '🌊' },
+    running_water_refill: { label: 'Refill Waterskin', icon: '💧' },
     altar: { label: 'Touch Altar', icon: '🗿' },
     stagnant_water: { label: 'Inspect Stagnant Water', icon: '💧' },
   };
+
+  /** Check if inventory has a waterskin that isn't full. */
+  private hasEmptyWaterskin(): boolean {
+    const character = this.getCharacter?.();
+    if (!character) return false;
+    for (const entry of character.inventory.items) {
+      const item = this.engine.entities.get(entry.itemId);
+      if (item && 'maxCharges' in item && (item as { maxCharges: number }).maxCharges > 0) {
+        const maxC = (item as { maxCharges: number }).maxCharges;
+        const curC = entry.charges ?? 0;
+        if (curC < maxC) return true;
+      }
+    }
+    return false;
+  }
 
   private handleInteract(): void {
     if (!this.grid || !this.playerPosition) return;
@@ -471,10 +488,20 @@ export class ExplorationController implements GameSystem {
       if (!cell) continue;
 
       for (const feature of cell.features) {
-        const interactable = ['door', 'door_locked', 'chest', 'fountain', 'running_water', 'altar'];
-        if (interactable.includes(feature) && !seen.has(feature)) {
+        if (feature === 'door' || feature === 'door_locked' || feature === 'chest' || feature === 'altar') {
+          if (!seen.has(feature)) {
+            seen.add(feature);
+            interactions.push({ key: feature, coord, feature });
+          }
+        }
+
+        // Water sources → split into drink + refill options
+        if ((feature === 'fountain' || feature === 'running_water') && !seen.has(feature)) {
           seen.add(feature);
-          interactions.push({ key: feature, coord, feature });
+          interactions.push({ key: `${feature}_drink`, coord, feature });
+          if (this.hasEmptyWaterskin()) {
+            interactions.push({ key: `${feature}_refill`, coord, feature });
+          }
         }
       }
 
@@ -524,11 +551,15 @@ export class ExplorationController implements GameSystem {
       case 'chest':
         this.interactChest(coord);
         break;
-      case 'fountain':
-        this.interactFountain();
+      case 'fountain_drink':
+        this.drinkFromWaterSource('fountain');
         break;
-      case 'running_water':
-        this.interactRunningWater();
+      case 'running_water_drink':
+        this.drinkFromWaterSource('stream');
+        break;
+      case 'fountain_refill':
+      case 'running_water_refill':
+        this.refillWaterskins();
         break;
       case 'altar':
         this.emitNarrative(
@@ -602,21 +633,33 @@ export class ExplorationController implements GameSystem {
     });
   }
 
-  private interactRunningWater(): void {
+  private drinkFromWaterSource(source: 'fountain' | 'stream'): void {
     const character = this.getCharacter?.();
     if (!character) return;
 
-    // Drink from the stream
     const thirstBefore = character.survival.thirst;
     SurvivalRules.consume(character.survival, { thirstReduction: 30 });
 
+    const desc = source === 'fountain'
+      ? 'You cup your hands and drink deeply from the fountain. The water is cold and pure, carrying the faintest mineral sweetness.'
+      : 'You kneel by the flowing water and drink deeply. The current is swift and clean, carrying the taste of mountain stone.';
+
     this.emitNarrative(
-      SurvivalNarrator.describeDrinking(thirstBefore, character.survival.thirst,
-        'You kneel by the flowing water and drink deeply. The current is swift and clean, carrying the taste of mountain stone.').text,
+      SurvivalNarrator.describeDrinking(thirstBefore, character.survival.thirst, desc).text,
       'action',
     );
 
-    // Refill any waterskins in inventory
+    this.engine.events.emit({
+      type: source === 'fountain' ? 'exploration:fountain_used' : 'exploration:water_used',
+      category: 'world',
+      data: {},
+    });
+  }
+
+  private refillWaterskins(): void {
+    const character = this.getCharacter?.();
+    if (!character) return;
+
     let refilled = false;
     for (const entry of character.inventory.items) {
       const item = this.engine.entities.get(entry.itemId);
@@ -632,36 +675,15 @@ export class ExplorationController implements GameSystem {
 
     if (refilled) {
       this.emitNarrative(
-        'You fill your waterskin from the flowing stream. The leather bulges with fresh, clean water.',
+        'You hold your waterskin beneath the flow and watch it fill. The leather swells with cool, clean water — enough to see you through the dark hours ahead.',
         'action',
       );
+    } else {
+      this.emitNarrative(
+        'Your waterskin is already full.',
+        'system',
+      );
     }
-
-    this.engine.events.emit({
-      type: 'exploration:water_used',
-      category: 'world',
-      data: {},
-    });
-  }
-
-  private interactFountain(): void {
-    const character = this.getCharacter?.();
-    if (!character) return;
-
-    const thirstBefore = character.survival.thirst;
-    SurvivalRules.consume(character.survival, { thirstReduction: 30 });
-
-    this.emitNarrative(
-      SurvivalNarrator.describeDrinking(thirstBefore, character.survival.thirst,
-        'You cup your hands and drink deeply from the fountain. The water is cold and pure, carrying the faintest mineral sweetness.').text,
-      'action',
-    );
-
-    this.engine.events.emit({
-      type: 'exploration:fountain_used',
-      category: 'world',
-      data: {},
-    });
   }
 
   private handleStairs(type: 'stairs_up' | 'stairs_down'): void {
