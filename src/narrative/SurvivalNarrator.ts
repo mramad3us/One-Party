@@ -254,4 +254,134 @@ export class SurvivalNarrator {
       tone: survival.hunger >= 76 || survival.thirst >= 76 || survival.fatigue >= 76 ? 'desperate' : 'atmospheric',
     };
   }
+
+  // ── Forage / Hunt / Fish / Trap Narratives ──────────────
+
+  static describeForageAttempt(
+    action: string,
+    success: boolean,
+    itemName?: string,
+  ): NarrativeBlock {
+    const FORAGE_SUCCESS: string[] = [
+      `After a careful search through the undergrowth, you find a bounty of edible plants — wild garlic, dandelion greens, and a handful of ripe berries. You pack the ${itemName ?? 'provisions'} carefully.`,
+      `Your trained eye spots what others would miss: a patch of wood sorrel beneath a rotting log, clusters of hazelnuts in a thicket, edible mushrooms on a fallen oak. You gather what you can — ${itemName ?? 'a small harvest'}.`,
+      `The land provides. You kneel among the roots and leaf-litter, filling your pouch with nature's pantry. The ${itemName ?? 'foraged goods'} won't last forever, but they'll stave off hunger for now.`,
+    ];
+    const FORAGE_FAIL: string[] = [
+      'You spend an hour searching the area but find nothing edible. The season is wrong, or others have passed this way before you.',
+      'The ground yields nothing but bitter roots and suspect fungi. You know better than to risk an unknown mushroom and return empty-handed.',
+      'Despite your best efforts, the land offers nothing today. The soil is too thin, the brush too sparse. You abandon the search.',
+    ];
+    const HUNT_SUCCESS: string[] = [
+      `Hours of patient tracking pay off. You spot fresh tracks, follow them to a game trail, and bring down your quarry with a clean strike. You dress the kill and pack the ${itemName ?? 'meat'} for the road.`,
+      `The forest yields its bounty to those who know how to listen. A rustle in the undergrowth, the snap of a twig — and then, the kill. Fresh ${itemName ?? 'game meat'}, enough to keep the party fed.`,
+      `After a long, silent stalk through the brush, you find your mark. The hunt is successful — ${itemName ?? 'dried meat'} for the journey ahead.`,
+    ];
+    const HUNT_FAIL: string[] = [
+      'Three hours of stalking through brush and bramble, and nothing. The game has fled or gone to ground. You return to camp with aching legs and empty hands.',
+      'You follow tracks that lead in circles, spot a deer that bolts before you can act, and nearly twist an ankle on a root. The hunt is a bust.',
+      'The wilderness is stubbornly silent today. Whatever creatures live here, they want nothing to do with you. You give up the hunt.',
+    ];
+    const FISH_SUCCESS: string[] = [
+      `You fashion a crude line and settle by the water's edge. Patience is rewarded — a flash of silver, a sharp tug, and you haul in a fine catch. The ${itemName ?? 'fish'} will make a good meal.`,
+      `The water teems with life. With steady hands and a keen eye, you spear a fat fish from the shallows. ${itemName ?? 'Fresh catch'} — a welcome change from trail rations.`,
+    ];
+    const FISH_FAIL: string[] = [
+      'You sit by the water for over an hour, but the fish aren\'t biting today. Perhaps the current is too strong, or perhaps they\'re simply smarter than you.',
+      'The water flows clear and empty. You try every trick you know, but the stream keeps its bounty to itself today.',
+    ];
+    const TRAP_SET: string[] = [
+      'You find a promising game trail and set a simple snare, disguising it with leaves and brush. With luck, something will wander into it before long.',
+      'Working quickly, you rig a trap from cord and bent sapling along an animal path. Now you need only wait — and remember to come back.',
+    ];
+    const TRAP_SUCCESS: string[] = [
+      `You return to your snare and find it sprung — a fine catch struggling in the cord. You dispatch it quickly and claim your ${itemName ?? 'prize'}. The trap worked beautifully.`,
+      `The trap held! A plump rabbit hangs in the snare, and you add the ${itemName ?? 'fresh meat'} to your supplies with quiet satisfaction.`,
+    ];
+    const TRAP_FAIL: string[] = [
+      'You check your trap, but it sits undisturbed. No tracks nearby — perhaps the wrong spot, or perhaps the local game is too wary.',
+      'The snare has been triggered, but whatever set it off escaped. A few tufts of fur cling to the cord — close, but not close enough.',
+    ];
+
+    let pool: string[];
+    switch (action) {
+      case 'forage': pool = success ? FORAGE_SUCCESS : FORAGE_FAIL; break;
+      case 'hunt': pool = success ? HUNT_SUCCESS : HUNT_FAIL; break;
+      case 'fish': pool = success ? FISH_SUCCESS : FISH_FAIL; break;
+      case 'set_trap': pool = TRAP_SET; break;
+      case 'check_trap': pool = success ? TRAP_SUCCESS : TRAP_FAIL; break;
+      default: pool = success ? FORAGE_SUCCESS : FORAGE_FAIL;
+    }
+
+    return {
+      text: pool[Math.floor(Math.random() * pool.length)],
+      category: 'action',
+    };
+  }
+
+  // ── Per-Hour Forage Flavor Text ───────────────────────────
+
+  private static HOURLY_FORAGE_SUCCESS = [
+    'You spot edible mushrooms beneath a fallen log.',
+    'A patch of wild garlic rewards your patient search.',
+    'Ripe berries glint in the undergrowth — you gather what you can.',
+    'Your trained eye catches wood sorrel hiding among the roots.',
+    'A hazelnut thicket yields a modest but welcome harvest.',
+  ];
+
+  private static HOURLY_FORAGE_FAIL = [
+    'This stretch of ground offers nothing useful.',
+    'You turn over rocks and peer into hollows, but find only dirt.',
+    'Suspicious fungi tempt you, but wisdom prevails — you leave them.',
+    'The brush is sparse here. Nothing edible.',
+    'An hour wasted. The land keeps its bounty hidden.',
+  ];
+
+  private static HOURLY_HUNT_SUCCESS = [
+    'Fresh tracks in the mud — you follow them to your quarry.',
+    'A flash of movement in the brush. Your reflexes don\'t fail you.',
+    'Patient stalking pays off. The kill is clean.',
+    'You spot game drinking at a stream and seize the moment.',
+  ];
+
+  private static HOURLY_HUNT_FAIL = [
+    'The forest is stubbornly silent. Whatever lives here has gone to ground.',
+    'You follow tracks that lead in circles. The game outwits you.',
+    'A snapped twig gives you away. Your quarry bolts.',
+    'An hour of crouching in the brush, and nothing to show for it.',
+  ];
+
+  private static HOURLY_FISH_SUCCESS = [
+    'A silver flash and a sharp tug — you haul in a fine catch.',
+    'The water yields its bounty. A fat fish thrashes on the line.',
+    'Patience rewarded. The fish bites at last.',
+  ];
+
+  private static HOURLY_FISH_FAIL = [
+    'The fish aren\'t biting. The water flows clear and empty.',
+    'You watch your line for an hour, but nothing stirs.',
+    'A nibble, then nothing. The stream keeps its bounty today.',
+  ];
+
+  /** Get a short atmospheric line for an hourly forage result. */
+  static describeForageHour(
+    action: string,
+    success: boolean,
+  ): string {
+    let pool: string[];
+    switch (action) {
+      case 'forage':
+        pool = success ? this.HOURLY_FORAGE_SUCCESS : this.HOURLY_FORAGE_FAIL;
+        break;
+      case 'hunt':
+        pool = success ? this.HOURLY_HUNT_SUCCESS : this.HOURLY_HUNT_FAIL;
+        break;
+      case 'fish':
+        pool = success ? this.HOURLY_FISH_SUCCESS : this.HOURLY_FISH_FAIL;
+        break;
+      default:
+        pool = success ? this.HOURLY_FORAGE_SUCCESS : this.HOURLY_FORAGE_FAIL;
+    }
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
 }

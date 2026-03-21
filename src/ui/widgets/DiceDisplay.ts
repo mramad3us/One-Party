@@ -7,7 +7,7 @@ import { el } from '@/utils/dom';
 
 /**
  * Animated dice roll display.
- * Pops in, shows dice tumbling, reveals result, then fades out.
+ * Shows the correct die shape (d4–d100), tumbles, reveals result, then fades out.
  */
 export class DiceDisplay extends Component {
   private result: DiceRollResult;
@@ -21,11 +21,30 @@ export class DiceDisplay extends Component {
     const { result } = this;
     const wrapper = el('div', { class: 'dice-display' });
 
-    // Dice icon with roll animation
+    // Dice icon(s) with correct die type
+    const dieType = result.dieType ?? 20;
+    const iconName = `dice-d${dieType}`;
     const iconWrap = el('div', { class: 'dice-display-icon' });
-    const diceIcon = IconSystem.icon('d20');
-    diceIcon.classList.add('dice-display-die');
-    iconWrap.appendChild(diceIcon);
+
+    // Show correct number of dice for multi-die rolls
+    const diceCount = result.rolls.length;
+    const showMultiple = diceCount > 1 && diceCount <= 4;
+
+    if (showMultiple) {
+      for (let i = 0; i < diceCount; i++) {
+        const dieWrap = el('div', { class: 'dice-display-die-single' });
+        const diceIcon = IconSystem.icon(iconName);
+        diceIcon.classList.add('dice-display-die');
+        dieWrap.appendChild(diceIcon);
+        iconWrap.appendChild(dieWrap);
+      }
+      iconWrap.classList.add('dice-display-icon--multi');
+    } else {
+      const diceIcon = IconSystem.icon(iconName);
+      diceIcon.classList.add('dice-display-die');
+      iconWrap.appendChild(diceIcon);
+    }
+
     wrapper.appendChild(iconWrap);
 
     // Individual dice results
@@ -74,16 +93,45 @@ export class DiceDisplay extends Component {
   }
 
   /**
-   * Static helper: show a dice roll, wait, then auto-remove.
+   * Static helper: show a dice roll with tumbling animation, wait, then auto-remove.
    */
   static async showRoll(parent: HTMLElement, result: DiceRollResult, engine: GameEngine): Promise<void> {
     const display = new DiceDisplay(parent, engine, result);
     display.mount();
 
-    // Pop in
+    // Phase 1: Tumble animation on each die
+    const diceEls = display.el.querySelectorAll('.dice-display-die');
+    diceEls.forEach((die, i) => {
+      (die as HTMLElement).classList.add('dice-display-die--tumbling');
+      // Stagger slightly for multi-dice
+      (die as HTMLElement).style.animationDelay = `${i * 80}ms`;
+    });
+
+    // Hide results during tumble
+    const rollsRow = display.el.querySelector('.dice-display-rolls') as HTMLElement | null;
+    const totalEl = display.el.querySelector('.dice-display-total') as HTMLElement | null;
+    if (rollsRow) rollsRow.style.opacity = '0';
+    if (totalEl) totalEl.style.opacity = '0';
+
+    await new Promise<void>((r) => setTimeout(r, 800));
+
+    // Phase 2: Stop tumbling, reveal result with pop
+    diceEls.forEach((die) => {
+      (die as HTMLElement).classList.remove('dice-display-die--tumbling');
+    });
+
+    if (rollsRow) {
+      rollsRow.style.transition = 'opacity 0.2s';
+      rollsRow.style.opacity = '1';
+    }
+    if (totalEl) {
+      totalEl.style.transition = 'opacity 0.2s';
+      totalEl.style.opacity = '1';
+    }
+
     await AnimationSystem.popIn(display.el);
 
-    // Critical gets extra flash
+    // Critical/fumble flash
     if (result.isCritical) {
       display.el.classList.add('dice-display--crit-flash');
     } else if (result.isFumble) {

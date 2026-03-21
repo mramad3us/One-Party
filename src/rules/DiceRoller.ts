@@ -89,6 +89,7 @@ export class DiceRoller {
       advantage: hasAdvantage,
       disadvantage: hasDisadvantage,
       description: parts.join(' '),
+      dieType: 20,
     };
   }
 
@@ -115,6 +116,7 @@ export class DiceRoller {
       advantage: false,
       disadvantage: false,
       description: `${diceStr}${rollsStr}${bonusStr} = ${total} ${damage.type}`,
+      dieType: damage.die,
     };
   }
 

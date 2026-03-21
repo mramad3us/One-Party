@@ -40,6 +40,12 @@
   font-size: 10px;
 }
 
+.game-statusbar-sun-arc {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 2px;
+}
+
 .game-statusbar-time {
   font-size: 11px;
   color: var(--gold);
@@ -429,34 +435,33 @@
   cursor: grabbing;
 }
 
-/* Map panel inside overlay: side-by-side layout */
+/* Map panel inside overlay: full-bleed canvas with floating detail */
 .game-map-overlay-content .map-panel {
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  grid-template-rows: auto auto 1fr;
-  gap: 0 var(--space-lg);
+  display: flex;
+  flex-direction: column;
   height: 100%;
-}
-
-.game-map-overlay-content .map-header {
-  grid-column: 1 / -1;
-}
-
-.game-map-overlay-content .map-region-name {
-  grid-column: 1 / -1;
+  position: relative;
 }
 
 .game-map-overlay-content .map-canvas-wrap {
-  grid-row: 3;
-  grid-column: 1;
-  min-height: 300px;
+  flex: 1;
+  min-height: 0;
 }
 
 .game-map-overlay-content .map-detail {
-  grid-row: 3;
-  grid-column: 2;
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  width: 280px;
+  max-height: 60%;
+  overflow-y: auto;
+  z-index: 10;
   margin-top: 0;
-  align-self: start;
+  background: rgba(18, 16, 12, 0.92);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), var(--shadow-glow);
 }
 
 /* ── Map Detail Tile ── */
@@ -610,6 +615,181 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ── Sun Arc ── */
+.sun-arc {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.sun-arc--compact { width: 48px; height: 24px; }
+.sun-arc--large { width: 140px; height: 70px; }
+
+.sun-arc-svg { overflow: visible; }
+
+.sun-arc-horizon {
+  stroke: var(--border-subtle, #3a3630);
+  stroke-width: 0.5;
+  opacity: 0.5;
+}
+
+.sun-arc-path {
+  fill: none;
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+
+.sun-arc--large .sun-arc-path {
+  stroke-width: 1.5;
+  stroke-dasharray: 4 5;
+}
+
+.sun-arc-tick {
+  stroke: var(--border-subtle, #3a3630);
+  stroke-width: 0.5;
+  opacity: 0.35;
+}
+
+.sun-arc--large .sun-arc-tick {
+  stroke-width: 0.8;
+  opacity: 0.4;
+}
+
+.sun-arc-sun {
+  fill: #e8c840;
+  transition: cx 0.5s ease-out, cy 0.5s ease-out, opacity 0.4s;
+}
+
+.sun-arc-sun-glow {
+  fill: rgba(232, 200, 64, 0.2);
+  transition: cx 0.5s ease-out, cy 0.5s ease-out, opacity 0.4s;
+}
+
+.sun-arc-moon {
+  fill: #c0c8d8;
+  transition: cx 0.5s ease-out, cy 0.5s ease-out, opacity 0.4s;
+}
+
+/* ── Time Activity Overlay ── */
+.time-activity-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 1000);
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.time-activity-inner {
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(196, 162, 74, 0.04) 0%, transparent 60%),
+    var(--bg-panel);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl) var(--space-2xl);
+  width: 480px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7), var(--shadow-glow);
+}
+
+.time-activity-title {
+  font-size: var(--text-xl);
+  color: var(--gold);
+  letter-spacing: 0.15em;
+  margin: 0;
+}
+
+.time-activity-info {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+
+.time-activity-arc {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-sm) 0;
+}
+
+.time-activity-hour {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+}
+
+.time-activity-dice {
+  position: relative;
+  min-height: 40px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* Override dice-display positioning inside time activity */
+.time-activity-dice .dice-display {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+}
+
+.time-activity-results {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.3);
+  padding: var(--space-xs);
+}
+
+.time-activity-result-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: var(--text-sm);
+  animation: fadeSlideUp 0.2s ease-out;
+}
+
+.time-activity-result-row:last-child {
+  border-bottom: none;
+}
+
+.time-activity-success { color: #6a9a3a; font-weight: 700; }
+.time-activity-fail { color: #9a4a3a; font-weight: 700; }
+.time-activity-loot { color: var(--gold); }
+.time-activity-nothing { color: var(--text-dim); font-style: italic; }
+
+.time-activity-total {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  text-align: center;
+  min-height: 1.4em;
+}
+
+.time-activity-total--done { color: var(--gold); font-weight: 600; }
+.time-activity-total--empty { color: var(--text-dim); font-style: italic; }
+
+.time-activity-cancel {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
 }
 
 /* ── Grid Panel (CDDA ASCII) ── */

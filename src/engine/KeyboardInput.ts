@@ -43,6 +43,7 @@ const EXPLORATION_ACTION_BINDINGS: KeyBinding[] = [
   { keys: ['e'],      event: 'input:interact',   data: {},  label: 'Interact',  context: 'exploration' },
   { keys: [','],      event: 'input:pickup',     data: {},  label: 'Pick up',   context: 'exploration' },
   { keys: ['r'],      event: 'input:rest',       data: {},  label: 'Rest',      context: 'exploration' },
+  { keys: ['f'],      event: 'input:forage',     data: {},  label: 'Forage',    context: 'exploration' },
   { keys: ['>'],      event: 'input:descend',    data: {},  label: 'Descend',   context: 'exploration' },
   { keys: ['<'],      event: 'input:ascend',     data: {},  label: 'Ascend',    context: 'exploration' },
 ];
@@ -131,6 +132,7 @@ const CONTEXT_HINTS: Record<InputContext, KeyboardHintDef[]> = {
     { key: 'x',   label: 'Look',      category: 'action' },
     { key: ',',   label: 'Pick up',   category: 'action' },
     { key: '.',   label: 'Wait',      category: 'action' },
+    { key: 'f',   label: 'Forage',    category: 'action' },
     { key: 'r',   label: 'Rest',      category: 'action' },
     { key: '>',   label: 'Descend',   category: 'action' },
     { key: '<',   label: 'Ascend',    category: 'action' },

@@ -71,6 +71,8 @@ export class MapPanel extends Component {
   private active = false;
   /** Optional callback to check if player can see map edge in a direction */
   private edgeChecker: ((dx: number, dy: number) => boolean) | null = null;
+  /** Optional callback to check supply range for fast travel */
+  private supplyChecker: ((tiles: number) => { sufficient: boolean; maxTiles: number; limitingFactor: string | null }) | null = null;
   /** Path preview for fast travel */
   private pathPreview: Coordinate[] = [];
   /** Current travel animation path (tiles being traversed) */
@@ -187,6 +189,11 @@ export class MapPanel extends Component {
   /** Set a callback that checks if the party can see the map edge in a direction */
   setEdgeChecker(fn: (dx: number, dy: number) => boolean): void {
     this.edgeChecker = fn;
+  }
+
+  /** Set a callback to check supply range for journey planning */
+  setSupplyChecker(fn: (tiles: number) => { sufficient: boolean; maxTiles: number; limitingFactor: string | null }): void {
+    this.supplyChecker = fn;
   }
 
   setPlayerPosition(x: number, y: number): void {
@@ -625,25 +632,49 @@ export class MapPanel extends Component {
       });
       this.detailEl.appendChild(travelBtn);
     } else if (!isPlayerHere && !isAdjacent && traversable && hasPath) {
-      // Multi-tile fast travel with path info
+      // Multi-tile fast travel with path and supply info
       const tiles = this.pathPreview.length;
-      const estHours = tiles + Math.floor(tiles * 0.5); // ~1.5 hours per tile average
+      const estHours = tiles * 3; // ~3 hours per tile average
       this.detailEl.appendChild(
         el('div', { class: 'map-detail-sub font-mono' }, [
           `${tiles} tile${tiles > 1 ? 's' : ''} · ~${estHours} hour${estHours > 1 ? 's' : ''} journey`,
         ]),
       );
-      const travelBtn = el('button', { class: 'btn btn-primary map-detail-travel' }, [
-        `Journey to ${name}`,
+
+      // Supply check
+      const supply = this.supplyChecker?.(tiles);
+      if (supply) {
+        const supplyEl = el('div', { class: 'map-detail-sub font-mono' });
+        if (supply.sufficient) {
+          supplyEl.textContent = `Supplies: sufficient (range: ${supply.maxTiles} tiles)`;
+          supplyEl.style.color = '#6a9a3a';
+        } else {
+          supplyEl.textContent = `Supplies: insufficient — need more ${supply.limitingFactor} (range: ${supply.maxTiles} tiles)`;
+          supplyEl.style.color = '#c44';
+        }
+        this.detailEl.appendChild(supplyEl);
+      }
+
+      const canTravel = !supply || supply.sufficient;
+      const travelBtn = el('button', {
+        class: `btn ${canTravel ? 'btn-primary' : 'btn-ghost'} map-detail-travel`,
+      }, [
+        canTravel ? `Journey to ${name}` : 'Insufficient supplies',
       ]);
-      travelBtn.addEventListener('click', () => {
-        this.engine.events.emit({
-          type: 'overworld:fast_travel',
-          category: 'ui',
-          data: { path: this.pathPreview },
+      if (canTravel) {
+        travelBtn.addEventListener('click', () => {
+          this.engine.events.emit({
+            type: 'overworld:fast_travel',
+            category: 'ui',
+            data: { path: this.pathPreview },
+          });
+          this.hideDetail();
         });
-        this.hideDetail();
-      });
+      } else {
+        (travelBtn as HTMLButtonElement).disabled = true;
+        travelBtn.style.opacity = '0.5';
+        travelBtn.style.cursor = 'not-allowed';
+      }
       this.detailEl.appendChild(travelBtn);
     } else if (!isPlayerHere && isAdjacent && traversable && !canSeeEdge) {
       this.detailEl.appendChild(

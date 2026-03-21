@@ -42,6 +42,8 @@ import { FogOfWar } from '@/grid/FogOfWar';
 import type { KeyboardHint } from '@/ui/panels/ActionPanel';
 import type { EntityRenderInfo } from '@/grid/GridRenderer';
 import { TimeNarrator } from '@/narrative/TimeNarrator';
+import { gameTimeToCalendar } from '@/types/time';
+import type { OverworldTerrain } from '@/types/overworld';
 import { Modal } from '@/ui/widgets/Modal';
 import { el } from '@/utils/dom';
 import type { Tileset } from '@/grid/Tileset';
@@ -49,8 +51,106 @@ import { getTilesetById, getAllTilesets } from '@/grid/Tileset';
 import type { SaveMeta, EquipmentSlots } from '@/types';
 import { EquipmentRules } from '@/rules/EquipmentRules';
 import { RestRules } from '@/rules/RestRules';
+import { TravelRules } from '@/rules/TravelRules';
+import { ForageRules, type ForageOption, type ForagePlan } from '@/rules/ForageRules';
+import { AbilityChecks } from '@/rules/AbilityChecks';
+import { TimeActivity } from '@/ui/widgets/TimeActivity';
 import { processWorldDecay, markLocationVisited } from '@/world/WorldDecay';
+import type { CellTerrain, CellFeature } from '@/types/grid';
 import type { Coordinate } from '@/types';
+
+// ── Journey narrative pools ─────────────────────────────────────
+
+const JOURNEY_NARRATIVES: Record<string, string[]> = {
+  forest: [
+    'The trail narrows beneath the ancient canopy, shafts of pale light filtering through leaves so dense they turn the air green. The party moves single-file, the crunch of dead leaves and snap of twigs their only companions.',
+    'A cathedral of oaks stretches endlessly ahead. The forest breathes around them — the creak of boughs, the distant tap of a woodpecker, the rustle of something unseen retreating deeper into the underbrush.',
+    'Moss-draped branches hang low across the path like outstretched arms. The air is thick with the sweet, loamy scent of decaying wood and wild mushrooms. The party presses on through the verdant gloom.',
+    'Shafts of golden light lance through gaps in the canopy, illuminating swirling motes of pollen. Birdsong echoes from every direction, a chorus that makes the forest feel both welcoming and watchful.',
+    'The undergrowth thickens, thorny brambles snagging cloaks and packs. A stream babbles somewhere nearby, its voice muffled by the dense wall of fern and hazel that crowds the barely-visible trail.',
+  ],
+  dense_forest: [
+    'The forest here is primeval and suffocating — trunks wider than a man is tall, roots that heave the earth into treacherous ridges. Darkness pools between the trees like standing water.',
+    'They push through a wall of interlocking branches that seems designed to repel intruders. Progress is measured in yards, not miles. The canopy above is so thick that day and night are nearly indistinguishable.',
+    'Ancient trees loom overhead, their bark scarred and blackened with age. The silence here is oppressive — no birdsong, no wind, only the muffled thud of careful footsteps on centuries of fallen needles.',
+  ],
+  plains: [
+    'The grassland stretches to the horizon in every direction, a sea of amber and green rolling in the wind like slow ocean waves. The sky above is vast and impossibly blue, dwarfing everything beneath it.',
+    'Miles of open ground pass beneath their boots, the monotony broken only by the occasional lone tree or tumbled stone wall. Hawks circle lazily overhead, riding thermals that shimmer in the distance.',
+    'The wind is constant here, carrying the sweet scent of wildflowers and the dry whisper of tall grass. The party moves at a good pace, the flat terrain easy on tired legs but offering no shelter from the elements.',
+    'A herd of deer grazes in the distance, their heads snapping up at the party\'s approach before bounding away in graceful leaps. The grassland seems peaceful, but the openness leaves them feeling exposed.',
+    'The trail becomes little more than a suggestion — a faint parting in the knee-high grass. Insects buzz in clouds around their ankles, and the sun beats down without mercy on the treeless expanse.',
+  ],
+  hills: [
+    'The terrain rises and falls in endless green swells, each crest revealing another identical vista of rolling hills. Their calves burn with the constant climbing, and the wind whips harder at every summit.',
+    'Stone outcroppings jut from the hillsides like broken teeth, their surfaces streaked with lichen and bird droppings. The path switchbacks relentlessly upward, loose scree skittering underfoot.',
+    'From atop a windswept ridge, the party pauses to take in the view — a patchwork of green and gold stretching to distant mountains. The descent ahead looks steep, the path narrow and crumbling.',
+    'Sheep dot a distant hillside like scattered cotton. A shepherd\'s whistle carries faintly on the wind. The hills here are gentler, their slopes carpeted with wildflowers and soft turf.',
+  ],
+  mountain: [
+    'The air thins as the party climbs higher, each breath burning in their lungs. The mountain path hugs a cliff face, loose stones tumbling into the misty void below with each careless step.',
+    'Jagged peaks pierce the clouds above them like the spine of some colossal beast. Snow clings to sheltered crevices even in summer, and the wind howls through narrow passes with a voice that sounds almost human.',
+    'The mountain trail is barely more than a goat path — switchbacks carved into raw stone, the drop to their left growing more dizzying with each turn. Eagles soar far below them now.',
+  ],
+  beach: [
+    'The party follows the shoreline where packed sand meets salt-bleached grass. Waves crash and hiss against the shore in an endless rhythm, leaving lace patterns of foam on the dark wet sand.',
+    'Seabirds wheel and cry overhead as the party trudges along the coast. The salt wind is bracing, carrying the briny scent of kelp and the distant thunderclap of waves breaking against rocky headlands.',
+    'Driftwood lies scattered along the tideline like the bones of ancient ships. The sand shifts treacherously underfoot, making every step an effort. To seaward, the horizon is a perfect knife-edge.',
+  ],
+  desert: [
+    'The desert stretches before them in an ocean of amber and rust, the air wavering with heat mirages that conjure phantom lakes on the horizon. Each step sinks into fine, burning sand.',
+    'Wind-sculpted dunes rise and fall like frozen waves, their crests streaming plumes of golden sand. The sun hammers down from a sky bleached white, and the party moves slowly, conserving every drop of water.',
+    'A vast expanse of cracked earth and sparse scrub extends in all directions. Lizards dart between sun-baked stones, and the only shade comes from the occasional twisted, leafless tree.',
+  ],
+  swamp: [
+    'The ground sucks at their boots with every step, dark water seeping into each footprint. The air reeks of rot and stagnant water, and clouds of biting insects swarm around exposed skin.',
+    'Gnarled trees rise from the murk on twisted root-stilts, their branches draped in grey-green moss. The path is a series of uncertain tussocks — one wrong step and the swamp swallows a leg to the knee.',
+    'Bubbles rise and pop in the brackish water, releasing puffs of foul gas. Strange lights flicker in the deeper marsh — will-o\'-wisps or something worse. The party keeps to what solid ground they can find.',
+  ],
+  tundra: [
+    'The frozen plain stretches endlessly ahead, a white wasteland broken only by the dark slash of a frozen river. The wind cuts through every layer of clothing, and breath crystallizes instantly.',
+    'Lichen-covered boulders dot the tundra like abandoned sentinels. The ground is iron-hard beneath a thin crust of snow, and the sun hangs low on the horizon, casting long blue shadows across the ice.',
+  ],
+  snow: [
+    'They wade through knee-deep snow, each step an exhausting effort. The world is reduced to shades of white and grey, the silence broken only by the crunch of ice and the rasp of labored breathing.',
+    'A bitter wind drives needles of ice into exposed skin. The snowfield is featureless and disorienting — without landmarks, only the compass keeps them on course through the frozen emptiness.',
+  ],
+  volcanic: [
+    'The ground radiates heat through the soles of their boots. Cracks in the dark stone glow with an angry orange light, and the air tastes of sulfur and ash. Nothing grows here.',
+    'Steam vents hiss from fissures in the blackened rock, wreathing the party in hot, acrid fog. The landscape is alien — twisted formations of cooled lava, pools of bubbling mud, and the distant rumble of the earth.',
+  ],
+  shallow_water: [
+    'The party wades through shallow coastal waters, the cold sea gripping their legs. Beneath the clear surface, sand shifts and crabs scuttle away from their splashing approach.',
+  ],
+  peak: [
+    'At this altitude the world falls away in every direction, a dizzying panorama of ridges and valleys shrouded in cloud. The air is thin and biting, each breath an act of will.',
+  ],
+};
+
+const WEATHER_FLAVOR: string[] = [
+  'Storm clouds gather on the horizon, bruise-dark and swollen with rain. The wind picks up, carrying the electric scent of lightning.',
+  'A light drizzle begins to fall, turning the trail to mud and misting the distance. The party pulls cloaks tighter and presses on.',
+  'The sky is clear and vast, a dome of cerulean blue unmarred by cloud. It would be beautiful if they weren\'t so focused on the road ahead.',
+  'A cold fog rolls in, reducing visibility to a few dozen yards. Sounds are muffled and distorted, every shadow a potential threat.',
+  'The sun breaks through the clouds in dramatic shafts of gold, painting the landscape in sudden warmth. For a moment, the journey feels almost pleasant.',
+];
+
+function pickJourneyNarrative(terrain: OverworldTerrain, time: { totalRounds: number }, rng: () => number): string {
+  const pool = JOURNEY_NARRATIVES[terrain] ?? JOURNEY_NARRATIVES['plains'];
+  const cal = gameTimeToCalendar(time);
+  const base = pool[Math.floor(rng() * pool.length)];
+
+  // Add time-of-day color occasionally
+  let timeNote = '';
+  if (rng() < 0.35) {
+    if (cal.hour >= 5 && cal.hour < 8) timeNote = ' The early morning light casts long shadows across their path.';
+    else if (cal.hour >= 18 && cal.hour < 21) timeNote = ' The dying light of sunset paints the sky in shades of amber and violet.';
+    else if (cal.hour >= 21 || cal.hour < 5) timeNote = ' They travel by moonlight, the silver glow transforming the landscape into something strange and otherworldly.';
+    else if (cal.hour >= 12 && cal.hour < 14) timeNote = ' The midday sun is merciless, beating down from directly overhead.';
+  }
+
+  return base + timeNote;
+}
 
 // ── Delta-storage helpers for local maps ────────────────────────
 // Instead of saving the full 2500-cell grid, we regenerate the base
@@ -468,6 +568,12 @@ async function main(): Promise<void> {
     if (activeOverworld) {
       screen.setOverworld(activeOverworld);
       screen.setEdgeChecker((dx, dy) => explorationController.canSeeMapEdge(dx, dy));
+      screen.setSupplyChecker((tiles: number) => {
+        const character = engine.entities.getAll<Character>('character')[0];
+        if (!character) return { sufficient: true, maxTiles: 999, limitingFactor: null };
+        const result = TravelRules.canSustainJourney(character, tiles);
+        return { sufficient: result.sufficient, maxTiles: result.range.maxTiles, limitingFactor: result.limitingFactor };
+      });
 
       // Derive overworld position from current location if not set (old saves)
       if (!state.overworldPosition) {
@@ -1243,6 +1349,180 @@ async function main(): Promise<void> {
   // 9b. Fast travel — multi-tile overworld journey with animation
   let fastTravelCancelled = false;
 
+  // ── Forage menu — shows available actions ──
+  engine.events.on('forage:menu', (event) => {
+    if (!activeGameScreen) return;
+    const { options } = event.data as { options: ForageOption[] };
+
+    const list = el('div', { class: 'forage-menu' });
+    for (const opt of options) {
+      const skillName = opt.action === 'set_trap' ? '' : ` (${ForageRules.getSkillForAction(opt.action) === 'nature' ? 'Nature' : 'Survival'})`;
+      const btn = el('button', { class: 'btn btn-ghost forage-option' }, [
+        el('div', { class: 'forage-option-label font-heading' }, [opt.label]),
+        el('div', { class: 'forage-option-desc font-mono' }, [`${opt.description}${skillName}`]),
+      ]);
+      btn.style.display = 'block';
+      btn.style.width = '100%';
+      btn.style.textAlign = 'left';
+      btn.style.marginBottom = '8px';
+      btn.addEventListener('click', () => {
+        modal.close();
+        explorationController.executeForageAction(opt);
+      });
+      list.appendChild(btn);
+    }
+
+    const modal = new Modal(document.body, engine, {
+      title: 'Survival Actions',
+      content: list,
+      closable: true,
+      width: '400px',
+    });
+    modal.mount();
+  });
+
+  // ── Forage duration picker — choose how many hours to spend ──
+  engine.events.on('forage:pick_duration', (event) => {
+    if (!activeGameScreen || !activeGameState) return;
+    const { option, terrain, features } = event.data as {
+      option: ForageOption;
+      terrain: CellTerrain;
+      features: CellFeature[];
+    };
+
+    const skill = ForageRules.getSkillForAction(option.action);
+    const skillLabel = skill === 'nature' ? 'Nature' : 'Survival';
+    const dc = ForageRules.getBaseDC(option.action, terrain, features);
+
+    const content = el('div', { class: 'forage-duration-picker' });
+    content.appendChild(el('div', { class: 'forage-duration-info font-mono', style: 'margin-bottom: 12px; color: var(--text-muted);' }, [
+      `${skillLabel} check \u2022 DC ${dc} \u2022 Roll each hour`,
+    ]));
+    content.appendChild(el('div', { class: 'font-mono', style: 'margin-bottom: 12px; font-size: 11px; color: var(--text-dim);' }, [
+      'How many hours will you spend?',
+    ]));
+
+    const btnRow = el('div', { style: 'display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;' });
+    for (const hours of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const btn = el('button', { class: 'btn btn-ghost', style: 'min-width: 48px;' }, [`${hours}h`]);
+      btn.addEventListener('click', () => {
+        modal.close();
+        const plan = ForageRules.createPlan(option, hours, terrain, features);
+        startTimedForage(plan);
+      });
+      btnRow.appendChild(btn);
+    }
+    content.appendChild(btnRow);
+
+    const modal = new Modal(document.body, engine, {
+      title: `${option.label} — Duration`,
+      content,
+      closable: true,
+      width: '400px',
+    });
+    modal.mount();
+  });
+
+  // ── Timed forage execution — hourly skill checks with TimeActivity overlay ──
+  async function startTimedForage(plan: ForagePlan): Promise<void> {
+    if (!activeGameScreen || !activeGameState) return;
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+
+    const skillLabel = plan.skill === 'nature' ? 'Nature' : 'Survival';
+
+    const activity = new TimeActivity(document.body, engine, {
+      title: plan.label,
+      totalHours: plan.hoursPlanned,
+      startTime: { totalRounds: activeGameState.world.time.totalRounds },
+      skillName: skillLabel,
+      dc: plan.baseDC,
+    });
+    activity.mount();
+    activity.initTime(activeGameState.world.time);
+
+    // Disable keyboard input during activity
+    keyboardInput.setEnabled(false);
+
+    const rng = activeRng ?? new SeededRNG(Date.now());
+    const dice = new DiceRoller(rng);
+    const checks = new AbilityChecks(dice);
+    const allItems = new Map<string, number>();
+
+    for (let h = 0; h < plan.hoursPlanned; h++) {
+      if (activity.isCancelled()) break;
+
+      activity.setHourLabel(h);
+
+      // Advance time by 1 hour
+      activeGameState.advanceTime(ROUNDS_PER_HOUR);
+      tickAndNarrate(character, ROUNDS_PER_HOUR);
+
+      // Animate sun arc (over ~500ms of the 1.5s budget)
+      await activity.animateSunTo(activeGameState.world.time, 500);
+
+      // Resolve this hour's skill check
+      const hourResult = ForageRules.resolveHour(plan, h, character, checks);
+
+      // Show dice animation
+      await activity.showDiceRoll(hourResult);
+
+      // Display result row
+      activity.addResultRow(hourResult);
+
+      // Accumulate items
+      if (hourResult.success && hourResult.itemId) {
+        allItems.set(hourResult.itemId, (allItems.get(hourResult.itemId) ?? 0) + hourResult.quantity);
+      }
+      activity.updateTotal(allItems);
+
+      // Update game screen time
+      activeGameScreen.updateTime(activeGameState.world.time);
+
+      // Brief delay between hours (fills remaining 1.5s budget)
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    // Add items to inventory
+    for (const [itemId, qty] of allItems) {
+      const existing = character.inventory.items.find(e => e.itemId === itemId);
+      if (existing) {
+        existing.quantity += qty;
+      } else {
+        character.inventory.items.push({ itemId: itemId, quantity: qty });
+      }
+    }
+
+    // Show completion state
+    activity.showComplete(allItems);
+
+    // Build summary narrative for main log
+    if (allItems.size > 0) {
+      const parts: string[] = [];
+      for (const [itemId, qty] of allItems) {
+        const itemDef = getItem(itemId);
+        parts.push(`${qty}\u00d7 ${itemDef?.name ?? itemId}`);
+      }
+      activeGameScreen.addNarrative({
+        text: `After ${plan.hoursPlanned} hours of ${plan.label.toLowerCase()}, the party gathered: ${parts.join(', ')}.`,
+        category: 'action',
+      });
+    } else {
+      activeGameScreen.addNarrative({
+        text: `After ${plan.hoursPlanned} hours of fruitless ${plan.label.toLowerCase()}, the party returns empty-handed. The land offered nothing today.`,
+        category: 'action',
+        tone: 'atmospheric',
+      });
+    }
+
+    // Hold for a moment, then close
+    await new Promise(r => setTimeout(r, 1200));
+    await activity.unmount();
+
+    // Re-enable keyboard
+    keyboardInput.setEnabled(true);
+  }
+
   engine.events.on('input:cancel_travel', () => {
     fastTravelCancelled = true;
   });
@@ -1254,6 +1534,17 @@ async function main(): Promise<void> {
 
     const character = engine.entities.getAll<Character>('character')[0];
     if (!character) return;
+
+    // Check supply range before departing
+    const { sufficient, range, limitingFactor } = TravelRules.canSustainJourney(character, path.length);
+    if (!sufficient) {
+      const factor = limitingFactor === 'food' ? 'food' : 'water';
+      activeGameScreen.addNarrative({
+        text: `You study the route ahead and grimly calculate your supplies. The journey requires ${path.length} tiles of travel, but your ${factor} will only sustain the party for ${range.maxTiles} tiles. You need more provisions before attempting this trip.`,
+        category: 'system',
+      });
+      return;
+    }
 
     fastTravelCancelled = false;
 
@@ -1291,8 +1582,8 @@ async function main(): Promise<void> {
       activeGameState.currentSubLocationId = null;
       activeGameState.overworldPosition = { x, y };
 
-      // Travel time: 1-2 hours per tile
-      const travelRounds = ROUNDS_PER_HOUR * (1 + Math.floor(Math.random() * 2));
+      // Travel time: 2-4 hours per tile
+      const travelRounds = ROUNDS_PER_HOUR * (2 + Math.floor(Math.random() * 3));
       const travelHours = Math.round(travelRounds / ROUNDS_PER_HOUR);
       const timeBefore = { totalRounds: activeGameState.world.time.totalRounds };
       activeGameState.advanceTime(travelRounds);
@@ -1300,37 +1591,41 @@ async function main(): Promise<void> {
       // Tick survival
       tickAndNarrate(character, travelRounds);
 
-      // Auto-consume food/water when thresholds hit
-      if (character.survival.hunger >= 60 || character.survival.thirst >= 60) {
-        autoConsumeSupplies(character);
-      }
+      // Auto-consume food/water as needed during travel
+      autoConsumeSupplies(character);
 
-      // Per-tile travel narrative
+      // Per-tile journey log — every tile gets a narrative entry
       const tileName = tile.settlement && tile.settlementName
         ? tile.settlementName
         : getTerrainName(tile.terrain);
 
       if (i === 0) {
         activeGameScreen.addNarrative({
-          text: `The party sets out on their journey. The first leg takes them across ${getTerrainName(tile.terrain).toLowerCase()} — ${travelHours} hour${travelHours > 1 ? 's' : ''} of travel.`,
+          text: `The party shoulders their packs and sets out. ${pickJourneyNarrative(tile.terrain, activeGameState.world.time, Math.random)}`,
           category: 'action',
         });
       } else if (tile.settlement) {
         activeGameScreen.addNarrative({
-          text: `After ${travelHours} hour${travelHours > 1 ? 's' : ''}, the party passes through ${tileName}.`,
+          text: `After ${travelHours} hours of hard travel, the rooftops and chimney-smoke of ${tileName} appear through the haze. The party passes through, drawing curious glances from the locals.`,
           category: 'action',
         });
       } else if (i === path.length - 1) {
         activeGameScreen.addNarrative({
-          text: `The final stretch takes ${travelHours} hour${travelHours > 1 ? 's' : ''}. The party arrives at their destination.`,
+          text: `The final leg of the journey stretches on for ${travelHours} grueling hours. At last, their destination comes into view — weary but intact, the party has arrived.`,
           category: 'action',
         });
-      } else if (i % 3 === 0) {
-        // Periodic update every 3 tiles
+      } else {
         activeGameScreen.addNarrative({
-          text: `The journey continues across ${getTerrainName(tile.terrain).toLowerCase()}...`,
+          text: pickJourneyNarrative(tile.terrain, activeGameState.world.time, Math.random),
           category: 'description',
         });
+        // Occasional weather/atmosphere flavor (20% chance)
+        if (Math.random() < 0.2) {
+          activeGameScreen.addNarrative({
+            text: WEATHER_FLAVOR[Math.floor(Math.random() * WEATHER_FLAVOR.length)],
+            category: 'description',
+          });
+        }
       }
 
       // Time transition
@@ -1344,8 +1639,8 @@ async function main(): Promise<void> {
       activeGameScreen.setTravelPath(path, i + 1);
       activeGameScreen.updateTime(activeGameState.world.time);
 
-      // Animation delay
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Animation delay — 2 seconds per tile for immersive pacing
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     // Final destination setup — generate local map
@@ -1431,16 +1726,22 @@ async function main(): Promise<void> {
     }
   });
 
-  // Auto-consume food/water supplies during travel
+  // Auto-consume food/water supplies during travel (proactive at peckish/mild_thirst)
   function autoConsumeSupplies(character: Character): void {
     if (!activeGameScreen) return;
     const inventory = character.inventory;
 
-    // Try to consume food if hungry
-    if (character.survival.hunger >= 60) {
-      for (const entry of inventory.items) {
+    // Consume food while peckish or worse (hunger >= 30)
+    while (character.survival.hunger >= 30) {
+      let consumed = false;
+      for (let i = 0; i < inventory.items.length; i++) {
+        const entry = inventory.items[i];
         const item = getItem(entry.itemId);
         if (!item || item.itemType !== 'food') continue;
+        const props = item.properties as ConsumableProperties;
+        if (!props?.hungerReduction) continue;
+
+        const hungerBefore = character.survival.hunger;
         if (item.maxCharges != null) {
           const charges = entry.charges ?? 0;
           if (charges <= 0) continue;
@@ -1448,26 +1749,31 @@ async function main(): Promise<void> {
         } else {
           entry.quantity--;
         }
-        const props = item.properties as ConsumableProperties;
-        if (props) SurvivalRules.consume(character.survival, props);
-        activeGameScreen.addNarrative({
-          text: `The party eats some ${item.name.toLowerCase()} while traveling.`,
-          category: 'description',
-        });
-        // Remove empty stacks
-        if (entry.quantity <= 0 && !(item.maxCharges != null)) {
-          const idx = inventory.items.indexOf(entry);
-          if (idx >= 0) inventory.items.splice(idx, 1);
+        SurvivalRules.consume(character.survival, props);
+        activeGameScreen.addNarrative(
+          SurvivalNarrator.describeEating(hungerBefore, character.survival.hunger, `The party shares some ${item.name.toLowerCase()} on the road.`),
+        );
+        // Remove depleted stacks
+        if (item.maxCharges == null && entry.quantity <= 0) {
+          inventory.items.splice(i, 1);
         }
+        consumed = true;
         break;
       }
+      if (!consumed) break; // no food left
     }
 
-    // Try to consume water if thirsty
-    if (character.survival.thirst >= 60) {
-      for (const entry of inventory.items) {
+    // Consume water while mildly thirsty or worse (thirst >= 30)
+    while (character.survival.thirst >= 30) {
+      let consumed = false;
+      for (let i = 0; i < inventory.items.length; i++) {
+        const entry = inventory.items[i];
         const item = getItem(entry.itemId);
         if (!item || item.itemType !== 'drink') continue;
+        const props = item.properties as ConsumableProperties;
+        if (!props?.thirstReduction) continue;
+
+        const thirstBefore = character.survival.thirst;
         if (item.maxCharges != null) {
           const charges = entry.charges ?? 0;
           if (charges <= 0) continue;
@@ -1475,18 +1781,17 @@ async function main(): Promise<void> {
         } else {
           entry.quantity--;
         }
-        const props = item.properties as ConsumableProperties;
-        if (props) SurvivalRules.consume(character.survival, props);
-        activeGameScreen.addNarrative({
-          text: `The party drinks from their ${item.name.toLowerCase()}.`,
-          category: 'description',
-        });
-        if (entry.quantity <= 0 && !(item.maxCharges != null)) {
-          const idx = inventory.items.indexOf(entry);
-          if (idx >= 0) inventory.items.splice(idx, 1);
+        SurvivalRules.consume(character.survival, props);
+        activeGameScreen.addNarrative(
+          SurvivalNarrator.describeDrinking(thirstBefore, character.survival.thirst, `The party pauses to drink from their ${item.name.toLowerCase()}.`),
+        );
+        if (item.maxCharges == null && entry.quantity <= 0) {
+          inventory.items.splice(i, 1);
         }
+        consumed = true;
         break;
       }
+      if (!consumed) break; // no water left
     }
   }
 

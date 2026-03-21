@@ -149,4 +149,6 @@ export type DiceRollResult = {
   advantage: boolean;
   disadvantage: boolean;
   description: string;
+  /** Which die was rolled, for display (defaults to d20). */
+  dieType?: DieType;
 };

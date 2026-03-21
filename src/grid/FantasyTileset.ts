@@ -119,9 +119,12 @@ export class FantasyTileset implements Tileset {
 
     switch (feature) {
       case 'door':
-      case 'door_locked':
-        this.drawDoor(rc, colors.primary, colors.secondary, feature === 'door_locked');
+      case 'door_locked': {
+        const doorCell = rc.grid.getCell(rc.gx, rc.gy);
+        const isOpen = doorCell ? doorCell.movementCost < Infinity : false;
+        this.drawDoor(rc, colors.primary, colors.secondary, feature === 'door_locked', isOpen);
         break;
+      }
       case 'chest':
         this.drawChest(rc, colors.primary, colors.secondary);
         break;
@@ -407,23 +410,40 @@ export class FantasyTileset implements Tileset {
 
   // ── Feature Renderers ─────────────────────────────────────
 
-  private drawDoor(rc: TilesetRenderContext, primary: RGB, secondary: RGB, locked: boolean): void {
+  private drawDoor(rc: TilesetRenderContext, primary: RGB, secondary: RGB, locked: boolean, isOpen: boolean): void {
     const { ctx, px, py, cw, ch, dim } = rc;
     const inset = Math.max(2, Math.floor(cw * 0.15));
 
-    // Door frame
-    ctx.fillStyle = rgb(secondary, dim);
-    ctx.fillRect(px + inset, py + 1, cw - inset * 2, ch - 2);
+    if (isOpen) {
+      // Open door: frame with door swung against left wall, center passable
+      // Doorway opening (dark gap)
+      ctx.fillStyle = rgb([30, 25, 18], dim);
+      ctx.fillRect(px + inset, py + 1, cw - inset * 2, ch - 2);
 
-    // Door panel
-    ctx.fillStyle = rgb(primary, dim);
-    ctx.fillRect(px + inset + 2, py + 3, cw - inset * 2 - 4, ch - 6);
+      // Door panel swung to left side (thin vertical strip)
+      ctx.fillStyle = rgb(primary, dim);
+      ctx.fillRect(px + inset, py + 1, 3, ch - 2);
 
-    // Handle/lock indicator
-    const handleX = px + cw / 2 + 2;
-    const handleY = py + ch / 2;
-    ctx.fillStyle = locked ? rgb([255, 60, 60], dim) : rgb([240, 220, 100], dim);
-    ctx.fillRect(handleX, handleY - 1, 2, 2);
+      // Hinges on swung panel
+      ctx.fillStyle = rgb(secondary, dim);
+      ctx.fillRect(px + inset, py + 3, 2, 2);
+      ctx.fillRect(px + inset, py + ch - 5, 2, 2);
+    } else {
+      // Closed door: full panel with frame and handle
+      // Door frame
+      ctx.fillStyle = rgb(secondary, dim);
+      ctx.fillRect(px + inset, py + 1, cw - inset * 2, ch - 2);
+
+      // Door panel
+      ctx.fillStyle = rgb(primary, dim);
+      ctx.fillRect(px + inset + 2, py + 3, cw - inset * 2 - 4, ch - 6);
+
+      // Handle/lock indicator
+      const handleX = px + cw / 2 + 2;
+      const handleY = py + ch / 2;
+      ctx.fillStyle = locked ? rgb([255, 60, 60], dim) : rgb([240, 220, 100], dim);
+      ctx.fillRect(handleX, handleY - 1, 2, 2);
+    }
   }
 
   private drawChest(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {

@@ -8,6 +8,9 @@ import { FogOfWar } from '@/grid/FogOfWar';
 import { MovementTracker } from './MovementTracker';
 import { SurvivalRules } from '@/rules/SurvivalRules';
 import { SurvivalNarrator } from '@/narrative/SurvivalNarrator';
+import { ForageRules } from '@/rules/ForageRules';
+import type { ForageOption } from '@/rules/ForageRules';
+import { getItem } from '@/data/items';
 
 /** Descriptions for bumping into impassable terrain */
 const BUMP_NARRATIVES: Record<string, string[]> = {
@@ -142,6 +145,9 @@ export class ExplorationController implements GameSystem {
   private lookCursor: Coordinate | null = null;
   private lookMode = false;
 
+  // Active traps: key = "x,y", value = round when placed
+  private activeTraps: Map<string, number> = new Map();
+
   init(engine: GameEngine): void {
     this.engine = engine;
 
@@ -186,6 +192,11 @@ export class ExplorationController implements GameSystem {
     engine.events.on('input:look_exit', () => {
       if (!this.active || !this.lookMode) return;
       this.handleLookExit();
+    });
+
+    engine.events.on('input:forage', () => {
+      if (!this.active) return;
+      this.handleForage();
     });
 
     // Escape also exits look mode (via global cancel)
@@ -623,6 +634,123 @@ export class ExplorationController implements GameSystem {
       category: 'world',
       data: { position: this.playerPosition },
     });
+  }
+
+  // ── Forage / Hunt / Fish / Trap ──────────────────────────
+
+  private handleForage(): void {
+    if (!this.grid || !this.playerPosition) return;
+
+    const cell = this.grid.getCell(this.playerPosition.x, this.playerPosition.y);
+    if (!cell) return;
+
+    // Gather adjacent terrain and features
+    const dirs = [
+      { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 },
+      { dx: 1, dy: -1 }, { dx: 1, dy: 1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
+    ];
+    const adjTerrains: import('@/types/grid').CellTerrain[] = [];
+    const adjFeatures: import('@/types/grid').CellFeature[] = [];
+    for (const d of dirs) {
+      const ac = this.grid.getCell(this.playerPosition.x + d.dx, this.playerPosition.y + d.dy);
+      if (ac) {
+        adjTerrains.push(ac.terrain);
+        for (const f of ac.features) adjFeatures.push(f);
+      }
+    }
+
+    // Check for active trap at this position
+    const trapKey = `${this.playerPosition.x},${this.playerPosition.y}`;
+    if (this.activeTraps.has(trapKey)) {
+      this.checkTrap(trapKey);
+      return;
+    }
+    // Also check adjacent cells for traps
+    for (const d of dirs) {
+      const tk = `${this.playerPosition.x + d.dx},${this.playerPosition.y + d.dy}`;
+      if (this.activeTraps.has(tk)) {
+        this.checkTrap(tk);
+        return;
+      }
+    }
+
+    const options = ForageRules.getAvailableActions(cell.terrain, cell.features, adjTerrains, adjFeatures);
+
+    if (options.length === 0) {
+      this.emitNarrative('There is nothing to forage, hunt, or fish for here.', 'system');
+      return;
+    }
+
+    if (options.length === 1) {
+      this.executeForageAction(options[0]);
+    } else {
+      // Emit menu event for main.ts to show a modal
+      this.engine.events.emit({
+        type: 'forage:menu',
+        category: 'ui',
+        data: { options },
+      });
+    }
+  }
+
+  executeForageAction(option: ForageOption): void {
+    const character = this.getCharacter?.();
+    if (!character || !this.playerPosition || !this.grid) return;
+
+    // Set trap is special — place it and return later (no hourly loop)
+    if (option.action === 'set_trap') {
+      const trapKey = `${this.playerPosition.x},${this.playerPosition.y}`;
+      this.activeTraps.set(trapKey, this.gameState?.world.time.totalRounds ?? 0);
+      this.advanceTimeAndTick(option.timeRounds);
+      this.emitNarrative(
+        SurvivalNarrator.describeForageAttempt('set_trap', true).text,
+        'action',
+      );
+      return;
+    }
+
+    // For forage/hunt/fish — emit event so main.ts shows duration picker + TimeActivity
+    const cell = this.grid.getCell(this.playerPosition.x, this.playerPosition.y);
+    this.engine.events.emit({
+      type: 'forage:pick_duration',
+      category: 'ui',
+      data: {
+        option,
+        terrain: cell?.terrain ?? 'grass',
+        features: cell?.features ?? [],
+      },
+    });
+  }
+
+  private checkTrap(trapKey: string): void {
+    const character = this.getCharacter?.();
+    if (!character) return;
+
+    const placedRound = this.activeTraps.get(trapKey);
+    if (placedRound === undefined) return;
+
+    const currentRound = this.gameState?.world.time.totalRounds ?? 0;
+    const elapsed = currentRound - placedRound;
+
+    // Remove the trap regardless of outcome
+    this.activeTraps.delete(trapKey);
+
+    const result = ForageRules.checkTrap(elapsed, Math.random);
+    const itemDef = result.itemId ? getItem(result.itemId) : null;
+    const itemName = itemDef?.name ?? 'meat';
+
+    const narrative = SurvivalNarrator.describeForageAttempt('check_trap', result.success, itemName);
+    this.emitNarrative(narrative.text, narrative.category);
+
+    if (result.success && result.itemId) {
+      const existingEntry = character.inventory.items.find(e => e.itemId === result.itemId);
+      if (existingEntry) {
+        existingEntry.quantity += result.quantity;
+      } else {
+        character.inventory.items.push({ itemId: result.itemId, quantity: result.quantity });
+      }
+      this.emitNarrative(`Gained ${result.quantity}× ${itemName}.`, 'loot');
+    }
   }
 
   private handleLook(): void {

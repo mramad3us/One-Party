@@ -187,10 +187,17 @@ export class AsciiTileset implements Tileset {
       fg = dimColor(fg, dim);
     }
 
+    // Open doors use '/' glyph instead of '+'
+    let glyph = g.ch;
+    if (feature === 'door' || feature === 'door_locked') {
+      const cell = rc.grid.getCell(rc.gx, rc.gy);
+      if (cell && cell.movementCost < Infinity) glyph = '/';
+    }
+
     ctx.fillStyle = bg;
     ctx.fillRect(px, py, cw, ch);
     ctx.fillStyle = fg;
-    ctx.fillText(g.ch, px + cw / 2, py + ch / 2);
+    ctx.fillText(glyph, px + cw / 2, py + ch / 2);
   }
 
   renderEntity(

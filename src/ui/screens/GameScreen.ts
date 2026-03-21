@@ -16,6 +16,7 @@ import { Grid } from '@/grid/Grid';
 import { FogOfWar } from '@/grid/FogOfWar';
 import { TimeNarrator } from '@/narrative/TimeNarrator';
 import { SurvivalRules } from '@/rules/SurvivalRules';
+import { SunArc } from '@/ui/widgets/SunArc';
 import { el } from '@/utils/dom';
 
 export interface GameScreenState {
@@ -51,6 +52,7 @@ export class GameScreen extends Component {
   private hintsVisible = false;
 
   // Status bar elements
+  private sunArc!: SunArc;
   private timeEl!: HTMLElement;
   private lightEl!: HTMLElement;
   private survivalStatusEl!: HTMLElement;
@@ -69,8 +71,11 @@ export class GameScreen extends Component {
     // ── Status Bar (compact, roleplay-driven) ──
     const statusBar = el('div', { class: 'game-statusbar' });
 
-    // Left group: time & light
+    // Left group: sun arc + time & light
     const statusLeft = el('div', { class: 'game-statusbar-group' });
+    const sunArcWrap = el('div', { class: 'game-statusbar-sun-arc' });
+    this.sunArc = new SunArc(sunArcWrap, this.engine, 'compact');
+    statusLeft.appendChild(sunArcWrap);
     this.timeEl = el('span', { class: 'game-statusbar-time font-mono' }, ['Dawn, Day 1']);
     this.lightEl = el('span', { class: 'game-statusbar-light font-mono' }, ['Pale dawn light']);
     statusLeft.appendChild(this.timeEl);
@@ -161,6 +166,7 @@ export class GameScreen extends Component {
   }
 
   protected setupEvents(): void {
+    this.addChild(this.sunArc);
     this.addChild(this.statusPanel);
     this.addChild(this.partyPanel);
     this.addChild(this.narrativePanel);
@@ -227,6 +233,12 @@ export class GameScreen extends Component {
   updateTime(time: GameTime): void {
     this.timeEl.textContent = TimeNarrator.shortTime(time);
     this.lightEl.textContent = TimeNarrator.getLightDescription(time);
+    this.sunArc.updateTime(time);
+  }
+
+  /** Get the sun arc widget (for time-spending activity overlays). */
+  getSunArc(): SunArc {
+    return this.sunArc;
   }
 
   /** Set the location name in the status bar. */
@@ -361,6 +373,11 @@ export class GameScreen extends Component {
   /** Set edge-visibility checker for travel gating */
   setEdgeChecker(fn: (dx: number, dy: number) => boolean): void {
     this.mapPanel.setEdgeChecker(fn);
+  }
+
+  /** Set supply checker for journey planning */
+  setSupplyChecker(fn: (tiles: number) => { sufficient: boolean; maxTiles: number; limitingFactor: string | null }): void {
+    this.mapPanel.setSupplyChecker(fn);
   }
 
   /** Update the player's overworld tile position on the map. */
