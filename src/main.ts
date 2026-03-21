@@ -46,6 +46,7 @@ import { el } from '@/utils/dom';
 import type { SaveMeta, EquipmentSlots } from '@/types';
 import { EquipmentRules } from '@/rules/EquipmentRules';
 import { RestRules } from '@/rules/RestRules';
+import { processWorldDecay, markLocationVisited } from '@/world/WorldDecay';
 
 // ── Delta-storage helpers for local maps ────────────────────────
 // Instead of saving the full 2500-cell grid, we regenerate the base
@@ -466,6 +467,9 @@ async function main(): Promise<void> {
       // Store with empty modifications (delta format)
       location.localMap = { playerStart, exploredCells: [], modifications: [] };
     }
+
+    // Mark as visited and run world decay
+    markLocationVisited(location, state.world.time);
 
     const grid = new Grid(gridDef);
 
@@ -1079,6 +1083,13 @@ async function main(): Promise<void> {
       gridDef = base.grid;
       playerStart = base.playerStart;
       dest.localMap = { playerStart, exploredCells: [], modifications: [] };
+    }
+
+    // Mark destination as visited and run world decay on travel
+    markLocationVisited(dest, activeGameState.world.time);
+    const decay = processWorldDecay(activeGameState.world, activeGameState.world.time);
+    if (decay.reset.length > 0 || decay.trimmed.length > 0) {
+      console.log(`[World Decay] Reset: ${decay.reset.length}, Trimmed: ${decay.trimmed.length}, ~${Math.round(decay.estimatedBytesSaved / 1024)} KB freed`);
     }
 
     const grid = new Grid(gridDef);
