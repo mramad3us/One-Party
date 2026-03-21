@@ -222,11 +222,11 @@
 /* Stagger animation on mount */
 .menu-actions .btn {
   opacity: 0;
-  transform: translateY(30px);
+  transform: translateY(16px);
 }
 
 .menu-screen.mounted .menu-actions .btn {
-  animation: slideInUp var(--duration-slow) var(--ease-heavy) both;
+  animation: slideInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .menu-screen.mounted .menu-actions .btn:nth-child(1) { animation-delay: 300ms; }
@@ -262,8 +262,8 @@
 
 .menu-screen.mounted .menu-title {
   animation:
-    bounceIn 1s var(--ease-spring) both,
-    textGlow 4s ease-in-out 1.5s infinite;
+    bounceIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) both,
+    textGlow 4s ease-in-out 1.2s infinite;
 }
 
 /* ── Footer ── */

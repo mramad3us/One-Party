@@ -127,6 +127,22 @@ const JOURNEY_NARRATIVES: Record<string, string[]> = {
   ],
 };
 
+const TRAVEL_FOOD_NARRATIVES: string[] = [
+  'The party pauses briefly to share some {item}, eating in silence as they scan the horizon.',
+  'A quick rest — hands dig into packs for {item}. Not a feast, but enough to keep legs moving.',
+  'The march halts for a few minutes. {item} is passed around, eaten standing, packs still shouldered.',
+  'Hunger gnaws, and the party relents. They break out {item}, chewing as they walk.',
+  'Without a word, someone produces {item} from their pack. The party eats gratefully, never breaking stride.',
+];
+
+const TRAVEL_DRINK_NARRATIVES: string[] = [
+  'Parched throats demand attention. The party passes around the {item}, each taking a careful sip.',
+  'A halt is called — the {item} comes out, its contents rationed with practiced restraint.',
+  'Dry lips and dusty tongues. Someone uncorks the {item} and the party drinks, one at a time.',
+  'The {item} changes hands down the line. Water has never tasted so sweet.',
+  'Thirst wins out. The party stops to drink from their {item}, wiping mouths on dusty sleeves.',
+];
+
 const WEATHER_FLAVOR: string[] = [
   'Storm clouds gather on the horizon, bruise-dark and swollen with rain. The wind picks up, carrying the electric scent of lightning.',
   'A light drizzle begins to fall, turning the trail to mud and misting the distance. The party pulls cloaks tighter and presses on.',
@@ -134,6 +150,48 @@ const WEATHER_FLAVOR: string[] = [
   'A cold fog rolls in, reducing visibility to a few dozen yards. Sounds are muffled and distorted, every shadow a potential threat.',
   'The sun breaks through the clouds in dramatic shafts of gold, painting the landscape in sudden warmth. For a moment, the journey feels almost pleasant.',
 ];
+
+// Inline SVG icons for survival actions — ink-sketch style
+const FORAGE_ICONS: Record<string, string> = {
+  forage: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M16 28V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M16 14C16 14 12 10 10 6C9 3.5 11 1.5 13 3C14.5 4 16 7 16 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="rgba(76,120,56,0.3)"/>
+    <path d="M16 14C16 14 20 10 22 6C23 3.5 21 1.5 19 3C17.5 4 16 7 16 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="rgba(76,120,56,0.3)"/>
+    <path d="M16 18C16 18 11 15 7 14C4.5 13.3 3.5 15.5 5 17C6.2 18.2 10 19 16 18Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="rgba(76,120,56,0.25)"/>
+    <path d="M16 18C16 18 21 15 25 14C27.5 13.3 28.5 15.5 27 17C25.8 18.2 22 19 16 18Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="rgba(76,120,56,0.25)"/>
+    <circle cx="16" cy="5" r="1.2" fill="rgba(180,60,60,0.6)" stroke="currentColor" stroke-width="0.6"/>
+    <circle cx="12" cy="8" r="0.9" fill="rgba(180,60,60,0.5)" stroke="currentColor" stroke-width="0.5"/>
+    <circle cx="20" cy="8" r="0.9" fill="rgba(180,60,60,0.5)" stroke="currentColor" stroke-width="0.5"/>
+  </svg>`,
+  hunt: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 4L6 28" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M6 4C6 4 18 7 18 16C18 25 6 28 6 28" stroke="currentColor" stroke-width="1.2" fill="rgba(140,100,50,0.2)"/>
+    <path d="M6 16H18" stroke="currentColor" stroke-width="0.8" stroke-dasharray="2 2" opacity="0.4"/>
+    <path d="M20 16L30 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M27 13L30 16L27 19" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M21 14.5L20 16L21 17.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" fill="none"/>
+  </svg>`,
+  fish: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 2L8 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M8 2C8 2 10 3 12 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M8 18L10 22L8 28" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+    <circle cx="9" cy="28" r="1.5" stroke="currentColor" stroke-width="1" fill="none"/>
+    <path d="M8 10Q14 8 18 12Q22 16 20 20Q16 24 18 28" stroke="currentColor" stroke-width="0.8" stroke-dasharray="3 2" opacity="0.35" fill="none"/>
+    <ellipse cx="22" cy="22" rx="5" ry="3" stroke="currentColor" stroke-width="1.2" fill="rgba(80,120,160,0.2)" transform="rotate(-15 22 22)"/>
+    <path d="M27 22L30 19.5L30 24.5Z" stroke="currentColor" stroke-width="1" fill="rgba(80,120,160,0.15)"/>
+    <circle cx="20" cy="21" r="0.7" fill="currentColor" opacity="0.6"/>
+  </svg>`,
+  set_trap: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 8L24 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M8 8L4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M24 8L28 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M10 8C10 8 10 18 16 22C22 18 22 8 22 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-dasharray="3 2"/>
+    <path d="M16 22V28" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="16" cy="28" r="2" stroke="currentColor" stroke-width="1.2" fill="rgba(140,100,50,0.2)"/>
+    <path d="M12 12Q16 16 20 12" stroke="currentColor" stroke-width="0.8" opacity="0.4" fill="none"/>
+    <line x1="16" y1="6" x2="16" y2="10" stroke="currentColor" stroke-width="0.7" opacity="0.3"/>
+  </svg>`,
+};
 
 function pickJourneyNarrative(terrain: OverworldTerrain, time: { totalRounds: number }, rng: () => number): string {
   const pool = JOURNEY_NARRATIVES[terrain] ?? JOURNEY_NARRATIVES['plains'];
@@ -1355,28 +1413,55 @@ async function main(): Promise<void> {
     const { options } = event.data as { options: ForageOption[] };
 
     const list = el('div', { class: 'forage-menu' });
-    for (const opt of options) {
-      const skillName = opt.action === 'set_trap' ? '' : ` (${ForageRules.getSkillForAction(opt.action) === 'nature' ? 'Nature' : 'Survival'})`;
-      const btn = el('button', { class: 'btn btn-ghost forage-option' }, [
-        el('div', { class: 'forage-option-label font-heading' }, [opt.label]),
-        el('div', { class: 'forage-option-desc font-mono' }, [`${opt.description}${skillName}`]),
-      ]);
-      btn.style.display = 'block';
-      btn.style.width = '100%';
-      btn.style.textAlign = 'left';
-      btn.style.marginBottom = '8px';
-      btn.addEventListener('click', () => {
+
+    for (let idx = 0; idx < options.length; idx++) {
+      const opt = options[idx];
+      const skill = opt.action === 'set_trap' ? null : ForageRules.getSkillForAction(opt.action);
+      const skillLabel = skill === 'nature' ? 'Nature' : skill === 'survival' ? 'Survival' : null;
+
+      // Card wrapper
+      const card = el('button', { class: `forage-card forage-card--${opt.action}` });
+      card.style.animationDelay = `${idx * 80}ms`;
+
+      // SVG icon
+      const iconWrap = el('div', { class: 'forage-card-icon' });
+      iconWrap.innerHTML = FORAGE_ICONS[opt.action] ?? FORAGE_ICONS['forage'];
+      card.appendChild(iconWrap);
+
+      // Text content
+      const textBlock = el('div', { class: 'forage-card-text' });
+      const titleRow = el('div', { class: 'forage-card-title-row' });
+      titleRow.appendChild(el('span', { class: 'forage-card-name font-heading' }, [opt.label]));
+      if (skillLabel) {
+        const badge = el('span', {
+          class: `forage-card-badge forage-card-badge--${skill}`,
+        }, [skillLabel]);
+        titleRow.appendChild(badge);
+      }
+      textBlock.appendChild(titleRow);
+
+      // Clean description — remove duplicate skill name since we show badge
+      const cleanDesc = opt.description.replace(/\s*\((?:Nature|Survival)\)\s*$/i, '');
+      textBlock.appendChild(el('div', { class: 'forage-card-desc' }, [cleanDesc]));
+
+      card.appendChild(textBlock);
+
+      // Hover arrow
+      const arrow = el('div', { class: 'forage-card-arrow' }, ['\u203A']);
+      card.appendChild(arrow);
+
+      card.addEventListener('click', () => {
         modal.close();
         explorationController.executeForageAction(opt);
       });
-      list.appendChild(btn);
+      list.appendChild(card);
     }
 
     const modal = new Modal(document.body, engine, {
       title: 'Survival Actions',
       content: list,
       closable: true,
-      width: '400px',
+      width: '460px',
     });
     modal.mount();
   });
@@ -1634,10 +1719,16 @@ async function main(): Promise<void> {
         activeGameScreen.addNarrative({ text: transition, category: 'description' });
       }
 
-      // Update map animation
+      // Update map animation + sun arc
       activeGameScreen.setOverworldPositionAnimated(x, y);
       activeGameScreen.setTravelPath(path, i + 1);
       activeGameScreen.updateTime(activeGameState.world.time);
+
+      // Animate the sun arc smoothly during travel
+      const sunArc = activeGameScreen.getSunArc();
+      if (sunArc) {
+        sunArc.animateToTime(activeGameState.world.time, 1500);
+      }
 
       // Animation delay — 2 seconds per tile for immersive pacing
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1743,15 +1834,18 @@ async function main(): Promise<void> {
 
         const hungerBefore = character.survival.hunger;
         if (item.maxCharges != null) {
-          const charges = entry.charges ?? 0;
+          const charges = entry.charges ?? item.charges ?? 0;
           if (charges <= 0) continue;
           entry.charges = charges - 1;
         } else {
           entry.quantity--;
         }
         SurvivalRules.consume(character.survival, props);
+        // Rich journey log for food consumption
+        const foodNarrative = TRAVEL_FOOD_NARRATIVES[Math.floor(Math.random() * TRAVEL_FOOD_NARRATIVES.length)]
+          .replace('{item}', item.name.toLowerCase());
         activeGameScreen.addNarrative(
-          SurvivalNarrator.describeEating(hungerBefore, character.survival.hunger, `The party shares some ${item.name.toLowerCase()} on the road.`),
+          SurvivalNarrator.describeEating(hungerBefore, character.survival.hunger, foodNarrative),
         );
         // Remove depleted stacks
         if (item.maxCharges == null && entry.quantity <= 0) {
@@ -1775,15 +1869,18 @@ async function main(): Promise<void> {
 
         const thirstBefore = character.survival.thirst;
         if (item.maxCharges != null) {
-          const charges = entry.charges ?? 0;
+          const charges = entry.charges ?? item.charges ?? 0;
           if (charges <= 0) continue;
           entry.charges = charges - 1;
         } else {
           entry.quantity--;
         }
         SurvivalRules.consume(character.survival, props);
+        // Rich journey log for drink consumption
+        const drinkNarrative = TRAVEL_DRINK_NARRATIVES[Math.floor(Math.random() * TRAVEL_DRINK_NARRATIVES.length)]
+          .replace('{item}', item.name.toLowerCase());
         activeGameScreen.addNarrative(
-          SurvivalNarrator.describeDrinking(thirstBefore, character.survival.thirst, `The party pauses to drink from their ${item.name.toLowerCase()}.`),
+          SurvivalNarrator.describeDrinking(thirstBefore, character.survival.thirst, drinkNarrative),
         );
         if (item.maxCharges == null && entry.quantity <= 0) {
           inventory.items.splice(i, 1);

@@ -39,7 +39,7 @@ export class AnimationSystem {
         ],
         {
           duration,
-          easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
           fill: 'forwards',
         },
       );
@@ -104,25 +104,26 @@ export class AnimationSystem {
     incoming: HTMLElement,
     direction: 'left' | 'right' | 'up' | 'down' = 'left',
   ): Promise<void> {
-    const duration = 500;
-    const easing = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+    const duration = 450;
+    // Smooth deceleration — no overshoot, no "banging"
+    const easing = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
     const translations: Record<string, { out: string; in: string }> = {
       left: {
-        out: 'translateX(-100%)',
-        in: 'translateX(100%)',
+        out: 'translateX(-40%)',
+        in: 'translateX(40%)',
       },
       right: {
-        out: 'translateX(100%)',
-        in: 'translateX(-100%)',
+        out: 'translateX(40%)',
+        in: 'translateX(-40%)',
       },
       up: {
-        out: 'translateY(-100%)',
-        in: 'translateY(100%)',
+        out: 'translateY(-40%)',
+        in: 'translateY(40%)',
       },
       down: {
-        out: 'translateY(100%)',
-        in: 'translateY(-100%)',
+        out: 'translateY(40%)',
+        in: 'translateY(-40%)',
       },
     };
 
@@ -198,7 +199,7 @@ export class AnimationSystem {
       ],
       {
         duration: 300,
-        easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
         fill: 'forwards',
       },
     );

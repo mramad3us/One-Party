@@ -10,15 +10,16 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /**
  * An astrolabe-inspired SVG widget tracking the sun/moon across a semicircular arc.
- * The arc color shifts with time of day: warm amber at dawn/dusk, pale at noon, indigo at night.
+ * Sun: medieval manuscript style — golden disc with radiating triangular rays.
+ * Moon: crescent moon silhouette with inner detail, silver with ethereal glow.
  *
  * Compact: 48×24 px (status bar).  Large: 140×70 px (activity overlays).
  */
 export class SunArc extends Component {
-  private sunCircle!: SVGCircleElement;
-  private moonCircle!: SVGCircleElement;
+  private sunGroup!: SVGGElement;
+  private moonGroup!: SVGGElement;
+  private sunGlowGroup!: SVGGElement;
   private skyGradient!: SVGLinearGradientElement;
-  private sunGlow!: SVGCircleElement;
 
   private readonly size: SunArcSize;
   private currentHour = 6;
@@ -47,6 +48,166 @@ export class SunArc extends Component {
     }
   }
 
+  /** Build a medieval manuscript-style sun with radiating triangular rays. */
+  private buildSunSVG(defs: SVGDefsElement): { group: SVGGElement; glowGroup: SVGGElement } {
+    const isLarge = this.size === 'large';
+    const coreR = this.sunR;
+    const rayLen = isLarge ? coreR * 1.8 : coreR * 1.6;
+    const rayCount = isLarge ? 12 : 8;
+    const rayBaseW = isLarge ? 1.8 : 1.0;
+
+    // ── Radial gradient for the sun disc: hot center → warm edge ──
+    const sunFillGrad = document.createElementNS(SVG_NS, 'radialGradient');
+    sunFillGrad.id = `sun-fill-${this.size}`;
+    const sg1 = document.createElementNS(SVG_NS, 'stop');
+    sg1.setAttribute('offset', '0%');
+    sg1.setAttribute('stop-color', '#fff4c0');
+    const sg2 = document.createElementNS(SVG_NS, 'stop');
+    sg2.setAttribute('offset', '45%');
+    sg2.setAttribute('stop-color', '#e8c840');
+    const sg3 = document.createElementNS(SVG_NS, 'stop');
+    sg3.setAttribute('offset', '100%');
+    sg3.setAttribute('stop-color', '#c4a24a');
+    sunFillGrad.appendChild(sg1);
+    sunFillGrad.appendChild(sg2);
+    sunFillGrad.appendChild(sg3);
+    defs.appendChild(sunFillGrad);
+
+    // ── Glow group (soft halo behind the sun) ──
+    const glowGroup = document.createElementNS(SVG_NS, 'g');
+    glowGroup.classList.add('sun-arc-sun-glow');
+    glowGroup.setAttribute('filter', `url(#sun-glow-${this.size})`);
+
+    const glowCircle = document.createElementNS(SVG_NS, 'circle');
+    glowCircle.setAttribute('cx', '0');
+    glowCircle.setAttribute('cy', '0');
+    glowCircle.setAttribute('r', String(coreR * 3));
+    glowCircle.setAttribute('fill', 'rgba(232, 200, 64, 0.15)');
+    glowGroup.appendChild(glowCircle);
+
+    // ── Main sun group ──
+    const group = document.createElementNS(SVG_NS, 'g');
+    group.classList.add('sun-arc-sun');
+
+    // Alternating long and short rays — manuscript style
+    for (let i = 0; i < rayCount; i++) {
+      const angle = (i / rayCount) * Math.PI * 2;
+      const isLongRay = i % 2 === 0;
+      const thisRayLen = isLongRay ? rayLen : rayLen * 0.6;
+      const thisRayW = isLongRay ? rayBaseW : rayBaseW * 0.7;
+
+      // Triangular spike: tip at (0, -coreR - rayLen), base at ±halfW on the core radius
+      const tipX = Math.cos(angle - Math.PI / 2) * (coreR + thisRayLen);
+      const tipY = Math.sin(angle - Math.PI / 2) * (coreR + thisRayLen);
+      const baseL_angle = angle - Math.PI / 2 - thisRayW / coreR;
+      const baseR_angle = angle - Math.PI / 2 + thisRayW / coreR;
+      const blx = Math.cos(baseL_angle) * (coreR * 0.85);
+      const bly = Math.sin(baseL_angle) * (coreR * 0.85);
+      const brx = Math.cos(baseR_angle) * (coreR * 0.85);
+      const bry = Math.sin(baseR_angle) * (coreR * 0.85);
+
+      const ray = document.createElementNS(SVG_NS, 'polygon');
+      ray.setAttribute('points', `${blx},${bly} ${tipX},${tipY} ${brx},${bry}`);
+      ray.setAttribute('fill', isLongRay ? '#c4a24a' : '#d4b45a');
+      ray.setAttribute('opacity', isLongRay ? '0.9' : '0.65');
+      group.appendChild(ray);
+    }
+
+    // Core circle with gradient fill
+    const core = document.createElementNS(SVG_NS, 'circle');
+    core.setAttribute('cx', '0');
+    core.setAttribute('cy', '0');
+    core.setAttribute('r', String(coreR));
+    core.setAttribute('fill', `url(#sun-fill-${this.size})`);
+    core.setAttribute('stroke', '#c4a24a');
+    core.setAttribute('stroke-width', isLarge ? '0.5' : '0.3');
+    group.appendChild(core);
+
+    // Inner detail circle — hot white center
+    const innerRing = document.createElementNS(SVG_NS, 'circle');
+    innerRing.setAttribute('cx', '0');
+    innerRing.setAttribute('cy', '0');
+    innerRing.setAttribute('r', String(coreR * 0.45));
+    innerRing.setAttribute('fill', 'none');
+    innerRing.setAttribute('stroke', 'rgba(255, 244, 192, 0.5)');
+    innerRing.setAttribute('stroke-width', isLarge ? '0.4' : '0.2');
+    group.appendChild(innerRing);
+
+    return { group, glowGroup };
+  }
+
+  /** Build a crescent moon — two overlapping arcs creating a sickle shape. */
+  private buildMoonSVG(defs: SVGDefsElement): SVGGElement {
+    const isLarge = this.size === 'large';
+    const mr = this.moonR;
+
+    // ── Moon gradient: silver edge to dark interior ──
+    const moonFillGrad = document.createElementNS(SVG_NS, 'radialGradient');
+    moonFillGrad.id = `moon-fill-${this.size}`;
+    moonFillGrad.setAttribute('cx', '0.35');
+    moonFillGrad.setAttribute('cy', '0.4');
+    const mg1 = document.createElementNS(SVG_NS, 'stop');
+    mg1.setAttribute('offset', '0%');
+    mg1.setAttribute('stop-color', '#e8eef8');
+    const mg2 = document.createElementNS(SVG_NS, 'stop');
+    mg2.setAttribute('offset', '60%');
+    mg2.setAttribute('stop-color', '#b8c4d8');
+    const mg3 = document.createElementNS(SVG_NS, 'stop');
+    mg3.setAttribute('offset', '100%');
+    mg3.setAttribute('stop-color', '#8a96b0');
+    moonFillGrad.appendChild(mg1);
+    moonFillGrad.appendChild(mg2);
+    moonFillGrad.appendChild(mg3);
+    defs.appendChild(moonFillGrad);
+
+    const group = document.createElementNS(SVG_NS, 'g');
+    group.classList.add('sun-arc-moon');
+    group.setAttribute('filter', `url(#moon-glow-${this.size})`);
+
+    // Crescent: outer arc (full circle) minus inner arc (shifted circle cutout)
+    // Using two arcs to form the crescent path
+    const outerR = mr;
+    const innerR = mr * 0.78;
+    const shiftX = mr * 0.45; // How far right the cutout circle is shifted
+
+    // Build crescent path: outer arc from top to bottom (left side) then inner arc back
+    // The crescent opens to the right (waxing crescent)
+    const path = document.createElementNS(SVG_NS, 'path');
+
+    // Outer circle arc (counterclockwise, left side visible)
+    // Start at top of outer circle, sweep left and down to bottom
+    const d = [
+      `M ${shiftX * 0.5} ${-outerR}`, // top
+      `A ${outerR} ${outerR} 0 1 0 ${shiftX * 0.5} ${outerR}`, // big arc left side
+      `A ${innerR} ${innerR} 0 1 1 ${shiftX * 0.5} ${-outerR}`, // inner arc back (cuts out right side)
+    ].join(' ');
+
+    path.setAttribute('d', d);
+    path.setAttribute('fill', `url(#moon-fill-${this.size})`);
+    path.setAttribute('stroke', 'rgba(184, 196, 216, 0.4)');
+    path.setAttribute('stroke-width', isLarge ? '0.4' : '0.25');
+    group.appendChild(path);
+
+    // Subtle crater dots for texture (large size only)
+    if (isLarge) {
+      const craters = [
+        { x: -mr * 0.25, y: -mr * 0.15, r: mr * 0.08 },
+        { x: -mr * 0.1, y: mr * 0.3, r: mr * 0.06 },
+        { x: -mr * 0.4, y: mr * 0.05, r: mr * 0.05 },
+      ];
+      for (const c of craters) {
+        const crater = document.createElementNS(SVG_NS, 'circle');
+        crater.setAttribute('cx', String(c.x));
+        crater.setAttribute('cy', String(c.y));
+        crater.setAttribute('r', String(c.r));
+        crater.setAttribute('fill', 'rgba(100, 110, 140, 0.3)');
+        group.appendChild(crater);
+      }
+    }
+
+    return group;
+  }
+
   protected createElement(): HTMLElement {
     const wrapper = document.createElement('div');
     wrapper.className = `sun-arc sun-arc--${this.size}`;
@@ -56,6 +217,7 @@ export class SunArc extends Component {
     svg.setAttribute('width', String(this.w));
     svg.setAttribute('height', String(this.h));
     svg.classList.add('sun-arc-svg');
+
     // ── Defs: gradients & filters ──
     const defs = document.createElementNS(SVG_NS, 'defs');
 
@@ -80,7 +242,7 @@ export class SunArc extends Component {
     sunFilter.appendChild(merge);
     defs.appendChild(sunFilter);
 
-    // Moon glow filter
+    // Moon glow filter — softer, cooler
     const moonFilter = document.createElementNS(SVG_NS, 'filter');
     moonFilter.id = `moon-glow-${this.size}`;
     moonFilter.setAttribute('x', '-100%');
@@ -166,25 +328,16 @@ export class SunArc extends Component {
     }
     svg.appendChild(tickMarksGroup);
 
-    // ── Sun glow (larger, behind sun) ──
-    this.sunGlow = document.createElementNS(SVG_NS, 'circle');
-    this.sunGlow.setAttribute('r', String(this.sunR * 2.5));
-    this.sunGlow.classList.add('sun-arc-sun-glow');
-    this.sunGlow.setAttribute('filter', `url(#sun-glow-${this.size})`);
-    svg.appendChild(this.sunGlow);
+    // ── Sun (manuscript-style with rays) ──
+    const { group: sunGroup, glowGroup: sunGlowGroup } = this.buildSunSVG(defs);
+    this.sunGlowGroup = sunGlowGroup;
+    this.sunGroup = sunGroup;
+    svg.appendChild(sunGlowGroup);
+    svg.appendChild(sunGroup);
 
-    // ── Sun circle ──
-    this.sunCircle = document.createElementNS(SVG_NS, 'circle');
-    this.sunCircle.setAttribute('r', String(this.sunR));
-    this.sunCircle.classList.add('sun-arc-sun');
-    svg.appendChild(this.sunCircle);
-
-    // ── Moon circle ──
-    this.moonCircle = document.createElementNS(SVG_NS, 'circle');
-    this.moonCircle.setAttribute('r', String(this.moonR));
-    this.moonCircle.classList.add('sun-arc-moon');
-    this.moonCircle.setAttribute('filter', `url(#moon-glow-${this.size})`);
-    svg.appendChild(this.moonCircle);
+    // ── Moon (crescent) ──
+    this.moonGroup = this.buildMoonSVG(defs);
+    svg.appendChild(this.moonGroup);
 
     wrapper.appendChild(svg);
     this.positionBodies(6, 0);
@@ -205,15 +358,13 @@ export class SunArc extends Component {
       const sx = this.cx + this.r * Math.cos(angle);
       const sy = this.cy - this.r * Math.sin(angle);
 
-      this.sunCircle.setAttribute('cx', String(sx));
-      this.sunCircle.setAttribute('cy', String(sy));
-      this.sunGlow.setAttribute('cx', String(sx));
-      this.sunGlow.setAttribute('cy', String(sy));
-      this.sunCircle.style.opacity = '1';
-      this.sunGlow.style.opacity = '1';
+      this.sunGroup.setAttribute('transform', `translate(${sx}, ${sy})`);
+      this.sunGlowGroup.setAttribute('transform', `translate(${sx}, ${sy})`);
+      this.sunGroup.style.opacity = '1';
+      this.sunGlowGroup.style.opacity = '1';
 
       // Moon hidden below horizon
-      this.moonCircle.style.opacity = '0';
+      this.moonGroup.style.opacity = '0';
     } else {
       // Moon on a mirrored arc below horizon (subtle)
       // Night spans 18.5 → 5.5 (11 hours)
@@ -227,13 +378,12 @@ export class SunArc extends Component {
       const mx = this.cx + (this.r * 0.6) * Math.cos(moonAngle);
       const my = this.cy - (this.r * 0.6) * Math.sin(moonAngle);
 
-      this.moonCircle.setAttribute('cx', String(mx));
-      this.moonCircle.setAttribute('cy', String(my));
-      this.moonCircle.style.opacity = '1';
+      this.moonGroup.setAttribute('transform', `translate(${mx}, ${my})`);
+      this.moonGroup.style.opacity = '1';
 
       // Sun below horizon
-      this.sunCircle.style.opacity = '0';
-      this.sunGlow.style.opacity = '0';
+      this.sunGroup.style.opacity = '0';
+      this.sunGlowGroup.style.opacity = '0';
     }
 
     // Update sky gradient colors based on time

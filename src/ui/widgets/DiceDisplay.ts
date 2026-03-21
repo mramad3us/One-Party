@@ -1,7 +1,6 @@
 import type { GameEngine } from '@/engine/GameEngine';
 import type { DiceRollResult } from '@/types';
 import { Component } from '@/ui/Component';
-import { AnimationSystem } from '@/ui/AnimationSystem';
 import { IconSystem } from '@/ui/IconSystem';
 import { el } from '@/utils/dom';
 
@@ -99,53 +98,78 @@ export class DiceDisplay extends Component {
     const display = new DiceDisplay(parent, engine, result);
     display.mount();
 
+    // Start with the whole display visible but results hidden
+    display.el.style.opacity = '1';
+
     // Phase 1: Tumble animation on each die
     const diceEls = display.el.querySelectorAll('.dice-display-die');
     diceEls.forEach((die, i) => {
       (die as HTMLElement).classList.add('dice-display-die--tumbling');
-      // Stagger slightly for multi-dice
-      (die as HTMLElement).style.animationDelay = `${i * 80}ms`;
+      (die as HTMLElement).style.animationDelay = `${i * 100}ms`;
     });
 
     // Hide results during tumble
     const rollsRow = display.el.querySelector('.dice-display-rolls') as HTMLElement | null;
     const totalEl = display.el.querySelector('.dice-display-total') as HTMLElement | null;
+    const critLabel = display.el.querySelector('.dice-display-crit-label, .dice-display-fumble-label') as HTMLElement | null;
+    const descEl = display.el.querySelector('.dice-display-desc') as HTMLElement | null;
+    const advEl = display.el.querySelector('.dice-display-adv') as HTMLElement | null;
+
     if (rollsRow) rollsRow.style.opacity = '0';
     if (totalEl) totalEl.style.opacity = '0';
+    if (critLabel) critLabel.style.opacity = '0';
+    if (descEl) descEl.style.opacity = '0';
+    if (advEl) advEl.style.opacity = '0';
 
-    await new Promise<void>((r) => setTimeout(r, 800));
+    // Wait for tumble to finish
+    await new Promise<void>((r) => setTimeout(r, 1000));
 
-    // Phase 2: Stop tumbling, reveal result with pop
+    // Phase 2: Stop tumbling, reveal results with staggered fade-in
     diceEls.forEach((die) => {
       (die as HTMLElement).classList.remove('dice-display-die--tumbling');
     });
 
+    // Staggered reveal: rolls → total → labels
     if (rollsRow) {
-      rollsRow.style.transition = 'opacity 0.2s';
+      rollsRow.style.transition = 'opacity 0.3s ease-out';
       rollsRow.style.opacity = '1';
     }
+    await new Promise<void>((r) => setTimeout(r, 150));
+
     if (totalEl) {
-      totalEl.style.transition = 'opacity 0.2s';
+      totalEl.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
       totalEl.style.opacity = '1';
     }
+    await new Promise<void>((r) => setTimeout(r, 100));
 
-    await AnimationSystem.popIn(display.el);
-
-    // Critical/fumble flash
+    // Critical/fumble flash + label
     if (result.isCritical) {
       display.el.classList.add('dice-display--crit-flash');
     } else if (result.isFumble) {
       display.el.classList.add('dice-display--fumble-flash');
     }
 
-    // Hold for a moment
+    if (critLabel) {
+      critLabel.style.transition = 'opacity 0.3s ease-out';
+      critLabel.style.opacity = '1';
+    }
+    if (descEl) {
+      descEl.style.transition = 'opacity 0.3s ease-out';
+      descEl.style.opacity = '1';
+    }
+    if (advEl) {
+      advEl.style.transition = 'opacity 0.3s ease-out';
+      advEl.style.opacity = '1';
+    }
+
+    // Hold for reading
     await new Promise<void>((r) => setTimeout(r, result.isCritical || result.isFumble ? 2000 : 1200));
 
-    // Fade out
+    // Fade out smoothly
     await display.animateEl(display.el, [
-      { opacity: '1', transform: 'scale(1)' },
-      { opacity: '0', transform: 'scale(0.8) translateY(-10px)' },
-    ], { duration: 300 });
+      { opacity: '1', transform: 'translateY(0)' },
+      { opacity: '0', transform: 'translateY(-12px)' },
+    ], { duration: 350 });
 
     display.destroy();
     display.el.remove();

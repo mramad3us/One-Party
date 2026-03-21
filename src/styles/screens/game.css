@@ -333,10 +333,10 @@
     radial-gradient(ellipse at 50% 30%, rgba(196, 162, 74, 0.03) 0%, transparent 60%),
     var(--bg-panel);
   border: 1px solid var(--border-gold);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
-  width: 90vw;
-  height: 90vh;
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  width: 98vw;
+  height: 97vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -348,9 +348,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-md);
+  margin-bottom: var(--space-xs);
   border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: var(--space-sm);
+  padding-bottom: var(--space-xs);
 }
 
 .game-map-overlay-title {
@@ -367,13 +367,14 @@
 .game-map-overlay-content {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .game-map-overlay-content .map-panel {
   height: 100%;
   display: flex;
   flex-direction: column;
+  padding: 0;
 }
 
 .game-map-overlay-hint {
@@ -661,19 +662,179 @@
 }
 
 .sun-arc-sun {
-  fill: #e8c840;
-  transition: cx 0.5s ease-out, cy 0.5s ease-out, opacity 0.4s;
+  transition: transform 0.5s ease-out, opacity 0.4s;
 }
 
 .sun-arc-sun-glow {
-  fill: rgba(232, 200, 64, 0.2);
-  transition: cx 0.5s ease-out, cy 0.5s ease-out, opacity 0.4s;
+  transition: transform 0.5s ease-out, opacity 0.4s;
 }
 
 .sun-arc-moon {
-  fill: #c0c8d8;
-  transition: cx 0.5s ease-out, cy 0.5s ease-out, opacity 0.4s;
+  transition: transform 0.5s ease-out, opacity 0.4s;
 }
+
+/* ── Survival Actions / Forage Menu ── */
+.forage-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.forage-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 14px;
+  background:
+    linear-gradient(135deg, rgba(40, 35, 25, 0.9) 0%, rgba(30, 26, 18, 0.95) 100%);
+  border: 1px solid rgba(212, 170, 60, 0.12);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-secondary);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  animation: forageCardSlideIn 0.35s var(--ease-out-back) both;
+  font-family: inherit;
+}
+
+@keyframes forageCardSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.forage-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(196, 162, 74, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.forage-card:hover {
+  border-color: rgba(212, 170, 60, 0.35);
+  background:
+    linear-gradient(135deg, rgba(50, 42, 28, 0.95) 0%, rgba(35, 30, 20, 1) 100%);
+  transform: translateX(3px);
+}
+
+.forage-card:hover::before {
+  opacity: 1;
+}
+
+.forage-card:active {
+  transform: translateX(3px) scale(0.985);
+}
+
+/* Icon */
+.forage-card-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: rgba(196, 162, 74, 0.06);
+  border: 1px solid rgba(196, 162, 74, 0.1);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.forage-card-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.forage-card:hover .forage-card-icon {
+  background: rgba(196, 162, 74, 0.12);
+  border-color: rgba(196, 162, 74, 0.2);
+}
+
+/* Text */
+.forage-card-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.forage-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.forage-card-name {
+  font-size: var(--text-base);
+  color: var(--gold-light);
+  letter-spacing: 0.04em;
+}
+
+.forage-card-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  line-height: 1.6;
+}
+
+.forage-card-badge--nature {
+  color: #8abd6a;
+  background: rgba(100, 160, 60, 0.12);
+  border: 1px solid rgba(100, 160, 60, 0.25);
+}
+
+.forage-card-badge--survival {
+  color: #d4935a;
+  background: rgba(180, 120, 50, 0.12);
+  border: 1px solid rgba(180, 120, 50, 0.25);
+}
+
+.forage-card-desc {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* Hover arrow */
+.forage-card-arrow {
+  flex-shrink: 0;
+  font-size: 22px;
+  color: var(--gold-dim);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.forage-card:hover .forage-card-arrow {
+  opacity: 0.7;
+  transform: translateX(0);
+}
+
+/* Action-specific accent borders on hover */
+.forage-card--forage:hover { border-color: rgba(100, 160, 60, 0.3); }
+.forage-card--hunt:hover { border-color: rgba(180, 120, 50, 0.3); }
+.forage-card--fish:hover { border-color: rgba(80, 140, 180, 0.3); }
+.forage-card--set_trap:hover { border-color: rgba(160, 130, 70, 0.3); }
+
+.forage-card--forage:hover .forage-card-icon { color: #8abd6a; }
+.forage-card--hunt:hover .forage-card-icon { color: #d4935a; }
+.forage-card--fish:hover .forage-card-icon { color: #6aabcc; }
+.forage-card--set_trap:hover .forage-card-icon { color: #c4a24a; }
 
 /* ── Time Activity Overlay ── */
 .time-activity-overlay {

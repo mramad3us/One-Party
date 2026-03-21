@@ -138,20 +138,20 @@ export class Modal extends Component {
           width: 90%;
           max-height: 80vh;
           overflow-y: auto;
-          transform: scale(0.8);
+          transform: scale(0.92) translateY(12px);
           opacity: 0;
-          transition: transform var(--duration-slow) var(--ease-out-back),
-                      opacity var(--duration-normal) var(--ease-smooth);
+          transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                      opacity 0.25s ease-out;
         }
         .modal-backdrop.mounted .modal-dialog {
-          transform: scale(1);
+          transform: scale(1) translateY(0);
           opacity: 1;
         }
         .modal-backdrop.exiting {
           background: rgba(0, 0, 0, 0) !important;
         }
         .modal-backdrop.exiting .modal-dialog {
-          transform: scale(0.8) !important;
+          transform: scale(0.95) translateY(8px) !important;
           opacity: 0 !important;
         }
         .modal-header {

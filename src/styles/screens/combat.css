@@ -218,7 +218,7 @@
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(8px);
-  animation: slideInRight var(--duration-normal) var(--ease-heavy) both;
+  animation: slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .combat-toast--success {

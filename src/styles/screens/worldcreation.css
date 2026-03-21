@@ -68,6 +68,7 @@
   flex-direction: column;
   gap: 1.5rem;
   padding: 2rem;
+  animation: fadeIn 0.5s ease-out both;
 }
 
 /* ── Header ── */

@@ -113,15 +113,15 @@
 }
 
 .creation-step-panel.active {
-  animation: slideInRight var(--duration-slow) var(--ease-heavy) both;
+  animation: slideInRight 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .creation-step-panel.exit-left {
-  animation: slideOutLeft var(--duration-normal) var(--ease-smooth) both;
+  animation: slideOutLeft 0.3s ease-out both;
 }
 
 .creation-step-panel.exit-right {
-  animation: slideOutRight var(--duration-normal) var(--ease-smooth) both;
+  animation: slideOutRight 0.3s ease-out both;
 }
 
 /* ── Step Title ── */
@@ -538,13 +538,13 @@
 }
 
 .creation-screen.mounted .creation-header {
-  animation: slideInDown var(--duration-slow) var(--ease-heavy) both;
+  animation: slideInDown 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .creation-screen.mounted .creation-steps {
-  animation: fadeIn var(--duration-slow) var(--ease-smooth) 200ms both;
+  animation: fadeIn 0.4s ease-out 150ms both;
 }
 
 .creation-screen.mounted .creation-nav {
-  animation: slideInUp var(--duration-slow) var(--ease-heavy) 300ms both;
+  animation: slideInUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
 }
