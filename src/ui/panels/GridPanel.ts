@@ -5,6 +5,7 @@ import { Grid } from '@/grid/Grid';
 import { FogOfWar } from '@/grid/FogOfWar';
 import { GridRenderer, type EntityRenderInfo } from '@/grid/GridRenderer';
 import { GridInteraction, type InteractionMode, type GridAction } from '@/grid/GridInteraction';
+import type { Tileset } from '@/grid/Tileset';
 import { el } from '@/utils/dom';
 
 /**
@@ -20,6 +21,7 @@ export class GridPanel extends Component {
   private renderLoop: number | null = null;
   private entityPlacements: Map<EntityId, GridEntityPlacement> = new Map();
   private entityInfoFn: ((id: EntityId) => EntityRenderInfo | undefined) | null = null;
+  private activeTileset: Tileset | undefined;
 
   /** External handler for grid actions (selection, movement, targeting). */
   onGridAction: ((action: GridAction) => void) | null = null;
@@ -41,7 +43,7 @@ export class GridPanel extends Component {
     this.grid = grid;
     this.fog = fog;
 
-    this.renderer = new GridRenderer(this.containerEl);
+    this.renderer = new GridRenderer(this.containerEl, this.activeTileset);
     this.interaction = new GridInteraction(this.renderer, grid, (action) => {
       this.onGridAction?.(action);
     });
@@ -49,6 +51,12 @@ export class GridPanel extends Component {
 
     // Start render loop
     this.startRenderLoop();
+  }
+
+  /** Switch tileset at runtime. */
+  setTileset(tileset: Tileset): void {
+    this.activeTileset = tileset;
+    this.renderer?.setTileset(tileset);
   }
 
   updateEntities(

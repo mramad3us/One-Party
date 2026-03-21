@@ -1,5 +1,6 @@
 /* ============================================================
-   ONE PARTY — Menu Screen
+   ONE PARTY — Menu Screen · Obsidian Sanctum
+   Cinematic dark-fantasy opening — the forge, the flame.
    ============================================================ */
 
 .menu-screen {
@@ -12,15 +13,16 @@
   position: relative;
   overflow: hidden;
 
-  /* Layered dark background with subtle warmth */
+  /* Deep volcanic dark with visible warm hotspots */
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(200, 168, 78, 0.04) 0%, transparent 60%),
-    radial-gradient(ellipse at 20% 80%, rgba(200, 100, 40, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 70%, rgba(200, 168, 78, 0.02) 0%, transparent 50%),
-    linear-gradient(180deg, var(--bg-darkest) 0%, #0f0d0a 50%, var(--bg-darkest) 100%);
+    radial-gradient(ellipse 600px 400px at 50% 30%, rgba(212, 170, 60, 0.07) 0%, transparent 100%),
+    radial-gradient(ellipse 400px 500px at 15% 85%, rgba(160, 80, 20, 0.06) 0%, transparent 100%),
+    radial-gradient(ellipse 400px 500px at 85% 80%, rgba(212, 170, 60, 0.04) 0%, transparent 100%),
+    radial-gradient(circle 800px at 50% 100%, rgba(120, 60, 10, 0.05) 0%, transparent 100%),
+    linear-gradient(180deg, #030201 0%, #0a0806 35%, #080604 70%, #030201 100%);
 }
 
-/* ── Ember Particles (CSS-only) ── */
+/* ── Ember Particles ── */
 .menu-embers {
   position: absolute;
   inset: 0;
@@ -33,102 +35,85 @@
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(200, 168, 78, 0.8) 0%, rgba(200, 120, 40, 0.4) 50%, transparent 100%);
-  box-shadow: 0 0 6px rgba(200, 168, 78, 0.4);
+  background: radial-gradient(circle, #ffc040 0%, rgba(220, 140, 30, 0.6) 40%, transparent 100%);
+  box-shadow: 0 0 10px rgba(255, 180, 40, 0.6),
+              0 0 24px rgba(220, 140, 30, 0.3);
   opacity: 0;
 }
 
 @keyframes emberFloat {
   0% {
     opacity: 0;
-    transform: translateY(0) translateX(0) scale(0.5);
+    transform: translateY(0) translateX(0) scale(0.3);
   }
-  10% {
-    opacity: 0.8;
+  8% {
+    opacity: 1;
   }
-  90% {
-    opacity: 0.4;
+  40% {
+    opacity: 0.7;
+  }
+  85% {
+    opacity: 0.2;
   }
   100% {
     opacity: 0;
-    transform: translateY(-100vh) translateX(30px) scale(0.2);
+    transform: translateY(-100vh) translateX(50px) scale(0.1);
   }
 }
 
 .menu-ember:nth-child(1) {
-  left: 15%;
-  bottom: -10px;
+  left: 12%; bottom: -10px;
   animation: emberFloat 8s ease-out 0s infinite;
 }
-
 .menu-ember:nth-child(2) {
-  left: 35%;
-  bottom: -10px;
-  animation: emberFloat 10s ease-out 1.5s infinite;
-  width: 2px;
-  height: 2px;
+  left: 28%; bottom: -10px;
+  animation: emberFloat 12s ease-out 2s infinite;
+  width: 2px; height: 2px;
 }
-
 .menu-ember:nth-child(3) {
-  left: 55%;
-  bottom: -10px;
-  animation: emberFloat 7s ease-out 3s infinite;
+  left: 50%; bottom: -10px;
+  animation: emberFloat 7s ease-out 3.5s infinite;
+  width: 4px; height: 4px;
+  box-shadow: 0 0 14px rgba(255, 180, 40, 0.7), 0 0 32px rgba(220, 140, 30, 0.3);
 }
-
 .menu-ember:nth-child(4) {
-  left: 75%;
-  bottom: -10px;
-  animation: emberFloat 9s ease-out 0.8s infinite;
-  width: 2px;
-  height: 2px;
+  left: 72%; bottom: -10px;
+  animation: emberFloat 10s ease-out 0.8s infinite;
+  width: 2px; height: 2px;
 }
-
 .menu-ember:nth-child(5) {
-  left: 45%;
-  bottom: -10px;
+  left: 40%; bottom: -10px;
   animation: emberFloat 11s ease-out 2.5s infinite;
-  width: 4px;
-  height: 4px;
+  width: 4px; height: 4px;
+  box-shadow: 0 0 14px rgba(255, 180, 40, 0.7), 0 0 32px rgba(220, 140, 30, 0.3);
 }
-
 .menu-ember:nth-child(6) {
-  left: 25%;
-  bottom: -10px;
-  animation: emberFloat 8.5s ease-out 4s infinite;
-  width: 2px;
-  height: 2px;
+  left: 20%; bottom: -10px;
+  animation: emberFloat 9s ease-out 5s infinite;
+  width: 2px; height: 2px;
 }
-
 .menu-ember:nth-child(7) {
-  left: 65%;
-  bottom: -10px;
-  animation: emberFloat 9.5s ease-out 5.5s infinite;
+  left: 62%; bottom: -10px;
+  animation: emberFloat 10s ease-out 6s infinite;
 }
-
 .menu-ember:nth-child(8) {
-  left: 85%;
-  bottom: -10px;
-  animation: emberFloat 12s ease-out 1s infinite;
-  width: 2px;
-  height: 2px;
+  left: 85%; bottom: -10px;
+  animation: emberFloat 14s ease-out 1.5s infinite;
+  width: 2px; height: 2px;
 }
 
-/* ── Ambient background shift ── */
+/* ── Ambient drift ── */
 @keyframes ambientShift {
   0%, 100% {
-    background-position: 50% 0%, 20% 80%, 80% 70%, 0% 0%;
+    filter: brightness(1);
   }
-  33% {
-    background-position: 45% 5%, 25% 75%, 75% 72%, 0% 0%;
-  }
-  66% {
-    background-position: 55% 3%, 18% 82%, 82% 68%, 0% 0%;
+  50% {
+    filter: brightness(1.04);
   }
 }
 
 .menu-screen {
-  animation: ambientShift 20s ease-in-out infinite;
-  background-size: 100% 100%;
+  animation: ambientShift 12s ease-in-out infinite;
 }
 
 /* ── Logo Area ── */
@@ -141,31 +126,34 @@
 
 .menu-title {
   font-family: var(--font-heading);
-  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  font-size: clamp(3rem, 10vw, 5.5rem);
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
   line-height: 1;
   background: linear-gradient(
     180deg,
-    #f0d878 0%,
-    #c8a84e 40%,
-    #a88a3e 70%,
-    #c8a84e 100%
+    #ffe488 0%,
+    #ecc44e 20%,
+    #d4aa3c 45%,
+    #a07828 70%,
+    #d4aa3c 90%,
+    #ecc44e 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
-  animation: textGlow 3s ease-in-out infinite, breathe 6s ease-in-out infinite;
-  margin-bottom: var(--space-md);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.8))
+          drop-shadow(0 0 40px rgba(212, 170, 60, 0.2));
+  animation: textGlow 4s ease-in-out infinite, breathe 7s ease-in-out infinite;
+  margin-bottom: var(--space-lg);
 }
 
 .menu-subtitle {
   font-family: var(--font-body);
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   color: var(--text-muted);
   font-style: italic;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
   margin-bottom: var(--space-sm);
 }
 
@@ -173,99 +161,94 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-dim);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  opacity: 0.5;
 }
 
 /* ── Decorative Line ── */
 .menu-ornament {
-  width: 200px;
-  height: 1px;
-  margin: var(--space-lg) auto;
+  width: 280px;
+  height: 2px;
+  margin: var(--space-xl) auto;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    var(--gold-dim) 30%,
+    var(--gold-dim) 20%,
     var(--gold) 50%,
-    var(--gold-dim) 70%,
+    var(--gold-dim) 80%,
     transparent 100%
   );
   position: relative;
+  box-shadow: 0 0 12px rgba(212, 170, 60, 0.15);
 }
 
 .menu-ornament::before {
-  content: '\2666'; /* diamond */
+  content: '\2666';
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
   color: var(--gold);
-  font-size: 10px;
-  background: var(--bg-darkest);
-  padding: 0 8px;
+  font-size: 12px;
+  background: #060503;
+  padding: 0 12px;
+  text-shadow: 0 0 12px rgba(212, 170, 60, 0.4);
 }
 
 /* ── Menu Buttons ── */
 .menu-actions {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: 14px;
   width: 100%;
-  max-width: 320px;
+  max-width: 360px;
   position: relative;
   z-index: 1;
 }
 
 .menu-actions .btn {
   width: 100%;
-  padding: var(--space-md) var(--space-xl);
+  padding: 14px var(--space-xl);
   font-size: var(--text-sm);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.16em;
 }
 
 .menu-actions .btn-primary {
-  padding: var(--space-md) var(--space-xl);
-  font-size: var(--text-base);
+  padding: 18px var(--space-xl);
+  font-size: var(--text-lg);
+  letter-spacing: 0.2em;
 }
 
 /* Stagger animation on mount */
 .menu-actions .btn {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(30px);
 }
 
 .menu-screen.mounted .menu-actions .btn {
-  animation: slideInUp var(--duration-slow) var(--ease-out-back) both;
+  animation: slideInUp var(--duration-slow) var(--ease-heavy) both;
 }
 
-.menu-screen.mounted .menu-actions .btn:nth-child(1) {
-  animation-delay: 200ms;
-}
-.menu-screen.mounted .menu-actions .btn:nth-child(2) {
-  animation-delay: 350ms;
-}
-.menu-screen.mounted .menu-actions .btn:nth-child(3) {
-  animation-delay: 500ms;
-}
-.menu-screen.mounted .menu-actions .btn:nth-child(4) {
-  animation-delay: 650ms;
-}
-.menu-screen.mounted .menu-actions .btn:nth-child(5) {
-  animation-delay: 800ms;
-}
+.menu-screen.mounted .menu-actions .btn:nth-child(1) { animation-delay: 300ms; }
+.menu-screen.mounted .menu-actions .btn:nth-child(2) { animation-delay: 450ms; }
+.menu-screen.mounted .menu-actions .btn:nth-child(3) { animation-delay: 600ms; }
+.menu-screen.mounted .menu-actions .btn:nth-child(4) { animation-delay: 750ms; }
+.menu-screen.mounted .menu-actions .btn:nth-child(5) { animation-delay: 900ms; }
 
-/* Delete World button — danger styling */
+/* Delete World button */
 .menu-delete-world {
-  margin-top: var(--space-md);
-  color: #8a4a3a !important;
-  border-color: rgba(138, 74, 58, 0.2) !important;
+  margin-top: var(--space-lg);
+  color: #6a3228 !important;
+  border-color: rgba(106, 50, 40, 0.15) !important;
   font-size: var(--text-xs) !important;
   letter-spacing: 0.1em;
 }
 
 .menu-delete-world:hover {
-  color: #c05040 !important;
-  border-color: rgba(192, 80, 64, 0.4) !important;
-  background: rgba(192, 80, 64, 0.08) !important;
+  color: #c04030 !important;
+  border-color: rgba(192, 64, 48, 0.4) !important;
+  background: rgba(192, 64, 48, 0.08) !important;
+  box-shadow: 0 0 20px rgba(192, 64, 48, 0.1) !important;
 }
 
 /* Logo entrance */
@@ -279,8 +262,8 @@
 
 .menu-screen.mounted .menu-title {
   animation:
-    bounceIn var(--duration-extra-slow) var(--ease-spring) both,
-    textGlow 3s ease-in-out 1s infinite;
+    bounceIn 1s var(--ease-spring) both,
+    textGlow 4s ease-in-out 1.5s infinite;
 }
 
 /* ── Footer ── */
@@ -296,6 +279,7 @@
   font-size: var(--text-sm);
   color: var(--text-dim);
   font-style: italic;
+  opacity: 0.4;
 }
 
 /* ── Exit transition ── */

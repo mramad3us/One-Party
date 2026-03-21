@@ -1,7 +1,7 @@
 /* ============================================================
-   ONE PARTY — Inventory Screen
-   Dark sanctum aesthetic: weathered parchment meets dungeon stone.
-   Equipment arranged as a paperdoll silhouette, items breathe.
+   ONE PARTY — Inventory · Obsidian Sanctum
+   Hoard-chamber — weathered obsidian, gilded item slots,
+   equipment silhouette, layered depth.
    ============================================================ */
 
 /* ── Backdrop ── */
@@ -15,25 +15,24 @@
 /* ── Dialog ── */
 .inventory-dialog {
   background:
-    radial-gradient(ellipse at 30% 20%, rgba(200, 168, 78, 0.04) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 80%, rgba(0, 0, 0, 0.3) 0%, transparent 50%),
+    radial-gradient(ellipse at 30% 20%, rgba(196, 162, 74, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(0, 0, 0, 0.4) 0%, transparent 50%),
     var(--bg-panel);
   border: 1px solid var(--border-gold);
-  border-radius: var(--radius-xl);
+  border-radius: 0;
   box-shadow:
     var(--shadow-lg),
     var(--shadow-glow),
-    inset 0 1px 0 rgba(200, 168, 78, 0.1);
+    inset 0 1px 0 rgba(196, 162, 74, 0.08);
   width: 100vw;
   height: 100vh;
-  border-radius: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  transform: scale(0.8);
+  transform: scale(0.85);
   opacity: 0;
-  transition: transform var(--duration-slow) var(--ease-out-back),
+  transition: transform var(--duration-slow) var(--ease-heavy),
               opacity var(--duration-normal) var(--ease-smooth);
 }
 
@@ -43,16 +42,16 @@
 }
 
 .inventory-screen.exiting .inventory-dialog {
-  transform: scale(0.8) !important;
+  transform: scale(0.85) !important;
   opacity: 0 !important;
 }
 
-/* Subtle noise texture via pseudo-element */
+/* Noise texture overlay */
 .inventory-dialog::before {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
   pointer-events: none;
   z-index: 0;
 }
@@ -69,7 +68,8 @@
   gap: var(--space-md);
   padding: var(--space-md) var(--space-xl);
   border-bottom: 1px solid var(--border-gold);
-  background: linear-gradient(180deg, rgba(200, 168, 78, 0.06) 0%, transparent 100%);
+  background:
+    linear-gradient(180deg, rgba(196, 162, 74, 0.04) 0%, transparent 100%);
   flex-shrink: 0;
 }
 
@@ -77,21 +77,21 @@
   width: 24px;
   height: 24px;
   color: var(--gold);
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
 .inventory-title {
   flex: 1;
   font-size: var(--text-2xl);
   color: var(--gold);
-  letter-spacing: 0.12em;
-  text-shadow: 0 0 20px rgba(200, 168, 78, 0.3);
+  letter-spacing: 0.14em;
+  text-shadow: 0 0 16px rgba(196, 162, 74, 0.2);
 }
 
 .inventory-header .modal-close {
   font-size: var(--text-2xl);
   color: var(--text-dim);
-  opacity: 0.6;
+  opacity: 0.5;
   transition: all var(--duration-fast) ease;
 }
 
@@ -114,30 +114,26 @@
 .inventory-equipment {
   display: flex;
   flex-direction: column;
-  padding: var(--space-md) var(--space-md);
+  padding: var(--space-md);
   border-right: 1px solid var(--border-subtle);
   background:
-    radial-gradient(ellipse at 50% 40%, rgba(200, 168, 78, 0.03) 0%, transparent 70%),
-    var(--bg-dark);
+    radial-gradient(ellipse at 50% 40%, rgba(196, 162, 74, 0.02) 0%, transparent 60%),
+    var(--bg-deep);
   overflow-y: auto;
 }
 
 .inventory-equipment .inventory-section-title {
   font-size: var(--text-sm);
   color: var(--gold-dim);
-  letter-spacing: 0.15em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   margin-bottom: var(--space-sm);
   padding-bottom: var(--space-xs);
-  border-bottom: 1px solid rgba(200, 168, 78, 0.15);
+  border-bottom: 1px solid rgba(196, 162, 74, 0.1);
   flex-shrink: 0;
 }
 
-/* ── Equipment Grid: paperdoll layout ──
-   Character silhouette background with slots positioned on body parts.
-   DOM order: helmet(1) amulet(2) cloak(3) armor(4) mainHand(5)
-              offHand(6) gloves(7) belt(8) ring1(9) boots(10) ring2(11)
-   Grid: 3 columns × 7 rows */
+/* ── Equipment Grid: paperdoll ── */
 .inventory-equip-grid {
   display: grid;
   grid-template-columns: 1fr 1.2fr 1fr;
@@ -149,7 +145,7 @@
   padding: var(--space-sm) 0;
 }
 
-/* ── Character Silhouette ── */
+/* Character Silhouette */
 .inventory-equip-grid::before {
   content: '';
   position: absolute;
@@ -165,38 +161,20 @@
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
+  opacity: 0.6;
 }
 
-/* ── Slot Placement on Body ──
-   Row 1: _ helmet _
-   Row 2: cloak _ amulet
-   Row 3: _ armor _
-   Row 4: mainHand _ offHand
-   Row 5: ring1 belt ring2
-   Row 6: gloves _ _
-   Row 7: _ boots _ */
-
-/* 1: helmet → center top */
+/* Slot Placement */
 .inventory-equip-slot:nth-child(1)  { grid-column: 2; grid-row: 1; }
-/* 2: amulet → right of neck */
 .inventory-equip-slot:nth-child(2)  { grid-column: 3; grid-row: 2; }
-/* 3: cloak → left of shoulders */
 .inventory-equip-slot:nth-child(3)  { grid-column: 1; grid-row: 2; }
-/* 4: armor → center torso */
 .inventory-equip-slot:nth-child(4)  { grid-column: 2; grid-row: 3; }
-/* 5: mainHand → left arm */
 .inventory-equip-slot:nth-child(5)  { grid-column: 1; grid-row: 4; }
-/* 6: offHand → right arm */
 .inventory-equip-slot:nth-child(6)  { grid-column: 3; grid-row: 4; }
-/* 7: gloves → left lower */
 .inventory-equip-slot:nth-child(7)  { grid-column: 1; grid-row: 6; }
-/* 8: belt → center waist */
 .inventory-equip-slot:nth-child(8)  { grid-column: 2; grid-row: 5; }
-/* 9: ring1 → left of belt */
 .inventory-equip-slot:nth-child(9)  { grid-column: 1; grid-row: 5; }
-/* 10: boots → center feet */
 .inventory-equip-slot:nth-child(10) { grid-column: 2; grid-row: 7; }
-/* 11: ring2 → right of belt */
 .inventory-equip-slot:nth-child(11) { grid-column: 3; grid-row: 5; }
 
 .inventory-equip-slot {
@@ -206,9 +184,9 @@
   justify-content: center;
   gap: 2px;
   padding: 6px 4px;
-  border: 1px solid rgba(200, 168, 78, 0.12);
+  border: 1px solid rgba(196, 162, 74, 0.1);
   border-radius: var(--radius-sm);
-  background: rgba(13, 11, 8, 0.7);
+  background: rgba(8, 6, 4, 0.75);
   backdrop-filter: blur(2px);
   transition: all var(--duration-normal) var(--ease-smooth);
   min-height: 42px;
@@ -219,15 +197,15 @@
 
 .inventory-equip-slot:hover {
   border-color: var(--border-gold-hover);
-  background: rgba(200, 168, 78, 0.06);
-  box-shadow: 0 0 12px rgba(200, 168, 78, 0.08);
+  background: rgba(196, 162, 74, 0.04);
+  box-shadow: 0 0 12px rgba(196, 162, 74, 0.06);
 }
 
 .inventory-equip-label {
   font-family: var(--font-mono);
   font-size: 8px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: var(--text-dim);
   line-height: 1;
 }
@@ -246,17 +224,17 @@
   line-height: 1.2;
 }
 
-.inventory-equip-item--uncommon { color: var(--green-light); }
-.inventory-equip-item--rare { color: var(--blue-light); }
+.inventory-equip-item--uncommon  { color: var(--green-light); }
+.inventory-equip-item--rare      { color: var(--blue-light); }
 .inventory-equip-item--very-rare { color: var(--purple-light); }
-.inventory-equip-item--legendary { color: var(--orange-light); text-shadow: 0 0 8px rgba(255, 165, 0, 0.3); }
-.inventory-equip-item--artifact { color: var(--red-light); text-shadow: 0 0 8px rgba(255, 50, 50, 0.3); }
+.inventory-equip-item--legendary { color: var(--orange-light); text-shadow: 0 0 10px rgba(255, 165, 0, 0.25); }
+.inventory-equip-item--artifact  { color: var(--red-light); text-shadow: 0 0 10px rgba(255, 50, 50, 0.25); }
 
 .inventory-equip-empty {
   font-family: var(--font-mono);
   font-size: 8px;
   color: var(--text-dim);
-  opacity: 0.3;
+  opacity: 0.25;
   text-align: center;
   letter-spacing: 0.06em;
   text-transform: lowercase;
@@ -274,11 +252,11 @@
 .inventory-items .inventory-section-title {
   font-size: var(--text-sm);
   color: var(--gold-dim);
-  letter-spacing: 0.15em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   margin-bottom: var(--space-lg);
   padding-bottom: var(--space-xs);
-  border-bottom: 1px solid rgba(200, 168, 78, 0.15);
+  border-bottom: 1px solid rgba(196, 162, 74, 0.1);
   flex-shrink: 0;
 }
 
@@ -314,12 +292,12 @@
 .item-card {
   padding: var(--space-md);
   border-radius: var(--radius-md);
-  border: 1px solid rgba(200, 168, 78, 0.15);
+  border: 1px solid rgba(196, 162, 74, 0.12);
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 50%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.015) 0%, transparent 50%),
     var(--bg-surface);
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-smooth);
+  transition: all var(--duration-normal) var(--ease-heavy);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -329,16 +307,16 @@
   transform: translateY(-3px);
   border-color: var(--border-gold-hover);
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.5),
-    0 0 16px rgba(200, 168, 78, 0.08);
+    0 8px 28px rgba(0, 0, 0, 0.5),
+    0 0 16px rgba(196, 162, 74, 0.06);
 }
 
-.item-card--common { border-color: rgba(200, 168, 78, 0.12); }
-.item-card--uncommon { border-color: var(--green); border-left-width: 3px; }
-.item-card--rare { border-color: var(--blue); border-left-width: 3px; }
+.item-card--common    { border-color: rgba(196, 162, 74, 0.1); }
+.item-card--uncommon  { border-color: var(--green); border-left-width: 3px; }
+.item-card--rare      { border-color: var(--blue); border-left-width: 3px; }
 .item-card--very-rare { border-color: var(--purple); border-left-width: 3px; }
-.item-card--legendary { border-color: var(--orange); border-left-width: 3px; box-shadow: inset 0 0 20px rgba(255, 165, 0, 0.05); }
-.item-card--artifact { border-color: var(--red); border-left-width: 3px; box-shadow: inset 0 0 20px rgba(255, 50, 50, 0.05); }
+.item-card--legendary { border-color: var(--orange); border-left-width: 3px; box-shadow: inset 0 0 24px rgba(255, 165, 0, 0.04); }
+.item-card--artifact  { border-color: var(--red); border-left-width: 3px; box-shadow: inset 0 0 24px rgba(255, 50, 50, 0.04); }
 
 .item-card-header {
   display: flex;
@@ -379,7 +357,7 @@
   color: var(--text-secondary);
   margin-bottom: var(--space-sm);
   padding: 6px 8px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.25);
   border-radius: var(--radius-sm);
   border-left: 2px solid var(--gold-dim);
 }
@@ -392,7 +370,7 @@
   color: var(--text-dim);
   margin-top: auto;
   padding-top: var(--space-sm);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .item-card-value {
@@ -422,7 +400,7 @@
   gap: var(--space-xs);
   padding-top: var(--space-sm);
   margin-top: var(--space-sm);
-  border-top: 1px solid rgba(200, 168, 78, 0.1);
+  border-top: 1px solid rgba(196, 162, 74, 0.08);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
@@ -447,12 +425,12 @@
 
 .inventory-equip-slot--filled:hover {
   border-color: var(--red) !important;
-  background: rgba(255, 50, 50, 0.04) !important;
+  background: rgba(255, 50, 50, 0.03) !important;
 }
 
 .inventory-equip-slot--filled:hover .inventory-equip-label {
   color: var(--red);
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .item-card-attunement {
@@ -460,9 +438,9 @@
   font-size: 9px;
   color: var(--purple-light);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   margin-top: var(--space-xs);
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
 /* ── Footer ── */
@@ -472,8 +450,9 @@
   justify-content: space-between;
   padding: var(--space-md) var(--space-xl);
   border-top: 1px solid var(--border-gold);
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.3) 0%, transparent 100%),
-              var(--bg-dark);
+  background:
+    linear-gradient(0deg, rgba(0, 0, 0, 0.35) 0%, transparent 100%),
+    var(--bg-dark);
   flex-shrink: 0;
 }
 
@@ -486,7 +465,7 @@
   color: var(--gold);
   font-weight: 700;
   letter-spacing: 0.04em;
-  text-shadow: 0 0 12px rgba(200, 168, 78, 0.2);
+  text-shadow: 0 0 10px rgba(196, 162, 74, 0.15);
 }
 
 .inventory-coin-icon {
@@ -505,18 +484,19 @@
   font-family: var(--font-mono);
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   color: var(--text-dim);
 }
 
 .inventory-enc-bar {
   width: 200px;
   height: 14px;
-  background: var(--bg-darkest);
+  background: var(--bg-deep);
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(200, 168, 78, 0.15);
+  border: 1px solid rgba(196, 162, 74, 0.12);
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-inset-dark);
 }
 
 .inventory-enc-fill {
@@ -524,12 +504,12 @@
   background: linear-gradient(90deg, var(--green-dim), var(--green));
   border-radius: var(--radius-sm);
   transition: width var(--duration-normal) var(--ease-smooth);
-  box-shadow: 0 0 6px rgba(100, 200, 100, 0.2);
+  box-shadow: 0 0 6px rgba(72, 146, 76, 0.15);
 }
 
 .inventory-enc-fill--over {
   background: linear-gradient(90deg, var(--red-dim), var(--red));
-  box-shadow: 0 0 8px rgba(255, 50, 50, 0.3);
+  box-shadow: 0 0 8px rgba(184, 56, 56, 0.25);
 }
 
 .inventory-enc-value {

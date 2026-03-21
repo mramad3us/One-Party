@@ -15,6 +15,7 @@ import { StorageEngine } from '@/storage/StorageEngine';
 import { SaveManager } from '@/storage/SaveManager';
 import { CharacterFactory } from '@/character/CharacterFactory';
 import { LocalMapGenerator } from '@/world/LocalMapGenerator';
+import { POIMapGenerator } from '@/world/POIMapGenerator';
 import type { GridCell, GridDefinition } from '@/types/grid';
 import { WorldCreationScreen } from '@/ui/screens/WorldCreationScreen';
 import {
@@ -43,6 +44,8 @@ import type { EntityRenderInfo } from '@/grid/GridRenderer';
 import { TimeNarrator } from '@/narrative/TimeNarrator';
 import { Modal } from '@/ui/widgets/Modal';
 import { el } from '@/utils/dom';
+import type { Tileset } from '@/grid/Tileset';
+import { getTilesetById, getAllTilesets } from '@/grid/Tileset';
 import type { SaveMeta, EquipmentSlots } from '@/types';
 import { EquipmentRules } from '@/rules/EquipmentRules';
 import { RestRules } from '@/rules/RestRules';
@@ -77,21 +80,25 @@ function getDirectionName(dx: number, dy: number): string {
   return 'that direction';
 }
 
-/** Regenerate the base grid for a location from its overworld tile. */
+/** Regenerate the base grid for a location from its overworld tile.
+ *  Every overworld tile gets a 120×120 POI map. Settlement tiles get
+ *  settlement POIs, terrain tiles get terrain-appropriate POIs.
+ */
 function regenerateBaseGrid(
   overworld: OverworldData,
   tileX: number,
   tileY: number,
-  locationType: import('@/types/world').LocationType,
+  _locationType: import('@/types/world').LocationType,
   biome: import('@/types/world').BiomeType,
+  entryDir: { dx: number; dy: number } = { dx: 0, dy: 0 },
 ): { grid: GridDefinition; playerStart: import('@/types').Coordinate } {
-  const mapGen = new LocalMapGenerator(new SeededRNG(0)); // seed unused, withTileSeed overrides
   const tile = overworld.tiles[tileY][tileX];
+  const poiGen = new POIMapGenerator(new SeededRNG(0));
   if (tile.settlement) {
-    return mapGen.generate(locationType, biome, overworld.seed, tileX, tileY);
+    return poiGen.generatePOI(tile.settlement, biome, entryDir, overworld.seed, tileX, tileY);
   }
   const waterSides = getWaterSides(overworld, tileX, tileY);
-  return mapGen.generateFromTerrain(tile.terrain, tile.river, overworld.seed, tileX, tileY, waterSides);
+  return poiGen.generateTerrainPOI(tile.terrain, biome, tile.river, waterSides, entryDir, overworld.seed, tileX, tileY);
 }
 
 /** Compare current grid against the regenerated base; return only changed cells. */
@@ -154,6 +161,10 @@ async function main(): Promise<void> {
 
   // 6. Create UI manager
   const ui = new UIManager(container, engine);
+
+  // Load saved tileset preference
+  const savedTilesetId = await storage.getSetting<string>('tileset');
+  let activeTileset = getTilesetById(savedTilesetId ?? 'fantasy');
 
   // Track active game state
   let activeGameState: GameState | null = null;
@@ -396,6 +407,9 @@ async function main(): Promise<void> {
     state: GameState,
     eng: GameEngine,
   ): void {
+    // Apply saved tileset preference
+    screen.getGridPanel().setTileset(activeTileset);
+
     const character = eng.entities.getAll<Character>('character')[0];
     if (!character) return;
 
@@ -1125,7 +1139,9 @@ async function main(): Promise<void> {
       }
     } else {
       // First visit — generate from deterministic seed
-      const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain));
+      // Compute entry direction from travel vector
+      const entryDir = curPos ? { dx: x - curPos.x, dy: y - curPos.y } : { dx: 0, dy: 0 };
+      const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain), entryDir);
       gridDef = base.grid;
       playerStart = base.playerStart;
       dest.localMap = { playerStart, exploredCells: [], modifications: [] };
@@ -1250,6 +1266,16 @@ async function main(): Promise<void> {
   // 12c. Wire up Load Game from main menu
   engine.events.on('ui:modal:load', () => {
     openLoadModal(engine, saveManager);
+  });
+
+  // 12d. Wire up Settings modal
+  engine.events.on('ui:modal:settings', () => {
+    openSettingsModal(engine, storage, (tileset) => {
+      activeTileset = tileset;
+      if (activeGameScreen) {
+        activeGameScreen.getGridPanel().setTileset(tileset);
+      }
+    });
   });
 
   // 13. Wire up return to menu
@@ -1734,6 +1760,76 @@ function openRestMenu(
 
   const modal = new Modal(document.body, engine, {
     title: 'Rest',
+    content,
+    closable: true,
+    width: '480px',
+  });
+  modal.mount();
+}
+
+/** Settings modal — tileset selection and other options. */
+function openSettingsModal(
+  engine: GameEngine,
+  storage: StorageEngine,
+  onTilesetChange: (tileset: Tileset) => void,
+): void {
+  const content = el('div', { class: 'settings-modal-content' });
+
+  // ── Tileset Section ──
+  const tilesetSection = el('div', { class: 'settings-section' });
+  tilesetSection.appendChild(el('h4', { class: 'settings-section-title font-heading' }, ['Map Tileset']));
+  tilesetSection.appendChild(el('p', { class: 'settings-section-desc' }, [
+    'Choose how the dungeon map is rendered.',
+  ]));
+
+  const tilesets = getAllTilesets();
+  const tilesetList = el('div', { class: 'settings-tileset-list' });
+
+  // Load current setting
+  storage.getSetting<string>('tileset').then((currentId) => {
+    const activeId = currentId ?? 'fantasy';
+
+    for (const ts of tilesets) {
+      const option = el('div', {
+        class: `settings-tileset-option ${ts.id === activeId ? 'settings-tileset-option--active' : ''}`,
+      });
+
+      const info = el('div', { class: 'settings-tileset-info' });
+      info.appendChild(el('span', { class: 'settings-tileset-name font-heading' }, [ts.name]));
+
+      const desc = ts.squareCells ? 'Square cells, canvas-drawn graphics' : 'Classic monospace ASCII characters';
+      info.appendChild(el('span', { class: 'settings-tileset-desc font-mono' }, [desc]));
+      option.appendChild(info);
+
+      if (ts.id === activeId) {
+        option.appendChild(el('span', { class: 'settings-tileset-active font-mono' }, ['Active']));
+      }
+
+      option.addEventListener('click', async () => {
+        // Update visual state
+        tilesetList.querySelectorAll('.settings-tileset-option').forEach(opt => {
+          opt.classList.remove('settings-tileset-option--active');
+          const badge = opt.querySelector('.settings-tileset-active');
+          if (badge) badge.remove();
+        });
+        option.classList.add('settings-tileset-option--active');
+        option.appendChild(el('span', { class: 'settings-tileset-active font-mono' }, ['Active']));
+
+        // Save and apply
+        await storage.setSetting('tileset', ts.id);
+        const tileset = getTilesetById(ts.id);
+        onTilesetChange(tileset);
+      });
+
+      tilesetList.appendChild(option);
+    }
+  });
+
+  tilesetSection.appendChild(tilesetList);
+  content.appendChild(tilesetSection);
+
+  const modal = new Modal(document.body, engine, {
+    title: 'Settings',
     content,
     closable: true,
     width: '480px',

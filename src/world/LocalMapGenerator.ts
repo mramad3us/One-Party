@@ -3,14 +3,14 @@ import type { LocationType, BiomeType } from '@/types/world';
 import type { OverworldTerrain } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
 
-interface MapResult {
+export interface MapResult {
   grid: GridDefinition;
   playerStart: Coordinate;
 }
 
 // ── Cell Helpers ──────────────────────────────────────────────
 
-function makeCell(
+export function makeCell(
   terrain: CellTerrain,
   movementCost = 1,
   blocksLoS = false,
@@ -20,21 +20,21 @@ function makeCell(
 }
 
 /** Structural wall — use ONLY for buildings, dungeon walls, perimeters */
-function wallCell(): GridCell {
+export function wallCell(): GridCell {
   return makeCell('wall', Infinity, true);
 }
 
-function floorCell(terrain: CellTerrain = 'floor'): GridCell {
+export function floorCell(terrain: CellTerrain = 'floor'): GridCell {
   return makeCell(terrain);
 }
 
 /** Tree on terrain — impassable, blocks LoS */
-function treeCell(ground: CellTerrain = 'grass'): GridCell {
+export function treeCell(ground: CellTerrain = 'grass'): GridCell {
   return makeCell(ground, Infinity, true, ['tree']);
 }
 
 /** Large rock — impassable, blocks LoS */
-function rockCell(ground: CellTerrain = 'stone'): GridCell {
+export function rockCell(ground: CellTerrain = 'stone'): GridCell {
   return makeCell(ground, Infinity, true, ['rock']);
 }
 
@@ -58,7 +58,7 @@ export function tileSeed(worldSeed: number, x: number, y: number): number {
  * tile coordinates to get deterministic, unique maps per tile.
  */
 export class LocalMapGenerator {
-  private rng: SeededRNG;
+  protected rng: SeededRNG;
 
   constructor(rng: SeededRNG) {
     this.rng = rng;
@@ -308,17 +308,9 @@ export class LocalMapGenerator {
     const w = 50, h = 50;
     const cells = this.fillGrid(w, h, 'grass');
 
-    // Generate a noise field for tree placement (organic clumps)
+    // Organic tree placement with spacing — dense but navigable
     const noise = this.generateNoiseField(w, h, 0.12 + this.rng.next() * 0.06);
-    const treeCutoff = 0.35 + this.rng.next() * 0.15; // 35-50% — high density
-
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        if (noise[y][x] > treeCutoff) {
-          cells[y][x] = treeCell('grass');
-        }
-      }
-    }
+    this.placeSpacedTrees(cells, w, h, noise, 0.22, 'grass');
 
     // Carve 1-3 natural clearings (gathering spots, fallen trees, etc.)
     const clearingCount = 1 + Math.floor(this.rng.next() * 3);
@@ -1106,21 +1098,13 @@ export class LocalMapGenerator {
     const baseTerrain = this.biomeToTerrain(biome);
     const cells = this.fillGrid(w, h, baseTerrain);
 
-    // Tree/obstacle placement via noise for organic clumping
+    // Tree/obstacle placement via noise with spacing — always navigable
     const isForest = biome === 'forest';
     const isPlains = biome === 'plains';
-    const treeDensity = isForest ? 0.42 : isPlains ? 0.08 : 0.2;
+    const treeDensity = isForest ? 0.22 : isPlains ? 0.08 : Math.min(0.20, 0.2);
 
     const noise = this.generateNoiseField(w, h, 0.1 + this.rng.next() * 0.06);
-    const cutoff = 1 - treeDensity;
-
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        if (noise[y][x] > cutoff) {
-          cells[y][x] = treeCell(baseTerrain);
-        }
-      }
-    }
+    this.placeSpacedTrees(cells, w, h, noise, treeDensity, baseTerrain);
 
     // Clearings — open areas in the forest
     const clearingCount = isForest ? 2 + Math.floor(this.rng.next() * 3) :
@@ -1180,15 +1164,9 @@ export class LocalMapGenerator {
     const w = 40, h = 40;
     const cells = this.fillGrid(w, h, 'grass');
 
-    // Scatter trees around the ruins (nature reclaiming)
+    // Scatter trees around the ruins (nature reclaiming) — spaced for navigation
     const treeNoise = this.generateNoiseField(w, h, 0.12);
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        if (treeNoise[y][x] > 0.65 && this.rng.next() < 0.25) {
-          cells[y][x] = treeCell('grass');
-        }
-      }
-    }
+    this.placeSpacedTrees(cells, w, h, treeNoise, 0.06, 'grass');
 
     // Ruined buildings — partial walls with gaps
     const ruinCount = 3 + Math.floor(this.rng.next() * 5);
@@ -1335,11 +1313,93 @@ export class LocalMapGenerator {
 
   // ── Utility Methods ───────────────────────────────────────
 
+  /** Check if any orthogonal neighbor has a tree or rock feature. */
+  protected hasOrthogonalTree(cells: GridCell[][], w: number, h: number, x: number, y: number): boolean {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+        const f = cells[ny][nx].features;
+        if (f.includes('tree') || f.includes('rock')) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Place trees/rocks using noise for organic distribution but enforcing
+   * minimum spacing so forests are always navigable.
+   * Trees never appear orthogonally adjacent (Manhattan distance < minSpacing).
+   */
+  protected placeSpacedTrees(
+    cells: GridCell[][], w: number, h: number,
+    noise: number[][], targetDensity: number,
+    ground: CellTerrain,
+    opts?: {
+      minSpacing?: number;
+      skipCell?: (x: number, y: number) => boolean;
+      placeFn?: (x: number, y: number) => GridCell;
+    },
+  ): void {
+    const minSpacing = opts?.minSpacing ?? 2;
+    const targetCount = Math.floor(w * h * targetDensity);
+
+    // Build candidates sorted by noise score descending
+    const candidates: { x: number; y: number; score: number }[] = [];
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        if (noise[y][x] > 0.15) {
+          candidates.push({ x, y, score: noise[y][x] });
+        }
+      }
+    }
+    candidates.sort((a, b) => b.score - a.score);
+
+    // Exclusion grid: true = cannot place here
+    const blocked: boolean[][] = [];
+    for (let y = 0; y < h; y++) {
+      blocked[y] = new Array(w).fill(false);
+    }
+    // Pre-block cells that already have trees/rocks/walls
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const c = cells[y][x];
+        if (c.movementCost === Infinity || c.features.includes('tree') || c.features.includes('rock')) {
+          this.markExclusion(blocked, w, h, x, y, minSpacing);
+        }
+      }
+    }
+
+    let placed = 0;
+    for (const cand of candidates) {
+      if (placed >= targetCount) break;
+      if (blocked[cand.y][cand.x]) continue;
+      if (opts?.skipCell?.(cand.x, cand.y)) continue;
+
+      cells[cand.y][cand.x] = opts?.placeFn?.(cand.x, cand.y) ?? treeCell(ground);
+      this.markExclusion(blocked, w, h, cand.x, cand.y, minSpacing);
+      placed++;
+    }
+  }
+
+  /** Mark exclusion zone around a placed tree. */
+  private markExclusion(blocked: boolean[][], w: number, h: number, cx: number, cy: number, dist: number): void {
+    for (let dy = -dist + 1; dy < dist; dy++) {
+      for (let dx = -dist + 1; dx < dist; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) < dist) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+            blocked[ny][nx] = true;
+          }
+        }
+      }
+    }
+  }
+
   /**
    * Generate a 2D noise field using value noise with interpolation.
    * Returns values in [0, 1] with organic-looking clumps.
    */
-  private generateNoiseField(w: number, h: number, frequency: number): number[][] {
+  protected generateNoiseField(w: number, h: number, frequency: number): number[][] {
     // Generate random lattice points
     const gridSize = Math.max(4, Math.ceil(Math.max(w, h) * frequency) + 2);
     const lattice: number[][] = [];
@@ -1387,7 +1447,7 @@ export class LocalMapGenerator {
    * Carve a winding natural path between two points.
    * Width is 1-2 tiles, with random meander.
    */
-  private carveWindingPath(
+  protected carveWindingPath(
     cells: GridCell[][], w: number, h: number,
     from: Coordinate, to: Coordinate,
     terrain: CellTerrain, pathWidth: number,
@@ -1436,7 +1496,7 @@ export class LocalMapGenerator {
   }
 
   /** Carve a meandering stream across the map */
-  private carveStream(cells: GridCell[][], w: number, h: number): void {
+  protected carveStream(cells: GridCell[][], w: number, h: number): void {
     const vertical = this.rng.next() < 0.5;
     let pos = Math.floor(this.rng.next() * (vertical ? w : h) * 0.6 + (vertical ? w : h) * 0.2);
     const len = vertical ? h : w;
@@ -1460,7 +1520,7 @@ export class LocalMapGenerator {
   }
 
   /** Check if a cell at (x,y) is adjacent to a cell with the given terrain */
-  private adjacentTo(cells: GridCell[][], w: number, h: number, x: number, y: number, terrain: CellTerrain): boolean {
+  protected adjacentTo(cells: GridCell[][], w: number, h: number, x: number, y: number, terrain: CellTerrain): boolean {
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
@@ -1473,7 +1533,7 @@ export class LocalMapGenerator {
     return false;
   }
 
-  private fillGrid(
+  protected fillGrid(
     w: number,
     h: number,
     terrain: CellTerrain,
@@ -1490,7 +1550,7 @@ export class LocalMapGenerator {
     return cells;
   }
 
-  private placeBuilding(
+  protected placeBuilding(
     cells: GridCell[][],
     gridW: number,
     gridH: number,
@@ -1516,7 +1576,7 @@ export class LocalMapGenerator {
     }
   }
 
-  private placePerimeter(
+  protected placePerimeter(
     cells: GridCell[][],
     w: number,
     h: number,
@@ -1534,7 +1594,7 @@ export class LocalMapGenerator {
     }
   }
 
-  private bspDivide(
+  protected bspDivide(
     rooms: { x: number; y: number; w: number; h: number }[],
     x: number, y: number,
     w: number, h: number,
@@ -1567,7 +1627,7 @@ export class LocalMapGenerator {
     }
   }
 
-  private carveCorridor(
+  protected carveCorridor(
     cells: GridCell[][],
     w: number,
     h: number,
@@ -1591,7 +1651,7 @@ export class LocalMapGenerator {
     }
   }
 
-  private placeDoors(
+  protected placeDoors(
     cells: GridCell[][],
     w: number,
     h: number,
@@ -1624,7 +1684,7 @@ export class LocalMapGenerator {
     }
   }
 
-  private countWallNeighbors(cells: GridCell[][], x: number, y: number): number {
+  protected countWallNeighbors(cells: GridCell[][], x: number, y: number): number {
     let count = 0;
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -1641,7 +1701,7 @@ export class LocalMapGenerator {
     return count;
   }
 
-  private findOpenCell(cells: GridCell[][], w: number, h: number, startX: number, startY: number): Coordinate {
+  protected findOpenCell(cells: GridCell[][], w: number, h: number, startX: number, startY: number): Coordinate {
     for (let radius = 0; radius < Math.max(w, h); radius++) {
       for (let dy = -radius; dy <= radius; dy++) {
         for (let dx = -radius; dx <= radius; dx++) {
@@ -1657,7 +1717,7 @@ export class LocalMapGenerator {
     return { x: startX, y: startY };
   }
 
-  private biomeToTerrain(biome: BiomeType): CellTerrain {
+  protected biomeToTerrain(biome: BiomeType): CellTerrain {
     const map: Record<BiomeType, CellTerrain> = {
       forest: 'grass',
       mountain: 'stone',

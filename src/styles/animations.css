@@ -1,5 +1,6 @@
 /* ============================================================
-   ONE PARTY — Keyframe Animations & Utility Classes
+   ONE PARTY — Keyframe Animations · Obsidian Sanctum
+   Heavy, deliberate motion — like stone grinding open.
    ============================================================ */
 
 /* ── Fade ── */
@@ -13,48 +14,56 @@
   to   { opacity: 0; }
 }
 
-/* ── Slides (with scale + opacity for richness) ── */
+/* ── Slides (weighted, cinematic) ── */
 @keyframes slideInLeft {
   from {
     opacity: 0;
-    transform: translateX(-40px) scale(0.97);
+    transform: translateX(-60px) scale(0.96);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
     transform: translateX(0) scale(1);
+    filter: blur(0);
   }
 }
 
 @keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateX(40px) scale(0.97);
+    transform: translateX(60px) scale(0.96);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
     transform: translateX(0) scale(1);
+    filter: blur(0);
   }
 }
 
 @keyframes slideInUp {
   from {
     opacity: 0;
-    transform: translateY(30px) scale(0.97);
+    transform: translateY(40px) scale(0.96);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+    filter: blur(0);
   }
 }
 
 @keyframes slideInDown {
   from {
     opacity: 0;
-    transform: translateY(-30px) scale(0.97);
+    transform: translateY(-40px) scale(0.96);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+    filter: blur(0);
   }
 }
 
@@ -62,10 +71,12 @@
   from {
     opacity: 1;
     transform: translateX(0) scale(1);
+    filter: blur(0);
   }
   to {
     opacity: 0;
-    transform: translateX(-40px) scale(0.97);
+    transform: translateX(-60px) scale(0.96);
+    filter: blur(2px);
   }
 }
 
@@ -73,10 +84,12 @@
   from {
     opacity: 1;
     transform: translateX(0) scale(1);
+    filter: blur(0);
   }
   to {
     opacity: 0;
-    transform: translateX(40px) scale(0.97);
+    transform: translateX(60px) scale(0.96);
+    filter: blur(2px);
   }
 }
 
@@ -87,7 +100,7 @@
   }
   to {
     opacity: 0;
-    transform: translateY(-30px) scale(0.97);
+    transform: translateY(-40px) scale(0.96);
   }
 }
 
@@ -98,23 +111,28 @@
   }
   to {
     opacity: 0;
-    transform: translateY(30px) scale(0.97);
+    transform: translateY(40px) scale(0.96);
   }
 }
 
-/* ── Bounce In ── */
+/* ── Bounce In (forge-hammer impact) ── */
 @keyframes bounceIn {
   0% {
     opacity: 0;
-    transform: scale(0.3);
+    transform: scale(0.2);
+    filter: blur(4px);
   }
-  50% {
+  45% {
     opacity: 0.9;
-    transform: scale(1.05);
+    transform: scale(1.08);
+    filter: blur(0);
   }
-  70% {
+  65% {
     opacity: 1;
-    transform: scale(0.95);
+    transform: scale(0.96);
+  }
+  85% {
+    transform: scale(1.02);
   }
   100% {
     opacity: 1;
@@ -122,58 +140,50 @@
   }
 }
 
-/* ── Pulse Glow (gold borders/shadows) ── */
+/* ── Pulse Glow (gold aura breathing) ── */
 @keyframes pulseGlow {
   0%, 100% {
-    box-shadow: 0 0 8px rgba(200, 168, 78, 0.1),
-                0 0 20px rgba(200, 168, 78, 0.05);
+    box-shadow: 0 0 8px rgba(196, 162, 74, 0.08),
+                0 0 20px rgba(196, 162, 74, 0.04);
   }
   50% {
-    box-shadow: 0 0 16px rgba(200, 168, 78, 0.25),
-                0 0 40px rgba(200, 168, 78, 0.12);
+    box-shadow: 0 0 20px rgba(196, 162, 74, 0.2),
+                0 0 48px rgba(196, 162, 74, 0.1);
   }
 }
 
-/* ── Shimmer (loading sweep) ── */
+/* ── Shimmer (gold sweep) ── */
 @keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 /* ── Float (gentle hover) ── */
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
 }
 
-/* ── Shake (damage / errors) ── */
+/* ── Shake (damage / errors — violent, short) ── */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
-  10%      { transform: translateX(-6px) rotate(-1deg); }
-  20%      { transform: translateX(5px) rotate(1deg); }
-  30%      { transform: translateX(-4px) rotate(-0.5deg); }
-  40%      { transform: translateX(3px) rotate(0.5deg); }
+  10%      { transform: translateX(-8px) rotate(-1.5deg); }
+  20%      { transform: translateX(7px) rotate(1.5deg); }
+  30%      { transform: translateX(-5px) rotate(-1deg); }
+  40%      { transform: translateX(4px) rotate(0.5deg); }
   50%      { transform: translateX(-2px); }
   60%      { transform: translateX(1px); }
 }
 
-/* ── Pop In ── */
+/* ── Pop In (rune activation) ── */
 @keyframes popIn {
   0% {
     opacity: 0;
     transform: scale(0);
   }
-  60% {
+  55% {
     opacity: 1;
-    transform: scale(1.12);
+    transform: scale(1.15);
   }
   100% {
     opacity: 1;
@@ -181,11 +191,11 @@
   }
 }
 
-/* ── Roll In (for dice) ── */
+/* ── Roll In (dice tumble) ── */
 @keyframes rollIn {
   0% {
     opacity: 0;
-    transform: translateX(-40px) rotate(-120deg);
+    transform: translateX(-50px) rotate(-180deg);
   }
   100% {
     opacity: 1;
@@ -193,68 +203,78 @@
   }
 }
 
-/* ── Breathe (subtle scale oscillation) ── */
+/* ── Breathe (slow, ominous scale) ── */
 @keyframes breathe {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.02);
-  }
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.025); }
 }
 
-/* ── Damage Flash ── */
+/* ── Damage Flash (blood red wash) ── */
 @keyframes damageFlash {
-  0% {
-    background-color: transparent;
-  }
-  20% {
-    background-color: rgba(200, 64, 64, 0.3);
-  }
-  100% {
-    background-color: transparent;
-  }
+  0%   { background-color: transparent; }
+  15%  { background-color: rgba(184, 56, 56, 0.35); }
+  100% { background-color: transparent; }
 }
 
-/* ── Heal Flash ── */
+/* ── Heal Flash (verdant pulse) ── */
 @keyframes healFlash {
-  0% {
-    background-color: transparent;
-  }
-  20% {
-    background-color: rgba(76, 175, 80, 0.3);
-  }
-  100% {
-    background-color: transparent;
-  }
+  0%   { background-color: transparent; }
+  15%  { background-color: rgba(72, 146, 76, 0.3); }
+  100% { background-color: transparent; }
 }
 
-/* ── Spin (loading) ── */
+/* ── Spin (loading ritual) ── */
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
 
-/* ── Text Glow ── */
+/* ── Text Glow (inscribed gold) ── */
 @keyframes textGlow {
   0%, 100% {
-    text-shadow: 0 0 8px rgba(200, 168, 78, 0.3);
+    text-shadow: 0 0 6px rgba(196, 162, 74, 0.2),
+                 0 0 12px rgba(196, 162, 74, 0.1);
   }
   50% {
-    text-shadow: 0 0 16px rgba(200, 168, 78, 0.6),
-                 0 0 32px rgba(200, 168, 78, 0.3);
+    text-shadow: 0 0 12px rgba(196, 162, 74, 0.5),
+                 0 0 28px rgba(196, 162, 74, 0.25),
+                 0 0 48px rgba(196, 162, 74, 0.1);
   }
 }
 
-/* ── Ripple (click effect) ── */
+/* ── Ripple (click ritual circle) ── */
 @keyframes ripple {
   0% {
     transform: scale(0);
-    opacity: 0.5;
+    opacity: 0.4;
   }
   100% {
     transform: scale(4);
     opacity: 0;
+  }
+}
+
+/* ── Engrave (border etch-in) ── */
+@keyframes engrave {
+  from {
+    border-color: transparent;
+    box-shadow: none;
+  }
+  to {
+    border-color: var(--border-gold);
+    box-shadow: var(--shadow-inset-glow);
+  }
+}
+
+/* ── Forge Glow (warm build-up) ── */
+@keyframes forgeGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(196, 162, 74, 0);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(196, 162, 74, 0.15),
+                0 0 64px rgba(196, 162, 74, 0.06),
+                inset 0 0 16px rgba(196, 162, 74, 0.03);
   }
 }
 
@@ -271,19 +291,19 @@
 }
 
 .animate-slide-in-left {
-  animation: slideInLeft var(--duration-slow) var(--ease-out-back) both;
+  animation: slideInLeft var(--duration-slow) var(--ease-heavy) both;
 }
 
 .animate-slide-in-right {
-  animation: slideInRight var(--duration-slow) var(--ease-out-back) both;
+  animation: slideInRight var(--duration-slow) var(--ease-heavy) both;
 }
 
 .animate-slide-in-up {
-  animation: slideInUp var(--duration-slow) var(--ease-out-back) both;
+  animation: slideInUp var(--duration-slow) var(--ease-heavy) both;
 }
 
 .animate-slide-in-down {
-  animation: slideInDown var(--duration-slow) var(--ease-out-back) both;
+  animation: slideInDown var(--duration-slow) var(--ease-heavy) both;
 }
 
 .animate-bounce-in {
@@ -299,30 +319,32 @@
 }
 
 .animate-float {
-  animation: float 3s ease-in-out infinite;
+  animation: float 4s var(--ease-in-out) infinite;
 }
 
 .animate-breathe {
-  animation: breathe 4s ease-in-out infinite;
+  animation: breathe 5s var(--ease-in-out) infinite;
 }
 
 .animate-pulse-glow {
-  animation: pulseGlow 2s ease-in-out infinite;
+  animation: pulseGlow 2.5s var(--ease-in-out) infinite;
 }
 
 .animate-text-glow {
-  animation: textGlow 2.5s ease-in-out infinite;
+  animation: textGlow 3s var(--ease-in-out) infinite;
 }
 
 .animate-shimmer {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(200, 168, 78, 0.08) 50%,
+    rgba(196, 162, 74, 0.06) 40%,
+    rgba(196, 162, 74, 0.1) 50%,
+    rgba(196, 162, 74, 0.06) 60%,
     transparent 100%
   );
   background-size: 200% 100%;
-  animation: shimmer 2s ease-in-out infinite;
+  animation: shimmer 2.5s var(--ease-in-out) infinite;
 }
 
 .animate-spin {
@@ -345,11 +367,11 @@
 }
 
 .hover-lift {
-  transition: transform var(--duration-normal) var(--ease-out-back),
+  transition: transform var(--duration-normal) var(--ease-heavy),
               box-shadow var(--duration-normal) var(--ease-smooth);
 }
 .hover-lift:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow-hover);
 }
 
@@ -358,7 +380,7 @@
   transition: transform var(--duration-fast) var(--ease-smooth);
 }
 .click-press:active {
-  transform: scale(0.95);
+  transform: scale(0.94);
 }
 
 /* ── Transition Utilities ── */

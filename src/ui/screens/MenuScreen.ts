@@ -29,7 +29,7 @@ export class MenuScreen extends Component {
     const subtitle = el('p', { class: 'menu-subtitle' }, [
       'A Solo D&D 5e Adventure',
     ]);
-    const version = el('span', { class: 'menu-version' }, ['v0.3.8']);
+    const version = el('span', { class: 'menu-version' }, ['v0.3.12']);
     const ornament = el('div', { class: 'menu-ornament' });
 
     logo.appendChild(title);
@@ -142,6 +142,18 @@ export class MenuScreen extends Component {
         this.engine.events.emit({
           type: 'world:delete',
           category: 'world',
+          data: {},
+        });
+      });
+    }
+
+    // Settings
+    const settingsBtn = this.el.querySelector('[data-action="settings"]');
+    if (settingsBtn) {
+      this.listen(settingsBtn, 'click', () => {
+        this.engine.events.emit({
+          type: 'ui:modal:settings',
+          category: 'ui',
           data: {},
         });
       });

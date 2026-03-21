@@ -1,6 +1,4 @@
 import type {
-  CellFeature,
-  CellTerrain,
   Coordinate,
   EntityId,
   GridEntityPlacement,
@@ -8,89 +6,8 @@ import type {
 import { coordToKey } from '@/utils/math';
 import { Grid } from './Grid';
 import { FogOfWar } from './FogOfWar';
-
-// ── CDDA-Style ASCII Terrain Symbols & Colors ────────────────
-
-/**
- * Each terrain type has a character, foreground color, and background color.
- * Colors are saturated and rich — inspired by CDDA's curses palette.
- * Multiple chars per terrain add visual variety.
- */
-const TERRAIN_GLYPHS: Record<CellTerrain, { chars: string[]; fg: string; bg: string }> = {
-  floor:  { chars: ['.'],              fg: '#808080', bg: '#181818' },
-  wall:   { chars: ['#'],              fg: '#c0c0c0', bg: '#303030' },
-  grass:  { chars: ['.', ',', '`'],    fg: '#00cc00', bg: '#002200' },
-  water:  { chars: ['~', '\u2248'],    fg: '#00aaff', bg: '#001133' },
-  lava:   { chars: ['~', '\u2248'],    fg: '#ff4400', bg: '#330a00' },
-  stone:  { chars: ['.', ':'],         fg: '#aaaaaa', bg: '#1c1c1c' },
-  ice:    { chars: ['.'],              fg: '#aaddee', bg: '#112233' },
-  mud:    { chars: [',', '~'],         fg: '#aa7733', bg: '#1a0f00' },
-  sand:   { chars: ['.', ':'],         fg: '#ddbb55', bg: '#221a00' },
-  wood:   { chars: ['.'],              fg: '#cc9944', bg: '#1a0f00' },
-  pit:    { chars: [' '],              fg: '#222222', bg: '#000000' },
-};
-
-/** Feature glyphs override terrain when present. Bright, high-contrast. */
-const FEATURE_GLYPHS: Record<CellFeature, { ch: string; fg: string; bg: string }> = {
-  door:        { ch: '+', fg: '#ffaa00', bg: '#332200' },
-  door_locked: { ch: '+', fg: '#ff4444', bg: '#330000' },
-  chest:       { ch: '*', fg: '#ffee00', bg: '#332a00' },
-  trap:        { ch: '^', fg: '#ff2222', bg: '#220000' },
-  stairs_up:   { ch: '<', fg: '#ffffff', bg: '#002244' },
-  stairs_down: { ch: '>', fg: '#ffffff', bg: '#002244' },
-  fountain:    { ch: '{', fg: '#00ccff', bg: '#001a33' },
-  fire:        { ch: '&', fg: '#ff6600', bg: '#331100' },
-  altar:       { ch: '_', fg: '#cc66ff', bg: '#1a0033' },
-  pillar:      { ch: 'O', fg: '#aaaaaa', bg: '#222222' },
-  tree:        { ch: 'T', fg: '#8b5a2b', bg: '#2a1a0a' },
-  rock:        { ch: '.', fg: '#888888', bg: '#333333' },
-};
-
-/**
- * Wall auto-connect: picks box-drawing chars based on adjacent walls.
- * Considers out-of-bounds and doors as connectable neighbors.
- */
-function getWallChar(grid: Grid, x: number, y: number): string {
-  const connectsWall = (wx: number, wy: number): boolean => {
-    if (!grid.isValidPosition(wx, wy)) return true; // edges connect
-    const c = grid.getCell(wx, wy);
-    if (!c) return true;
-    if (c.terrain === 'wall') return true;
-    // Doors and pillars connect to walls
-    if (c.features.some(f => f === 'door' || f === 'door_locked' || f === 'pillar')) return true;
-    return false;
-  };
-
-  const n = connectsWall(x, y - 1);
-  const s = connectsWall(x, y + 1);
-  const e = connectsWall(x + 1, y);
-  const w = connectsWall(x - 1, y);
-
-  // Box-drawing character selection (heavy lines for better visibility)
-  if (n && s && e && w) return '\u254B'; // ╋
-  if (n && s && e)      return '\u2523'; // ┣
-  if (n && s && w)      return '\u252B'; // ┫
-  if (n && e && w)      return '\u253B'; // ┻
-  if (s && e && w)      return '\u2533'; // ┳
-  if (n && s)           return '\u2503'; // ┃
-  if (e && w)           return '\u2501'; // ━
-  if (n && e)           return '\u2517'; // ┗
-  if (n && w)           return '\u251B'; // ┛
-  if (s && e)           return '\u250F'; // ┏
-  if (s && w)           return '\u2513'; // ┓
-  if (n)                return '\u2503'; // ┃
-  if (s)                return '\u2503'; // ┃
-  if (e)                return '\u2501'; // ━
-  if (w)                return '\u2501'; // ━
-  return '\u2588'; // █ solid block for isolated walls
-}
-
-/** Simple hash for consistent terrain variation per cell. */
-function cellHash(x: number, y: number): number {
-  let h = x * 374761393 + y * 668265263;
-  h = (h ^ (h >> 13)) * 1274126177;
-  return (h ^ (h >> 16)) & 0x7fffffff;
-}
+import type { Tileset, TilesetRenderContext } from './Tileset';
+import { cellHash, AsciiTileset } from './Tileset';
 
 // ── Visual info for entity rendering ─────────────────────────
 
@@ -114,12 +31,12 @@ interface HighlightLayer {
   alpha: number;
 }
 
-// ── CDDA-Style ASCII Grid Renderer ───────────────────────────
+// ── Grid Renderer ─────────────────────────────────────────────
 
 /**
- * CDDA-inspired ASCII renderer. Each grid cell is a single colored character
- * drawn on a black background using a monospace font. The viewport is centered
- * on the camera position and fills the container.
+ * Canvas-based grid renderer. Delegates cell rendering to a Tileset,
+ * supporting both ASCII (non-square) and graphical (square) tilesets.
+ * The viewport is centered on the camera position and fills the container.
  */
 export class GridRenderer {
   private canvas: HTMLCanvasElement;
@@ -134,7 +51,10 @@ export class GridRenderer {
   private animationFrame: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
-  // Cell size auto-calculated from font metrics
+  // Active tileset
+  private tileset: Tileset;
+
+  // Cell size auto-calculated from font metrics or tileset
   private cellW = 16;
   private cellH = 20;
   private fontSize = 16;
@@ -155,8 +75,9 @@ export class GridRenderer {
   onCellClick: ((coord: Coordinate) => void) | null = null;
   onEntityClick: ((entityId: EntityId) => void) | null = null;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, tileset?: Tileset) {
     this.container = container;
+    this.tileset = tileset ?? new AsciiTileset();
 
     this.canvas = document.createElement('canvas');
     this.canvas.style.display = 'block';
@@ -189,6 +110,17 @@ export class GridRenderer {
     this.resizeCanvas();
   }
 
+  /** Switch to a different tileset at runtime. */
+  setTileset(tileset: Tileset): void {
+    this.tileset = tileset;
+    this.resizeCanvas();
+  }
+
+  /** Get the current tileset. */
+  getTileset(): Tileset {
+    return this.tileset;
+  }
+
   // ── Main Render ────────────────────────────────────────────
 
   render(grid: Grid, fog: FogOfWar): void {
@@ -211,6 +143,7 @@ export class GridRenderer {
     const startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
     const startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
 
+    // Set up font for ASCII tileset (graphical tilesets ignore this)
     ctx.font = `${this.fontSize}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -234,45 +167,21 @@ export class GridRenderer {
         // Unexplored: black
         if (!visible && !explored) continue;
 
-        // Determine glyph: features override terrain, entities override both (handled later)
-        let ch: string;
-        let fg: string;
-        let bg: string;
+        const dim = visible ? 1 : 0.3;
+        const hash = cellHash(gx, gy);
 
-        const terrainGlyph = TERRAIN_GLYPHS[cell.terrain] ?? TERRAIN_GLYPHS.floor;
-        bg = terrainGlyph.bg;
-        fg = terrainGlyph.fg;
+        const rc: TilesetRenderContext = {
+          ctx, px, py, cw: this.cellW, ch: this.cellH,
+          gx, gy, hash, grid, dim,
+        };
 
-        // Auto-connect walls
-        if (cell.terrain === 'wall') {
-          ch = getWallChar(grid, gx, gy);
-        } else {
-          ch = terrainGlyph.chars[cellHash(gx, gy) % terrainGlyph.chars.length];
-        }
+        // Render terrain
+        this.tileset.renderTerrain(rc, cell.terrain);
 
-        // Features override terrain glyph (including background)
+        // Features override terrain
         if (cell.features.length > 0) {
-          const feat = FEATURE_GLYPHS[cell.features[0]];
-          if (feat) {
-            ch = feat.ch;
-            fg = feat.fg;
-            bg = feat.bg;
-          }
+          this.tileset.renderFeature(rc, cell.features[0], cell.terrain);
         }
-
-        // Dim explored-but-not-visible cells
-        if (!visible) {
-          fg = this.dimColor(fg, 0.3);
-          bg = this.dimColor(bg, 0.3);
-        }
-
-        // Draw background
-        ctx.fillStyle = bg;
-        ctx.fillRect(px, py, this.cellW, this.cellH);
-
-        // Draw character
-        ctx.fillStyle = fg;
-        ctx.fillText(ch, px + this.cellW / 2, py + this.cellH / 2);
       }
     }
 
@@ -324,7 +233,7 @@ export class GridRenderer {
     ctx.restore();
   }
 
-  /** Render entities as colored ASCII glyphs (@ for player, letters for others). */
+  /** Render entities as colored glyphs/shapes depending on tileset. */
   renderEntities(
     placements: Map<EntityId, GridEntityPlacement>,
     getInfo: (id: EntityId) => EntityRenderInfo | undefined,
@@ -353,27 +262,19 @@ export class GridRenderer {
       const px = vx * this.cellW;
       const py = vy * this.cellH;
 
-      // Background: darken the cell slightly to make entity stand out
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(px, py, this.cellW, this.cellH);
+      const rc: TilesetRenderContext = {
+        ctx, px, py, cw: this.cellW, ch: this.cellH,
+        gx: placement.position.x, gy: placement.position.y,
+        hash: 0, grid: null as unknown as Grid, dim: 1,
+      };
 
-      // Entity color
-      let color = info.color;
-      if (info.isPlayer) {
-        color = '#ffffff';
-      } else if (info.isAlly) {
-        color = '#44aaff';
-      }
+      this.tileset.renderEntity(rc, info.symbol, info.color, info.isPlayer, info.isAlly);
 
       // Selected: bright highlight
       if (entityId === this.selectedEntity) {
         ctx.fillStyle = 'rgba(255,255,255,0.15)';
         ctx.fillRect(px, py, this.cellW, this.cellH);
       }
-
-      // Draw the entity glyph
-      ctx.fillStyle = color;
-      ctx.fillText(info.symbol, px + this.cellW / 2, py + this.cellH / 2);
     }
 
     ctx.restore();
@@ -506,22 +407,21 @@ export class GridRenderer {
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
 
-    // Calculate cell size to fill viewport
-    // Target: larger glyphs with square-ish cells for CDDA feel
-    this.fontSize = 20;
-    this.cellW = Math.ceil(this.fontSize * 0.65); // Monospace char width
-    this.cellH = Math.ceil(this.fontSize * 1.15); // Tighter line height for density
+    if (this.tileset.squareCells) {
+      // Square cells: equal width and height
+      const size = this.tileset.baseCellSize;
+      this.cellW = size;
+      this.cellH = size;
+      this.fontSize = Math.floor(size * 0.7);
+    } else {
+      // ASCII cells: taller than wide (monospace proportions)
+      this.fontSize = this.tileset.baseCellSize;
+      this.cellW = Math.ceil(this.fontSize * 0.65);
+      this.cellH = Math.ceil(this.fontSize * 1.15);
+    }
 
     // How many cells fit in the viewport
     this.viewCols = Math.ceil(rect.width / this.cellW);
     this.viewRows = Math.ceil(rect.height / this.cellH);
-  }
-
-  /** Dim a hex color by a factor (0-1). */
-  private dimColor(hex: string, factor: number): string {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgb(${Math.floor(r * factor)},${Math.floor(g * factor)},${Math.floor(b * factor)})`;
   }
 }

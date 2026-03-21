@@ -1,5 +1,6 @@
 /* ============================================================
-   ONE PARTY — Character Creation Screen
+   ONE PARTY — Character Creation · Obsidian Sanctum
+   Ritual chamber — step by step, the hero takes form.
    ============================================================ */
 
 .creation-screen {
@@ -7,7 +8,7 @@
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(ellipse at 50% 20%, rgba(200, 168, 78, 0.03) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 15%, rgba(196, 162, 74, 0.03) 0%, transparent 50%),
     var(--bg-darkest);
 }
 
@@ -15,8 +16,9 @@
 .creation-header {
   padding: var(--space-lg) var(--space-xl);
   border-bottom: 1px solid var(--border-gold);
-  background: var(--bg-dark);
-  box-shadow: var(--shadow-sm);
+  background:
+    linear-gradient(180deg, rgba(18, 16, 11, 0.95) 0%, rgba(14, 12, 9, 0.98) 100%);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
   flex-shrink: 0;
 }
 
@@ -25,7 +27,8 @@
   font-size: var(--text-2xl);
   color: var(--gold);
   text-align: center;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 12px rgba(196, 162, 74, 0.15);
 }
 
 /* ── Step Indicator ── */
@@ -44,15 +47,16 @@
   border-radius: 50%;
   border: 2px solid var(--border-gold);
   background: transparent;
-  transition: all var(--duration-normal) var(--ease-out-back);
+  transition: all var(--duration-normal) var(--ease-heavy);
   position: relative;
 }
 
 .creation-step-dot.active {
   background: var(--gold);
   border-color: var(--gold-light);
-  transform: scale(1.2);
-  box-shadow: 0 0 10px rgba(200, 168, 78, 0.4);
+  transform: scale(1.25);
+  box-shadow: 0 0 12px rgba(196, 162, 74, 0.4),
+              0 0 24px rgba(196, 162, 74, 0.15);
 }
 
 .creation-step-dot.completed {
@@ -76,7 +80,7 @@
   font-size: var(--text-xs);
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-align: center;
   margin-top: var(--space-xs);
 }
@@ -109,7 +113,7 @@
 }
 
 .creation-step-panel.active {
-  animation: slideInRight var(--duration-slow) var(--ease-out-back) both;
+  animation: slideInRight var(--duration-slow) var(--ease-heavy) both;
 }
 
 .creation-step-panel.exit-left {
@@ -127,7 +131,7 @@
   color: var(--text-primary);
   text-align: center;
   margin-bottom: var(--space-sm);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .creation-step-subtitle {
@@ -137,6 +141,7 @@
   text-align: center;
   margin-bottom: var(--space-xl);
   font-style: italic;
+  opacity: 0.85;
 }
 
 /* ── Selection Grid ── */
@@ -148,19 +153,23 @@
 }
 
 .creation-option {
-  background: var(--bg-panel);
+  background:
+    linear-gradient(135deg, rgba(26, 22, 16, 0.9) 0%, var(--bg-panel) 100%);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: var(--space-md);
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-out-back);
+  transition: all var(--duration-normal) var(--ease-heavy);
   box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
 }
 
 .creation-option:hover {
-  transform: translateY(-3px);
+  transform: translateY(-4px);
   border-color: var(--border-gold-hover);
-  box-shadow: var(--shadow-hover);
+  box-shadow: var(--shadow-hover),
+              0 0 16px rgba(196, 162, 74, 0.06);
   background: var(--bg-surface);
 }
 
@@ -171,10 +180,11 @@
 
 .creation-option.selected {
   border-color: var(--gold);
-  box-shadow: var(--shadow-glow);
+  box-shadow: var(--shadow-glow),
+              inset 0 0 20px rgba(196, 162, 74, 0.03);
   background: linear-gradient(
     180deg,
-    rgba(200, 168, 78, 0.08) 0%,
+    rgba(196, 162, 74, 0.06) 0%,
     var(--bg-panel) 100%
   );
 }
@@ -188,11 +198,6 @@
   height: 3px;
   background: linear-gradient(90deg, var(--gold-dark), var(--gold-light), var(--gold-dark));
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-
-.creation-option {
-  position: relative;
-  overflow: hidden;
 }
 
 .creation-option-name {
@@ -229,25 +234,26 @@
 }
 
 .ability-score-card {
-  background: var(--bg-panel);
+  background:
+    linear-gradient(180deg, var(--bg-panel) 0%, var(--bg-dark) 100%);
   border: 1px solid var(--border-gold);
   border-radius: var(--radius-lg);
   padding: var(--space-md);
   text-align: center;
   transition: all var(--duration-normal) var(--ease-smooth);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-sm), var(--shadow-inset-glow);
 }
 
 .ability-score-card:hover {
   border-color: var(--border-gold-hover);
-  box-shadow: var(--shadow-hover);
+  box-shadow: var(--shadow-hover), var(--shadow-inset-glow);
 }
 
 .ability-score-name {
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: var(--text-muted);
   margin-bottom: var(--space-sm);
 }
@@ -260,6 +266,7 @@
   line-height: 1;
   margin-bottom: var(--space-xs);
   transition: color var(--duration-fast) var(--ease-smooth);
+  text-shadow: 0 0 10px rgba(196, 162, 74, 0.15);
 }
 
 .ability-score-modifier {
@@ -290,13 +297,14 @@
   font-size: var(--text-lg);
   font-weight: 700;
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out-back);
+  transition: all var(--duration-fast) var(--ease-heavy);
 }
 
 .ability-score-btn:hover {
   background: var(--gold);
   color: var(--bg-darkest);
-  transform: scale(1.1);
+  transform: scale(1.12);
+  box-shadow: 0 0 8px rgba(196, 162, 74, 0.3);
 }
 
 .ability-score-btn:active {
@@ -304,7 +312,7 @@
 }
 
 .ability-score-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.25;
   cursor: not-allowed;
   transform: none !important;
 }
@@ -351,7 +359,7 @@
 
 .skill-option.selected {
   border-color: var(--gold);
-  background: rgba(200, 168, 78, 0.08);
+  background: rgba(196, 162, 74, 0.06);
 }
 
 .skill-option.selected .checkbox-box {
@@ -360,7 +368,7 @@
 }
 
 .skill-option.disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
@@ -395,11 +403,13 @@
   font-family: var(--font-mono);
   font-weight: 700;
   color: var(--gold);
+  text-shadow: 0 0 6px rgba(196, 162, 74, 0.2);
 }
 
 /* ── Character Summary Card ── */
 .character-summary {
-  background: var(--bg-panel);
+  background:
+    linear-gradient(180deg, rgba(26, 22, 16, 0.95) 0%, var(--bg-panel) 100%);
   border: 1px solid var(--border-gold);
   border-radius: var(--radius-xl);
   padding: var(--space-xl);
@@ -426,6 +436,7 @@
   color: var(--gold);
   text-align: center;
   margin-bottom: var(--space-xs);
+  text-shadow: 0 0 12px rgba(196, 162, 74, 0.2);
 }
 
 .character-summary-subtitle {
@@ -457,7 +468,7 @@
 .summary-ability {
   text-align: center;
   padding: var(--space-sm);
-  background: var(--bg-dark);
+  background: var(--bg-deep);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
 }
@@ -466,7 +477,7 @@
   font-family: var(--font-ui);
   font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--text-dim);
 }
 
@@ -502,7 +513,7 @@
   font-family: var(--font-heading);
   font-size: var(--text-2xl);
   padding: var(--space-md);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 /* ── Navigation ── */
@@ -512,7 +523,8 @@
   align-items: center;
   padding: var(--space-lg) var(--space-xl);
   border-top: 1px solid var(--border-subtle);
-  background: var(--bg-dark);
+  background:
+    linear-gradient(180deg, var(--bg-dark) 0%, var(--bg-darkest) 100%);
   flex-shrink: 0;
 }
 
@@ -526,7 +538,7 @@
 }
 
 .creation-screen.mounted .creation-header {
-  animation: slideInDown var(--duration-slow) var(--ease-out-back) both;
+  animation: slideInDown var(--duration-slow) var(--ease-heavy) both;
 }
 
 .creation-screen.mounted .creation-steps {
@@ -534,5 +546,5 @@
 }
 
 .creation-screen.mounted .creation-nav {
-  animation: slideInUp var(--duration-slow) var(--ease-out-back) 300ms both;
+  animation: slideInUp var(--duration-slow) var(--ease-heavy) 300ms both;
 }

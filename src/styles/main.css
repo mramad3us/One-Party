@@ -65,12 +65,12 @@ button {
 
 /* ── Selection Color ── */
 ::selection {
-  background: rgba(200, 168, 78, 0.3);
+  background: rgba(212, 170, 60, 0.3);
   color: var(--text-primary);
 }
 
 ::-moz-selection {
-  background: rgba(200, 168, 78, 0.3);
+  background: rgba(212, 170, 60, 0.3);
   color: var(--text-primary);
 }
 
