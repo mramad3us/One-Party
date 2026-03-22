@@ -653,6 +653,48 @@ export const SRD_ITEMS: Item[] = [
   },
 ];
 
+// ── Dev-only items ────────────────────────────────────
+export const DEV_ITEMS: Item[] = [
+  {
+    id: 'item_dev_plot_armor',
+    type: 'item',
+    name: 'Plot Armor',
+    itemType: 'armor',
+    rarity: 'legendary',
+    weight: 0,
+    value: { gold: 0, silver: 0, copper: 0 },
+    description: 'An invisible force shields you from all harm. Nothing can touch you — you are the protagonist.',
+    stackable: false,
+    requiresAttunement: false,
+    properties: {
+      baseAC: 100,
+      armorType: 'light',
+      stealthDisadvantage: false,
+    },
+  },
+  {
+    id: 'item_dev_gods_sword',
+    type: 'item',
+    name: "God's Sword",
+    itemType: 'weapon',
+    rarity: 'legendary',
+    weight: 0,
+    value: { gold: 0, silver: 0, copper: 0 },
+    description: 'A blade forged in the fires of creation itself. Ten dice of devastation rain upon any who stand before you.',
+    stackable: false,
+    requiresAttunement: false,
+    properties: {
+      damage: { count: 10, die: 10, type: 'radiant' },
+      weaponType: 'simple',
+      range: 'melee',
+      reach: 5,
+      tags: ['light'],
+    },
+  },
+];
+
+const ALL_ITEMS = [...SRD_ITEMS, ...DEV_ITEMS];
+
 export function getItem(id: string): Item | undefined {
-  return SRD_ITEMS.find((item) => item.id === id);
+  return ALL_ITEMS.find((item) => item.id === id);
 }

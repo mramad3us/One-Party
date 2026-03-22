@@ -5,7 +5,14 @@ import { FocusNav } from '@/ui/FocusNav';
 import { el } from '@/utils/dom';
 import { SRD_RACES, type RaceDefinition } from '@/data/races';
 import { SRD_CLASSES, type ClassDefinition } from '@/data/classes';
+import { SRD_SPELLS } from '@/data/spells';
 import { isDevMode } from '@/utils/devmode';
+
+const SCHOOL_LABELS: Record<string, string> = {
+  abjuration: 'Abjuration', conjuration: 'Conjuration', divination: 'Divination',
+  enchantment: 'Enchantment', evocation: 'Evocation', illusion: 'Illusion',
+  necromancy: 'Necromancy', transmutation: 'Transmutation',
+};
 
 const QUICK_NAMES = [
   'Aldric', 'Brunda', 'Cael', 'Dara', 'Elowen', 'Falk', 'Gideon',
@@ -48,13 +55,12 @@ function formatSkillName(skill: string): string {
 }
 
 /**
- * Character creation wizard with 5 steps:
- * Race -> Class -> Ability Scores -> Skills -> Name & Confirm
+ * Character creation wizard with 5-6 steps:
+ * Race -> Class -> Abilities -> Skills -> [Spells] -> Name & Confirm
+ * The Spells step only appears for spellcasting classes.
  */
 export class CreationScreen extends Component {
   private step = 0;
-  private totalSteps = 5;
-  private stepLabels = ['Race', 'Class', 'Abilities', 'Skills', 'Name'];
 
   // Selections
   private selectedRace: RaceDefinition | null = null;
@@ -64,8 +70,23 @@ export class CreationScreen extends Component {
     intelligence: 10, wisdom: 10, charisma: 10,
   };
   private selectedSkills: Set<Skill> = new Set();
+  private selectedCantrips: Set<string> = new Set();
+  private selectedSpells: Set<string> = new Set();
   private characterName = '';
   private pointsRemaining = 27;
+
+  /** Whether current class has spellcasting — determines step count. */
+  private get isCaster(): boolean {
+    return !!this.selectedClass?.spellcasting;
+  }
+  private get totalSteps(): number {
+    return this.isCaster ? 6 : 5;
+  }
+  private get stepLabels(): string[] {
+    return this.isCaster
+      ? ['Race', 'Class', 'Abilities', 'Skills', 'Spells', 'Name']
+      : ['Race', 'Class', 'Abilities', 'Skills', 'Name'];
+  }
 
   // Refs
   private contentEl!: HTMLElement;
@@ -168,15 +189,20 @@ export class CreationScreen extends Component {
   }
 
   private validateStep(): boolean {
-    switch (this.step) {
-      case 0: return this.selectedRace !== null;
-      case 1: return this.selectedClass !== null;
-      case 2: return true; // Scores always valid
-      case 3: {
+    switch (this.logicalStep) {
+      case 'race': return this.selectedRace !== null;
+      case 'class': return this.selectedClass !== null;
+      case 'abilities': return true;
+      case 'skills': {
         const needed = this.selectedClass?.skillChoices.choose ?? 0;
         return this.selectedSkills.size === needed;
       }
-      case 4: return this.characterName.trim().length > 0;
+      case 'spells': {
+        const maxCantrips = this.getMaxCantrips();
+        const maxSpells = this.getMaxPreparedSpells();
+        return this.selectedCantrips.size === maxCantrips && this.selectedSpells.size === maxSpells;
+      }
+      case 'name': return this.characterName.trim().length > 0;
       default: return true;
     }
   }
@@ -197,15 +223,23 @@ export class CreationScreen extends Component {
     }, 150);
   }
 
+  /** Map numeric step to a logical step name, accounting for optional Spells step. */
+  private get logicalStep(): 'race' | 'class' | 'abilities' | 'skills' | 'spells' | 'name' {
+    if (this.step <= 3) return (['race', 'class', 'abilities', 'skills'] as const)[this.step];
+    if (this.isCaster && this.step === 4) return 'spells';
+    return 'name';
+  }
+
   private renderStep(): void {
     let panel: HTMLElement;
 
-    switch (this.step) {
-      case 0: panel = this.renderRaceStep(); break;
-      case 1: panel = this.renderClassStep(); break;
-      case 2: panel = this.renderAbilityStep(); break;
-      case 3: panel = this.renderSkillsStep(); break;
-      case 4: panel = this.renderNameStep(); break;
+    switch (this.logicalStep) {
+      case 'race': panel = this.renderRaceStep(); break;
+      case 'class': panel = this.renderClassStep(); break;
+      case 'abilities': panel = this.renderAbilityStep(); break;
+      case 'skills': panel = this.renderSkillsStep(); break;
+      case 'spells': panel = this.renderSpellsStep(); break;
+      case 'name': panel = this.renderNameStep(); break;
       default: panel = el('div'); break;
     }
 
@@ -226,8 +260,8 @@ export class CreationScreen extends Component {
     this.focusNav.detach();
 
     let items: HTMLElement[] = [];
-    switch (this.step) {
-      case 0: // Race
+    switch (this.logicalStep) {
+      case 'race':
         items = Array.from(this.contentEl.querySelectorAll('.creation-option')) as HTMLElement[];
         this.focusNav = new FocusNav({
           columns: 3,
@@ -235,7 +269,7 @@ export class CreationScreen extends Component {
           onCancel: () => this.goBack(),
         });
         break;
-      case 1: // Class
+      case 'class':
         items = Array.from(this.contentEl.querySelectorAll('.creation-option')) as HTMLElement[];
         this.focusNav = new FocusNav({
           columns: 3,
@@ -243,15 +277,15 @@ export class CreationScreen extends Component {
           onCancel: () => this.goBack(),
         });
         break;
-      case 2: // Abilities
+      case 'abilities':
         items = Array.from(this.contentEl.querySelectorAll('.ability-score-btn')) as HTMLElement[];
         this.focusNav = new FocusNav({
-          columns: 2, // +/- pairs
+          columns: 2,
           onSelect: (el) => el.click(),
           onCancel: () => this.goBack(),
         });
         break;
-      case 3: // Skills
+      case 'skills':
         items = Array.from(this.contentEl.querySelectorAll('.skill-option')) as HTMLElement[];
         this.focusNav = new FocusNav({
           columns: 3,
@@ -259,7 +293,15 @@ export class CreationScreen extends Component {
           onCancel: () => this.goBack(),
         });
         break;
-      case 4: // Name - input handles its own keyboard
+      case 'spells':
+        items = Array.from(this.contentEl.querySelectorAll('.spell-pick-option')) as HTMLElement[];
+        this.focusNav = new FocusNav({
+          columns: 2,
+          onSelect: (el) => el.click(),
+          onCancel: () => this.goBack(),
+        });
+        break;
+      case 'name':
         this.focusNav = new FocusNav({
           onCancel: () => this.goBack(),
         });
@@ -351,19 +393,23 @@ export class CreationScreen extends Component {
       grid.appendChild(option);
     }
 
-    // Dev mode: "Quick Character" card
+    // Dev mode: quick character cards
     if (isDevMode()) {
-      const quickCard = el('div', { class: 'creation-option creation-option--dev' });
-      quickCard.appendChild(el('div', { class: 'creation-option-name' }, ['\u26A1 Quick Character']));
-      quickCard.appendChild(el('div', { class: 'creation-option-desc' }, [
-        'Randomize everything and jump straight into the game. (Dev mode)',
-      ]));
-      const devBadge = el('div', { class: 'creation-option-detail' });
-      devBadge.appendChild(el('span', { class: 'badge' }, ['DEV']));
-      quickCard.appendChild(devBadge);
-
-      quickCard.addEventListener('click', () => this.quickCreateCharacter());
-      grid.appendChild(quickCard);
+      const quickOptions: { label: string; desc: string; filter: 'any' | 'melee' | 'caster' }[] = [
+        { label: '\u26A1 Quick Random', desc: 'Fully random class and race.', filter: 'any' },
+        { label: '\u2694\uFE0F Quick Melee', desc: 'Random Fighter or Rogue.', filter: 'melee' },
+        { label: '\u2728 Quick Caster', desc: 'Random Wizard or Cleric.', filter: 'caster' },
+      ];
+      for (const opt of quickOptions) {
+        const quickCard = el('div', { class: 'creation-option creation-option--dev' });
+        quickCard.appendChild(el('div', { class: 'creation-option-name' }, [opt.label]));
+        quickCard.appendChild(el('div', { class: 'creation-option-desc' }, [opt.desc]));
+        const devBadge = el('div', { class: 'creation-option-detail' });
+        devBadge.appendChild(el('span', { class: 'badge' }, ['DEV']));
+        quickCard.appendChild(devBadge);
+        quickCard.addEventListener('click', () => this.quickCreateCharacter(opt.filter));
+        grid.appendChild(quickCard);
+      }
     }
 
     panel.appendChild(grid);
@@ -371,9 +417,17 @@ export class CreationScreen extends Component {
   }
 
   /** Dev mode: randomize a character and skip to game. */
-  private quickCreateCharacter(): void {
+  private quickCreateCharacter(filter: 'any' | 'melee' | 'caster' = 'any'): void {
+    const MELEE_IDS = ['fighter', 'rogue'];
+    const CASTER_IDS = ['wizard', 'cleric'];
+    const classPool = filter === 'melee'
+      ? SRD_CLASSES.filter(c => MELEE_IDS.includes(c.id))
+      : filter === 'caster'
+        ? SRD_CLASSES.filter(c => CASTER_IDS.includes(c.id))
+        : SRD_CLASSES;
+
     const race = SRD_RACES[Math.floor(Math.random() * SRD_RACES.length)];
-    const cls = SRD_CLASSES[Math.floor(Math.random() * SRD_CLASSES.length)];
+    const cls = classPool[Math.floor(Math.random() * classPool.length)];
     const name = QUICK_NAMES[Math.floor(Math.random() * QUICK_NAMES.length)];
 
     // Roll 4d6-drop-lowest for each ability
@@ -393,6 +447,11 @@ export class CreationScreen extends Component {
       chosen.push(available.splice(idx, 1)[0]);
     }
 
+    // Dev mode: know ALL spells for the class
+    const className = cls.name.toLowerCase();
+    const allCantrips = SRD_SPELLS.filter(s => s.level === 0 && s.classes.includes(className)).map(s => s.id);
+    const allSpells = SRD_SPELLS.filter(s => s.level >= 1 && s.classes.includes(className)).map(s => s.id);
+
     this.engine.events.emit({
       type: 'character:created',
       category: 'character',
@@ -402,6 +461,8 @@ export class CreationScreen extends Component {
         class: cls.id,
         abilityScores: scores as AbilityScores,
         skills: chosen,
+        selectedCantrips: allCantrips,
+        selectedSpells: allSpells,
       },
     });
 
@@ -447,8 +508,10 @@ export class CreationScreen extends Component {
 
       option.addEventListener('click', () => {
         this.selectedClass = cls;
-        // Reset skills when class changes
+        // Reset skills and spells when class changes
         this.selectedSkills.clear();
+        this.selectedCantrips.clear();
+        this.selectedSpells.clear();
         this.el.querySelectorAll('[data-class]').forEach((o) => o.classList.remove('selected'));
         option.classList.add('selected');
       });
@@ -640,6 +703,138 @@ export class CreationScreen extends Component {
     return panel;
   }
 
+  // ── Spell selection helpers ──
+
+  private getMaxCantrips(): number {
+    if (!this.selectedClass?.spellcasting) return 0;
+    return this.selectedClass.spellcasting.cantripsKnown[0] ?? 3;
+  }
+
+  private getMaxPreparedSpells(): number {
+    if (!this.selectedClass?.spellcasting || !this.selectedRace) return 0;
+    const castingAbility = this.selectedClass.spellcasting.ability;
+    const baseScore = this.abilityScores[castingAbility];
+    const raceBonus = this.selectedRace.abilityBonuses[castingAbility] ?? 0;
+    const mod = abilityModifier(baseScore + raceBonus);
+    return Math.max(1, mod + 1); // ability mod + level (level 1)
+  }
+
+  private getClassSpells(level: number): typeof SRD_SPELLS {
+    const className = this.selectedClass?.name.toLowerCase() ?? '';
+    return SRD_SPELLS.filter(s => s.level === level && s.classes.includes(className));
+  }
+
+  private renderSpellsStep(): HTMLElement {
+    const panel = el('div');
+    const maxCantrips = this.getMaxCantrips();
+    const maxSpells = this.getMaxPreparedSpells();
+
+    panel.appendChild(el('h3', { class: 'creation-step-title' }, ['Choose Your Spells']));
+    panel.appendChild(el('p', { class: 'creation-step-subtitle' }, [
+      'Select the arcane or divine magics your character has mastered.',
+    ]));
+
+    // ── Cantrips Section ──
+    const cantripSpells = this.getClassSpells(0);
+    if (cantripSpells.length > 0) {
+      const cantripHeader = el('div', { class: 'spell-pick-section-header' });
+      cantripHeader.appendChild(el('span', {}, ['Cantrips']));
+      const cantripCount = el('span', {
+        class: `spell-pick-counter${this.selectedCantrips.size === maxCantrips ? ' full' : ''}`,
+      }, [`${this.selectedCantrips.size} / ${maxCantrips}`]);
+      cantripHeader.appendChild(cantripCount);
+      panel.appendChild(cantripHeader);
+
+      const cantripGrid = el('div', { class: 'spell-pick-grid' });
+      for (const spell of cantripSpells) {
+        const isSelected = this.selectedCantrips.has(spell.id);
+        const atMax = this.selectedCantrips.size >= maxCantrips && !isSelected;
+        cantripGrid.appendChild(this.renderSpellPickOption(spell, isSelected, atMax, 'cantrip'));
+      }
+      panel.appendChild(cantripGrid);
+    }
+
+    // ── Leveled Spells Section ──
+    // At level 1, only level-1 spells are available
+    const leveledSpells = this.getClassSpells(1);
+    if (leveledSpells.length > 0) {
+      const spellHeader = el('div', { class: 'spell-pick-section-header' });
+      spellHeader.appendChild(el('span', {}, ['Level 1 Spells']));
+      const spellCount = el('span', {
+        class: `spell-pick-counter${this.selectedSpells.size === maxSpells ? ' full' : ''}`,
+      }, [`${this.selectedSpells.size} / ${maxSpells}`]);
+      spellHeader.appendChild(spellCount);
+      panel.appendChild(spellHeader);
+
+      const spellGrid = el('div', { class: 'spell-pick-grid' });
+      for (const spell of leveledSpells) {
+        const isSelected = this.selectedSpells.has(spell.id);
+        const atMax = this.selectedSpells.size >= maxSpells && !isSelected;
+        spellGrid.appendChild(this.renderSpellPickOption(spell, isSelected, atMax, 'leveled'));
+      }
+      panel.appendChild(spellGrid);
+    }
+
+    return panel;
+  }
+
+  private renderSpellPickOption(
+    spell: typeof SRD_SPELLS[number],
+    isSelected: boolean,
+    atMax: boolean,
+    kind: 'cantrip' | 'leveled',
+  ): HTMLElement {
+    const option = el('div', {
+      class: `spell-pick-option${isSelected ? ' selected' : ''}${atMax ? ' disabled' : ''}`,
+    });
+
+    const header = el('div', { class: 'spell-pick-option-header' });
+    const check = el('div', { class: 'checkbox-box' });
+    header.appendChild(check);
+    header.appendChild(el('span', { class: 'spell-pick-name' }, [spell.name]));
+    header.appendChild(el('span', { class: 'spell-pick-school' }, [
+      SCHOOL_LABELS[spell.school] ?? spell.school,
+    ]));
+    option.appendChild(header);
+
+    // Effect summary line
+    const details: string[] = [];
+    for (const eff of spell.effects) {
+      if (eff.damage) details.push(`${eff.damage.count}d${eff.damage.die} ${eff.damage.type}`);
+      if (eff.healing) details.push(`Heal ${eff.healing.count}d${eff.healing.die}`);
+      if (eff.condition) details.push(eff.condition);
+    }
+    if (spell.range > 0) details.push(`${spell.range} ft`);
+    else if (spell.range === -1) details.push('Touch');
+    else details.push('Self');
+    if (spell.duration.type === 'concentration') details.push('Conc.');
+    if (spell.ritual) details.push('Ritual');
+
+    option.appendChild(el('div', { class: 'spell-pick-details' }, [details.join(' · ')]));
+
+    option.addEventListener('click', () => {
+      const set = kind === 'cantrip' ? this.selectedCantrips : this.selectedSpells;
+      const max = kind === 'cantrip' ? this.getMaxCantrips() : this.getMaxPreparedSpells();
+
+      if (isSelected) {
+        set.delete(spell.id);
+      } else if (set.size < max) {
+        set.add(spell.id);
+      } else {
+        return;
+      }
+      // Re-render in place
+      const oldPanel = this.contentEl.querySelector('.creation-step-panel');
+      if (oldPanel) oldPanel.remove();
+      const newPanel = this.renderSpellsStep();
+      newPanel.classList.add('creation-step-panel', 'active');
+      this.contentEl.appendChild(newPanel);
+      this.updateNavButtons();
+    });
+
+    return option;
+  }
+
   private renderNameStep(): HTMLElement {
     const panel = el('div');
     panel.appendChild(el('h3', { class: 'creation-step-title' }, ['Name Your Hero']));
@@ -757,6 +952,8 @@ export class CreationScreen extends Component {
         class: this.selectedClass.id,
         abilityScores: { ...this.abilityScores },
         skills: Array.from(this.selectedSkills),
+        selectedCantrips: Array.from(this.selectedCantrips),
+        selectedSpells: Array.from(this.selectedSpells),
       },
     });
 

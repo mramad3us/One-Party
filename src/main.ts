@@ -34,6 +34,7 @@ import { TextNarrativeEngine } from '@/narrative/NarrativeEngine';
 import { SurvivalRules } from '@/rules/SurvivalRules';
 import { SurvivalNarrator } from '@/narrative/SurvivalNarrator';
 import { getItem } from '@/data/items';
+import { getSpell } from '@/data/spells';
 import type { ConsumableProperties } from '@/types/item';
 import { ROUNDS_PER_HOUR } from '@/types/time';
 import { KeyboardInput } from '@/engine/KeyboardInput';
@@ -401,12 +402,14 @@ async function main(): Promise<void> {
 
   // 9. Wire up character creation -> game start flow
   engine.events.on('character:created', (event) => {
-    const { name, race, class: classId, abilityScores, skills } = event.data as {
+    const { name, race, class: classId, abilityScores, skills, selectedCantrips, selectedSpells } = event.data as {
       name: string;
       race: string;
       class: string;
       abilityScores: AbilityScores;
       skills: Skill[];
+      selectedCantrips?: string[];
+      selectedSpells?: string[];
     };
 
     // Create RNG and dice
@@ -424,6 +427,8 @@ async function main(): Promise<void> {
       classId: classId,
       abilityScores,
       skills,
+      selectedCantrips,
+      selectedSpells,
     });
 
     // Bridge overworld to World/Region/Location hierarchy
@@ -439,6 +444,15 @@ async function main(): Promise<void> {
     // Set overworld position from starting location's coordinates
     const startLoc = gameState.getCurrentLocation();
     gameState.overworldPosition = { x: startLoc.coordinates.x, y: startLoc.coordinates.y };
+
+    // Dev mode: add Plot Armor and God's Sword
+    if (isDevMode()) {
+      character.inventory.items.push({ itemId: 'item_dev_plot_armor', quantity: 1 });
+      character.inventory.items.push({ itemId: 'item_dev_gods_sword', quantity: 1 });
+      character.equipment.armor = 'item_dev_plot_armor';
+      character.equipment.mainHand = 'item_dev_gods_sword';
+      character.armorClass = 100;
+    }
 
     // Register entities
     engine.entities.clear();
@@ -1233,6 +1247,34 @@ async function main(): Promise<void> {
     keyboardInput.pushContext('combat');
     combatController.setDiceContainer(activeGameScreen.getCombatDiceContainer());
     activeGameScreen.enterCombatMode(grid, displays);
+
+    // Set up overlays on the grid canvas (correct coordinate space)
+    const gridPanel = activeGameScreen.getGridPanel();
+    const canvasContainer = gridPanel.getCanvasContainer();
+    const gridToScreen = (pos: import('@/types').Coordinate) =>
+      gridPanel.gridToScreenCenter(pos) ?? { x: 0, y: 0 };
+
+    // Spell animation overlay
+    const spellAnimEl = document.createElement('div');
+    spellAnimEl.className = 'combat-spell-anim-container';
+    canvasContainer.appendChild(spellAnimEl);
+
+    // Damage number overlay
+    const dmgContainer = document.createElement('div');
+    dmgContainer.className = 'combat-damage-container';
+    canvasContainer.appendChild(dmgContainer);
+
+    combatController.setSpellAnimations(
+      spellAnimEl,
+      activeGameScreen.getGridWrap(),
+      gridToScreen,
+    );
+
+    // Pass grid coordinate converter + damage container to HUD
+    const combatHud = activeGameScreen.getCombatHUD();
+    if (combatHud) {
+      combatHud.setGridOverlay(gridToScreen, dmgContainer);
+    }
   });
 
   // When combat starts (after initiative is rolled), update HUD with actual initiative
@@ -1298,7 +1340,20 @@ async function main(): Promise<void> {
     // Add to narrative
     activeGameScreen.addNarrative({
       text: result.description,
-      category: result.success ? 'action' : 'description',
+      category: 'combat',
+    });
+  });
+
+  // Show spell results as toasts + narrative
+  engine.events.on('combat:spell', (event) => {
+    if (!activeGameScreen) return;
+    const { result } = event.data as { result: import('@/types').ActionResult };
+    const hud = activeGameScreen.getCombatHUD();
+    if (hud) hud.showActionResult(result);
+
+    activeGameScreen.addNarrative({
+      text: result.description,
+      category: 'combat',
     });
   });
 
@@ -1332,7 +1387,7 @@ async function main(): Promise<void> {
     const name = p?.npc?.name ?? 'the creature';
     activeGameScreen.addNarrative({
       text: `${name} falls!`,
-      category: 'action',
+      category: 'combat',
     });
     refreshCombatEntities();
   });
@@ -1442,9 +1497,16 @@ async function main(): Promise<void> {
       btn.innerHTML = `<span class="target-selector-key font-mono">${i + 1}</span>`
         + `<span class="target-selector-name">${name}</span>`
         + `<span class="target-selector-hp font-mono">${hp}/${maxHp} HP (${hpPct}%)</span>`;
+      btn.addEventListener('mouseenter', () => {
+        activeGameScreen?.getGridPanel().setSelectedEntity(targetId);
+      });
+      btn.addEventListener('mouseleave', () => {
+        activeGameScreen?.getGridPanel().setSelectedEntity(null);
+      });
       btn.addEventListener('click', () => {
         if (closed) return;
         closed = true;
+        activeGameScreen?.getGridPanel().setSelectedEntity(null);
         targetModal.close();
         doAttack(targetId);
       });
@@ -1466,9 +1528,192 @@ async function main(): Promise<void> {
         e.preventDefault();
         if (closed) return;
         closed = true;
+        activeGameScreen?.getGridPanel().setSelectedEntity(null);
         document.removeEventListener('keydown', onKey, true);
         targetModal.close();
         doAttack(targets[num - 1]);
+      } else if (e.key === 'Escape') {
+        activeGameScreen?.getGridPanel().setSelectedEntity(null);
+        document.removeEventListener('keydown', onKey, true);
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+  });
+
+  engine.events.on('input:combat_cast_spell', () => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    const actions = combatController.getAvailableActions();
+    if (!actions || actions.validSpells.length === 0) return;
+
+    const spells = actions.validSpells;
+    const character = engine.entities.getAll<Character>('character')[0];
+
+    // Build spell selection modal
+    const list = el('div', { class: 'target-selector-list' });
+    let closed = false;
+
+    const doCast = (spellOpt: typeof spells[0], targetId: string | null) => {
+      combatController.playerCastSpell(spellOpt.spellId, targetId, spellOpt.slotLevel).then(() => {
+        refreshCombatEntities();
+        updateCombatActionButtons();
+      });
+    };
+
+    spells.forEach((spellOpt, i) => {
+      const spell = getSpell(spellOpt.spellId);
+      if (!spell) return;
+
+      const isCantrip = spell.level === 0;
+      const isBonusAction = spell.castingTime === '1 bonus action';
+      const hasHealing = spell.effects.some(e => e.healing);
+
+      // Slot info
+      let slotInfo = 'cantrip';
+      if (!isCantrip && character?.spellcasting) {
+        const slot = character.spellcasting.spellSlots[spell.level];
+        slotInfo = slot ? `Lv${spell.level} ${slot.current}/${slot.max}` : `Lv${spell.level}`;
+      }
+
+      // Effect summary
+      let effectStr = '';
+      for (const eff of spell.effects) {
+        if (eff.damage) {
+          effectStr += `${eff.damage.count}d${eff.damage.die} ${eff.damage.type}`;
+          break;
+        }
+        if (eff.healing) {
+          effectStr += `${eff.healing.count}d${eff.healing.die} healing`;
+          break;
+        }
+      }
+
+      const rangeStr = spell.range > 0 ? `${spell.range}ft` : spell.range === 0 ? 'self' : 'touch';
+      const baTag = isBonusAction ? '<span class="spell-selector-ba">BA</span>' : '';
+
+      const btn = el('button', { class: 'target-selector-btn' });
+      btn.innerHTML = `<span class="target-selector-key">${i + 1}</span>`
+        + `<div class="spell-selector-row">`
+        + `<span class="target-selector-name">${spell.name} ${baTag}</span>`
+        + `<div class="spell-selector-meta"><span>${slotInfo}</span>`
+        + (effectStr ? `<span>${effectStr}</span>` : '')
+        + `<span>${rangeStr}</span></div>`
+        + `</div>`;
+
+      btn.addEventListener('click', () => {
+        if (closed) return;
+        closed = true;
+        spellModal.close();
+
+        // Healing spells target self — cast immediately
+        if (hasHealing) {
+          doCast(spellOpt, null);
+          return;
+        }
+
+        // Self/area spells with no explicit target — cast at first valid target
+        if (spell.targetType === 'self' || spell.range === 0) {
+          doCast(spellOpt, spellOpt.validTargets[0] ?? null);
+          return;
+        }
+
+        // Single target — if only one, cast directly
+        if (spellOpt.validTargets.length === 1) {
+          doCast(spellOpt, spellOpt.validTargets[0]);
+          return;
+        }
+
+        // Multiple targets — show target selector
+        if (spellOpt.validTargets.length > 1) {
+          const tList = el('div', { class: 'target-selector-list' });
+          let tClosed = false;
+
+          spellOpt.validTargets.forEach((targetId, ti) => {
+            const p = combatManager.getParticipant(targetId);
+            const name = p?.npc?.name ?? 'Unknown';
+            const hp = p?.stats.currentHp ?? 0;
+            const maxHp = p?.stats.maxHp ?? 1;
+            const hpPct = Math.round((hp / maxHp) * 100);
+
+            const tBtn = el('button', { class: 'target-selector-btn' });
+            tBtn.innerHTML = `<span class="target-selector-key font-mono">${ti + 1}</span>`
+              + `<span class="target-selector-name">${name}</span>`
+              + `<span class="target-selector-hp font-mono">${hp}/${maxHp} HP (${hpPct}%)</span>`;
+            tBtn.addEventListener('mouseenter', () => {
+              activeGameScreen?.getGridPanel().setSelectedEntity(targetId);
+            });
+            tBtn.addEventListener('mouseleave', () => {
+              activeGameScreen?.getGridPanel().setSelectedEntity(null);
+            });
+            tBtn.addEventListener('click', () => {
+              if (tClosed) return;
+              tClosed = true;
+              activeGameScreen?.getGridPanel().setSelectedEntity(null);
+              targetModal.close();
+              doCast(spellOpt, targetId);
+            });
+            tList.appendChild(tBtn);
+          });
+
+          const targetModal = new Modal(document.body, engine, {
+            title: 'Choose Target',
+            content: tList,
+            closable: true,
+            width: '320px',
+          });
+          targetModal.mount();
+
+          const onTKey = (e: KeyboardEvent) => {
+            const num = parseInt(e.key, 10);
+            if (num >= 1 && num <= spellOpt.validTargets.length) {
+              e.preventDefault();
+              if (tClosed) return;
+              tClosed = true;
+              activeGameScreen?.getGridPanel().setSelectedEntity(null);
+              document.removeEventListener('keydown', onTKey, true);
+              targetModal.close();
+              doCast(spellOpt, spellOpt.validTargets[num - 1]);
+            } else if (e.key === 'Escape') {
+              activeGameScreen?.getGridPanel().setSelectedEntity(null);
+              document.removeEventListener('keydown', onTKey, true);
+            }
+          };
+          document.addEventListener('keydown', onTKey, true);
+        }
+      });
+      list.appendChild(btn);
+    });
+
+    const spellModal = new Modal(document.body, engine, {
+      title: 'Cast Spell',
+      content: list,
+      closable: true,
+      width: '380px',
+    });
+    spellModal.mount();
+
+    // Number keys 1-9 to select spell
+    const onKey = (e: KeyboardEvent) => {
+      const num = parseInt(e.key, 10);
+      if (num >= 1 && num <= spells.length) {
+        e.preventDefault();
+        if (closed) return;
+        closed = true;
+        document.removeEventListener('keydown', onKey, true);
+        spellModal.close();
+
+        const spellOpt = spells[num - 1];
+        const spell = getSpell(spellOpt.spellId);
+        const hasHealing = spell?.effects.some(e2 => e2.healing);
+
+        if (hasHealing || spell?.targetType === 'self' || spell?.range === 0) {
+          doCast(spellOpt, spellOpt.validTargets[0] ?? null);
+        } else if (spellOpt.validTargets.length === 1) {
+          doCast(spellOpt, spellOpt.validTargets[0]);
+        } else if (spellOpt.validTargets.length > 1) {
+          // Re-trigger with this specific spell's targets for selection
+          // Simplification: pick first target
+          doCast(spellOpt, spellOpt.validTargets[0]);
+        }
       } else if (e.key === 'Escape') {
         document.removeEventListener('keydown', onKey, true);
       }
@@ -1547,10 +1792,20 @@ async function main(): Promise<void> {
     if (!actions) return;
 
     const hasTargets = actions.validAttackTargets.length > 0;
+    const hasSpells = actions.validSpells.length > 0;
+    // Bonus action spells are castable even if action is used
+    const hasBonusSpells = actions.validSpells.some(s => {
+      const spell = getSpell(s.spellId);
+      return spell?.castingTime === '1 bonus action';
+    });
+    const spellEnabled = (actions.canAction && hasSpells) || (actions.canBonusAction && hasBonusSpells);
 
     activeGameScreen.setCombatActions([
       { label: 'Attack', key: 'a', enabled: actions.canAction && hasTargets, onClick: () => {
         engine.events.emit({ type: 'input:combat_attack', category: 'ui', data: {} });
+      }},
+      { label: 'Cast', key: 's', enabled: spellEnabled, onClick: () => {
+        engine.events.emit({ type: 'input:combat_cast_spell', category: 'ui', data: {} });
       }},
       { label: 'Dash', key: 'd', enabled: actions.canAction, onClick: () => {
         engine.events.emit({ type: 'input:combat_dash', category: 'ui', data: {} });

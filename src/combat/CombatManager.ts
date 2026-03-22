@@ -22,6 +22,7 @@ import { InitiativeTracker } from './InitiativeTracker';
 import { TurnManager } from './TurnManager';
 import { TargetingSystem } from './TargetingSystem';
 import { CombatAI } from './CombatAI';
+import { getSpell } from '@/data/spells';
 
 /** Everything needed to add a participant to combat. */
 export interface CombatParticipant {
@@ -340,8 +341,25 @@ export class CombatManager {
 
     this.turnManager.useAction();
 
-    // Use the first available attack from the stat block
-    const attack = p.stats.attacks[0];
+    // Pick the best attack based on distance to target
+    const dist = this.grid ? this.grid.getEntityDistance(entityId, targetId) : 5;
+    let attack: (typeof p.stats.attacks)[number] | null = p.stats.attacks[0] ?? null;
+
+    // If target is beyond melee reach, prefer a ranged attack
+    if (p.stats.attacks.length > 0) {
+      const meleeAttacks = p.stats.attacks.filter(a => !a.rangeNormal || a.rangeNormal === 0);
+      const rangedAttacks = p.stats.attacks.filter(a => a.rangeNormal && a.rangeNormal > 0);
+
+      if (dist <= (attack?.reach ?? 5)) {
+        // In melee — prefer melee weapon
+        attack = meleeAttacks[0] ?? rangedAttacks[0] ?? attack;
+      } else {
+        // At range — use ranged weapon, validate range
+        const validRanged = rangedAttacks.find(a => dist <= (a.rangeLong ?? a.rangeNormal ?? 0));
+        attack = validRanged ?? null;
+      }
+    }
+
     let result: ActionResult;
 
     if (attack) {
@@ -375,19 +393,6 @@ export class CombatManager {
       // Apply damage
       if (hit && damage > 0) {
         this.applyDamageToParticipant(targetId, damage, attack.damage.type);
-      }
-
-      // Handle multiattack: if creature has multiple attacks, execute remaining ones
-      for (let i = 1; i < p.stats.attacks.length; i++) {
-        const extraAttack = p.stats.attacks[i];
-        const extraRoll = this.dice.rollD20({ modifier: extraAttack.toHitBonus });
-        const extraHit = extraRoll.isCritical || (!extraRoll.isFumble && extraRoll.total >= ac);
-
-        if (extraHit) {
-          const extraDmg = this.combatRules.rollDamage(extraAttack.damage, extraRoll.isCritical);
-          const extraDamage = Math.max(0, extraDmg.total);
-          this.applyDamageToParticipant(targetId, extraDamage, extraAttack.damage.type);
-        }
       }
     } else {
       // Unarmed strike fallback
@@ -426,20 +431,33 @@ export class CombatManager {
     return result;
   }
 
-  executeCastSpell(entityId: EntityId, spellId: string, targets: SpellTargeting): ActionResult {
+  executeCastSpell(entityId: EntityId, spellId: string, slotLevel: number, targets: SpellTargeting): ActionResult {
     const p = this.participants.get(entityId);
+    const spell = getSpell(spellId);
 
-    if (!p || !this.turnManager.canAction() || !this.grid || !this.targeting) {
+    if (!p || !this.grid || !this.targeting || !spell) {
       return this.failResult(entityId, 'cast_spell', 'Cannot cast spell.');
     }
 
-    this.turnManager.useAction();
+    // Consume action or bonus action based on casting time
+    const isBonusAction = spell.castingTime === '1 bonus action';
+    if (isBonusAction) {
+      if (!this.turnManager.canBonusAction()) {
+        return this.failResult(entityId, 'cast_spell', 'No bonus action available.');
+      }
+      this.turnManager.useBonusAction();
+    } else {
+      if (!this.turnManager.canAction()) {
+        return this.failResult(entityId, 'cast_spell', 'No action available.');
+      }
+      this.turnManager.useAction();
+    }
 
-    // For now, we apply spell effects to targeted entities
-    const description = `Casts ${spellId}.`;
-    const rolls: ActionResult['rolls'] = [];
-    let totalDamage = 0;
-    let totalHealing = 0;
+    // Consume spell slot (on participant stats copy — controller syncs to real character)
+    if (slotLevel > 0 && p.stats.spellcasting?.spellSlots[slotLevel]) {
+      p.stats.spellcasting.spellSlots[slotLevel].current =
+        Math.max(0, p.stats.spellcasting.spellSlots[slotLevel].current - 1);
+    }
 
     // Determine affected entities
     const affectedEntities: EntityId[] = [];
@@ -452,22 +470,143 @@ export class CombatManager {
       if (eid) affectedEntities.push(eid);
     }
 
+    // Determine if this is a spell attack, saving throw, or auto-hit spell
+    const hasSavingThrow = spell.effects.some(e => e.savingThrow);
+    const hasDamage = spell.effects.some(e => e.damage);
+    const hasHealing = spell.effects.some(e => e.healing);
+    const isAutoHit = spell.id === 'spell_magic_missile'; // Magic Missile always hits
+
+    const rolls: ActionResult['rolls'] = [];
+    let totalDamage = 0;
+    let totalHealing = 0;
+    let damageType: string | undefined;
+    let hit = true;
+    let description = '';
+
+    // Compute caster's spell attack bonus and save DC
+    const castingAbility = p.stats.spellcasting?.ability ?? 'intelligence';
+    const castMod = abilityModifier(p.stats.abilityScores[castingAbility]);
+    const prof = Math.floor((p.stats.level - 1) / 4) + 2;
+    const spellSaveDC = 8 + prof + castMod;
+
+    const primaryTarget = affectedEntities[0] ? this.participants.get(affectedEntities[0]) : null;
+
+    if (hasSavingThrow && primaryTarget) {
+      // Saving throw spell (Sacred Flame, Thunderwave, Fireball)
+      const saveEffect = spell.effects.find(e => e.savingThrow)!;
+      const saveAbility = saveEffect.savingThrow!.ability;
+      const targetMod = abilityModifier(primaryTarget.stats.abilityScores[saveAbility]);
+      const saveRoll = this.dice.rollD20({ modifier: targetMod });
+      rolls.push(saveRoll);
+      const saved = saveRoll.total >= spellSaveDC;
+
+      // Roll damage
+      for (const effect of spell.effects) {
+        if (effect.damage) {
+          const dmgResult = this.combatRules.rollDamage(effect.damage, false);
+          rolls.push(dmgResult);
+          const dmg = Math.max(0, dmgResult.total);
+          totalDamage += saved ? Math.floor(dmg / 2) : dmg;
+          damageType = effect.damage.type;
+        }
+      }
+
+      description = saved
+        ? `${spell.name} — target saves (${saveRoll.total} vs DC ${spellSaveDC}), ${totalDamage > 0 ? `${totalDamage} ${damageType} damage (half).` : 'no effect.'}`
+        : `${spell.name} — target fails save (${saveRoll.total} vs DC ${spellSaveDC}), ${totalDamage} ${damageType} damage!`;
+
+    } else if (isAutoHit) {
+      // Magic Missile — auto-hit, roll each dart
+      for (const effect of spell.effects) {
+        if (effect.damage) {
+          const dmgResult = this.combatRules.rollDamage(effect.damage, false);
+          rolls.push(dmgResult);
+          totalDamage += Math.max(0, dmgResult.total);
+          damageType = effect.damage.type;
+        }
+      }
+      description = `${spell.name} strikes for ${totalDamage} ${damageType} damage!`;
+
+    } else if (hasDamage && primaryTarget) {
+      // Spell attack roll (Fire Bolt, Ray of Frost, Scorching Ray)
+      const attackBonus = castMod + prof;
+      const ac = primaryTarget.stats.armorClass;
+      const attackRoll = this.dice.rollD20({ modifier: attackBonus });
+      rolls.push(attackRoll);
+      hit = attackRoll.isCritical || (!attackRoll.isFumble && attackRoll.total >= ac);
+
+      if (hit) {
+        for (const effect of spell.effects) {
+          if (effect.damage) {
+            const dmgResult = this.combatRules.rollDamage(effect.damage, attackRoll.isCritical);
+            rolls.push(dmgResult);
+            totalDamage += Math.max(0, dmgResult.total);
+            damageType = effect.damage.type;
+          }
+        }
+      }
+
+      description = hit
+        ? `${spell.name} hits for ${totalDamage} ${damageType} damage!`
+        : `${spell.name} misses (${attackRoll.total} vs AC ${ac}).`;
+
+    } else if (hasHealing) {
+      // Healing spell (Cure Wounds, Healing Word)
+      for (const effect of spell.effects) {
+        if (effect.healing) {
+          const healResult = this.dice.rollDamage(effect.healing);
+          rolls.push(healResult);
+          totalHealing += Math.max(0, healResult.total + castMod);
+        }
+      }
+      description = `${spell.name} restores ${totalHealing} hit points.`;
+
+    } else {
+      // Utility / buff spell (Bless, Shield)
+      description = `Casts ${spell.name}.`;
+    }
+
     const result: ActionResult = {
-      success: affectedEntities.length > 0,
+      success: hit,
       type: 'cast_spell',
       actorId: entityId,
       targetId: affectedEntities[0],
       damage: totalDamage > 0 ? totalDamage : undefined,
+      damageType: damageType as ActionResult['damageType'],
       healing: totalHealing > 0 ? totalHealing : undefined,
       description,
       rolls,
     };
 
+    // Emit spell event BEFORE applying damage so narrative order is correct
+    // (spell log appears before "X falls!" from kill)
     this.events.emit({
       type: 'combat:spell',
       category: 'combat',
       data: { entityId, spellId, targets, result },
     });
+
+    this.events.emit({
+      type: 'combat:action_result',
+      category: 'combat',
+      data: { result },
+    });
+
+    // Apply damage to all affected enemies (may trigger combat:kill)
+    if (hit && totalDamage > 0) {
+      for (const targetId of affectedEntities) {
+        this.applyDamageToParticipant(targetId, totalDamage, damageType ?? 'force');
+      }
+    }
+
+    // Apply healing
+    if (totalHealing > 0) {
+      const healTarget = affectedEntities[0] ?? entityId;
+      const hp = this.participants.get(healTarget);
+      if (hp) {
+        hp.stats.currentHp = Math.min(hp.stats.maxHp, hp.stats.currentHp + totalHealing);
+      }
+    }
 
     this.checkCombatEnd();
     return result;
@@ -720,10 +859,21 @@ export class CombatManager {
       results.push(...moveResult.opportunityAttacks);
     }
 
-    // Action
+    // Recompute valid targets after movement (position changed)
+    const updatedActions = this.getAvailableActions(entityId);
+
+    // Action — revalidate attack target is in range after movement
     if (plan.action) {
-      const actionResult = this.executeAction(entityId, plan.action);
-      if (actionResult) results.push(actionResult);
+      if (plan.action.type === 'attack' && plan.action.targetId) {
+        if (updatedActions.validAttackTargets.includes(plan.action.targetId)) {
+          const actionResult = this.executeAction(entityId, plan.action);
+          if (actionResult) results.push(actionResult);
+        }
+        // If target no longer in range, skip the attack
+      } else {
+        const actionResult = this.executeAction(entityId, plan.action);
+        if (actionResult) results.push(actionResult);
+      }
     }
 
     // Bonus action
@@ -1006,9 +1156,81 @@ export class CombatManager {
     return Array.from(targets);
   }
 
-  private getValidSpellOptions(_entityId: EntityId, _p: CombatParticipant): SpellOption[] {
-    // TODO: Implement full spell option calculation
-    return [];
+  private getValidSpellOptions(entityId: EntityId, p: CombatParticipant): SpellOption[] {
+    const sc = p.stats.spellcasting;
+    if (!sc) return [];
+
+    const turnState = this.turnManager.getTurnState();
+    const canAction = !turnState.actionUsed;
+    const canBonus = !turnState.bonusActionUsed;
+
+    // Collect all castable spell IDs: cantrips + prepared spells
+    const allSpellIds = [...(sc.cantripsKnown ?? []), ...(sc.preparedSpells ?? [])];
+    const options: SpellOption[] = [];
+    const enemies = this.getEnemiesOf(entityId);
+    const pos = this.grid?.getEntityPosition(entityId);
+
+    for (const spellId of allSpellIds) {
+      const spell = getSpell(spellId);
+      if (!spell) continue;
+
+      // Skip non-combat spells (no damage, no healing effects)
+      const hasCombatEffect = spell.effects.some(e => e.damage || e.healing);
+      if (!hasCombatEffect) continue;
+
+      const isCantrip = spell.level === 0;
+      const isBonusAction = spell.castingTime === '1 bonus action';
+
+      // Check action economy
+      if (isBonusAction && !canBonus) continue;
+      if (!isBonusAction && !canAction) continue;
+
+      // Check spell slot availability for leveled spells
+      let slotLevel = spell.level;
+      if (!isCantrip) {
+        const slot = sc.spellSlots[slotLevel];
+        if (!slot || slot.current <= 0) continue;
+      } else {
+        slotLevel = 0;
+      }
+
+      // Determine valid targets based on spell type
+      const validTargets: EntityId[] = [];
+      const hasHealing = spell.effects.some(e => e.healing);
+
+      if (hasHealing) {
+        // Healing spells target self in solo play
+        validTargets.push(entityId);
+      } else if (spell.targetType === 'self' || spell.range === 0) {
+        // Self/area spells — valid if any enemies exist
+        if (enemies.length > 0) validTargets.push(...enemies);
+      } else {
+        // Targeted spells — check range
+        const spellRange = spell.range > 0 ? spell.range : 5; // touch = 5ft
+        if (pos && this.grid) {
+          for (const enemyId of enemies) {
+            if (this.casualties.includes(enemyId)) continue;
+            const enemyPos = this.grid.getEntityPosition(enemyId);
+            if (!enemyPos) continue;
+            const dist = (Math.abs(pos.x - enemyPos.x) + Math.abs(pos.y - enemyPos.y)) * 5; // grid units to feet
+            if (dist <= spellRange) {
+              validTargets.push(enemyId);
+            }
+          }
+        }
+      }
+
+      if (validTargets.length === 0 && !hasHealing) continue;
+
+      options.push({
+        spellId,
+        slotLevel,
+        validTargets,
+        validCells: [],
+      });
+    }
+
+    return options;
   }
 
   private getSizeInCells(size: string): number {

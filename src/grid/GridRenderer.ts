@@ -297,10 +297,14 @@ export class GridRenderer {
 
       this.tileset.renderEntity(rc, info.symbol, info.color, info.isPlayer, info.isAlly);
 
-      // Selected: bright highlight
+      // Selected: pulsing gold highlight (target indicator)
       if (entityId === this.selectedEntity) {
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        const pulse = 0.3 + 0.15 * Math.sin(Date.now() * 0.005);
+        ctx.fillStyle = `rgba(212,170,60,${pulse})`;
         ctx.fillRect(px, py, this.cellW, this.cellH);
+        ctx.strokeStyle = `rgba(212,170,60,${pulse + 0.2})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 0.5, py + 0.5, this.cellW - 1, this.cellH - 1);
       }
     }
 
@@ -426,6 +430,16 @@ export class GridRenderer {
     return {
       x: (coord.x - startX) * this.cellW,
       y: (coord.y - startY) * this.cellH,
+    };
+  }
+
+  /** Convert grid coordinate to the screen-space center of that cell. */
+  gridToScreenCenter(coord: Coordinate): { x: number; y: number } {
+    const startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
+    const startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    return {
+      x: (coord.x - startX) * this.cellW + this.cellW / 2,
+      y: (coord.y - startY) * this.cellH + this.cellH / 2,
     };
   }
 

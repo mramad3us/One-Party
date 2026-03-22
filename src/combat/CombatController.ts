@@ -9,15 +9,17 @@ import type {
 } from '@/types';
 import type { OverworldTerrain } from '@/types/overworld';
 import type { WeaponProperties } from '@/types/item';
-import type { CombatParticipant, CombatResult } from './CombatManager';
+import type { CombatParticipant, CombatResult, SpellTargeting } from './CombatManager';
 import { CombatManager } from './CombatManager';
 import { generateCombatMap } from './CombatMapGenerator';
 import { DiceDisplay } from '@/ui/widgets/DiceDisplay';
 import { getMonster, type MonsterDefinition } from '@/data/monsters';
 import { getItem } from '@/data/items';
+import { getSpell } from '@/data/spells';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { abilityModifier } from '@/utils/math';
 import { isDevMode } from '@/utils/devmode';
+import { SpellAnimationSystem, type GridToScreen } from '@/ui/combat/SpellAnimations';
 
 /**
  * Orchestrates the full combat lifecycle.
@@ -42,6 +44,8 @@ export class CombatController implements GameSystem {
   private diceContainer: HTMLElement | null = null;
   /** Serializes dice roll animations so only one shows at a time. */
   private rollQueue: Promise<void> = Promise.resolve();
+  /** Spell animation system for visual effects during casting. */
+  private spellAnimations: SpellAnimationSystem | null = null;
 
   /** The encounter that triggered the current combat. */
   private currentEncounter: ResolvedEvent | null = null;
@@ -91,6 +95,11 @@ export class CombatController implements GameSystem {
   /** Set the container where dice roll animations will be shown. */
   setDiceContainer(el: HTMLElement): void {
     this.diceContainer = el;
+  }
+
+  /** Set up the spell animation system with its overlay container, shake target, and coord converter. */
+  setSpellAnimations(container: HTMLElement, screenEl: HTMLElement, gridToScreen: GridToScreen): void {
+    this.spellAnimations = new SpellAnimationSystem(container, screenEl, gridToScreen);
   }
 
   isActive(): boolean {
@@ -209,7 +218,64 @@ export class CombatController implements GameSystem {
     if (!this.combatManager.isPlayerTurn()) return;
     const result = this.combatManager.executeAttack(entityId, targetId);
 
+    // Critical hit — dramatic overlay + screen shake
+    const attackRoll = result.rolls[0];
+    if (attackRoll?.isCritical && result.success && this.spellAnimations) {
+      await this.spellAnimations.showCriticalHit();
+    }
+
     // Show attack roll, then damage roll sequentially
+    for (const roll of result.rolls) {
+      await this.showRoll(roll);
+    }
+  }
+
+  async playerCastSpell(spellId: string, targetId: EntityId | null, slotLevel: number): Promise<void> {
+    if (!this.active) return;
+    const entityId = this.combatManager.getCurrentTurnEntity();
+    if (!this.combatManager.isPlayerTurn()) return;
+
+    // Play spell animation BEFORE executing (visual first, then mechanics)
+    const spell = getSpell(spellId);
+    const grid = this.combatManager.getGrid();
+    if (spell && grid && this.spellAnimations) {
+      const casterPos = grid.getEntityPosition(entityId);
+      const tPos = targetId ? grid.getEntityPosition(targetId) ?? null : null;
+      if (casterPos) {
+        await this.spellAnimations.playSpellCast(spell, casterPos, tPos, slotLevel || spell.level);
+      }
+    }
+
+    const targets: SpellTargeting = targetId
+      ? { targetEntities: [targetId] }
+      : { targetEntities: [entityId] }; // self-target for healing
+
+    const result = this.combatManager.executeCastSpell(entityId, spellId, slotLevel, targets);
+
+    // Sync spell slot consumption to the real character entity
+    if (slotLevel > 0) {
+      const character = this.engine.entities.getAll<Character>('character')[0];
+      if (character?.spellcasting?.spellSlots[slotLevel]) {
+        character.spellcasting.spellSlots[slotLevel].current =
+          Math.max(0, character.spellcasting.spellSlots[slotLevel].current - 1);
+      }
+    }
+
+    // Sync HP changes (healing) back to real character
+    if (result.healing) {
+      const character = this.engine.entities.getAll<Character>('character')[0];
+      if (character) {
+        character.currentHp = Math.min(character.maxHp, character.currentHp + result.healing);
+      }
+    }
+
+    // Critical hit on spell attack — dramatic overlay
+    const attackRoll = result.rolls[0];
+    if (attackRoll?.isCritical && result.success && this.spellAnimations) {
+      await this.spellAnimations.showCriticalHit();
+    }
+
+    // Show dice rolls
     for (const roll of result.rolls) {
       await this.showRoll(roll);
     }
@@ -338,6 +404,12 @@ export class CombatController implements GameSystem {
     // Show each action result with dice animations
     for (const result of results) {
       if (!this.active) return;
+
+      // NPC critical hit — show dramatic overlay
+      const npcAttackRoll = result.rolls[0];
+      if (npcAttackRoll?.isCritical && result.success && this.spellAnimations) {
+        await this.spellAnimations.showCriticalHit();
+      }
 
       // Show dice rolls for this action
       for (const roll of result.rolls) {

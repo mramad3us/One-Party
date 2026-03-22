@@ -94,6 +94,7 @@ const COMBAT_MOVE_BINDINGS: KeyBinding[] = [
 
 const COMBAT_ACTION_BINDINGS: KeyBinding[] = [
   { keys: ['a'],                event: 'input:combat_attack',    data: {},  label: 'Attack',     context: 'combat' },
+  { keys: ['s'],                event: 'input:combat_cast_spell', data: {}, label: 'Cast Spell', context: 'combat' },
   { keys: ['d'],                event: 'input:combat_dash',      data: {},  label: 'Dash',       context: 'combat' },
   { keys: ['o'],                event: 'input:combat_dodge',     data: {},  label: 'Dodge',      context: 'combat' },
   { keys: ['g'],                event: 'input:combat_disengage', data: {},  label: 'Disengage',  context: 'combat' },

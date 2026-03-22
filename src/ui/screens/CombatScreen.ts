@@ -27,6 +27,9 @@ export interface TurnState {
  * Combat HUD overlay: initiative bar, turn info, damage numbers,
  * and action result toasts. Renders on top of the grid panel.
  */
+/** Converts a grid coordinate to screen-space pixel center. */
+export type GridToScreenFn = (pos: Coordinate) => { x: number; y: number };
+
 export class CombatHUD extends Component {
   private initiativeBar!: HTMLElement;
   private turnInfo!: HTMLElement;
@@ -35,9 +38,16 @@ export class CombatHUD extends Component {
   private combatantEls: Map<EntityId, HTMLElement> = new Map();
   private hpBars: Map<EntityId, ProgressBar> = new Map();
   private currentTurnId: EntityId | null = null;
+  private gridToScreen: GridToScreenFn | null = null;
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
+  }
+
+  /** Set the coordinate converter and damage overlay container (on the grid canvas). */
+  setGridOverlay(fn: GridToScreenFn, damageContainer: HTMLElement): void {
+    this.gridToScreen = fn;
+    this.damageContainer = damageContainer;
   }
 
   protected createElement(): HTMLElement {
@@ -54,10 +64,6 @@ export class CombatHUD extends Component {
     // Toast container for action results
     this.toastContainer = el('div', { class: 'combat-toast-container' });
     wrapper.appendChild(this.toastContainer);
-
-    // Floating damage numbers overlay
-    this.damageContainer = el('div', { class: 'combat-damage-container' });
-    wrapper.appendChild(this.damageContainer);
 
     return wrapper;
   }
@@ -178,9 +184,12 @@ export class CombatHUD extends Component {
       class: `combat-damage-number ${isHealing ? 'combat-damage-number--heal' : 'combat-damage-number--damage'} ${isCrit ? 'combat-damage-number--crit' : ''}`,
     }, [isHealing ? `+${absVal}` : String(absVal)]);
 
-    // Position based on grid coordinate (approximate screen position)
-    numEl.style.left = `${position.x * 40 + 20}px`;
-    numEl.style.top = `${position.y * 40}px`;
+    // Position based on grid coordinate → screen pixel
+    const screen = this.gridToScreen
+      ? this.gridToScreen(position)
+      : { x: position.x * 40 + 20, y: position.y * 40 };
+    numEl.style.left = `${screen.x}px`;
+    numEl.style.top = `${screen.y}px`;
 
     // Type label
     if (type !== 'bludgeoning' && type !== 'slashing' && type !== 'piercing') {

@@ -285,6 +285,11 @@ export class GameScreen extends Component {
     return this.combatDiceContainer;
   }
 
+  /** Returns the grid wrapper element (used as screen shake target). */
+  getGridWrap(): HTMLElement {
+    return this.gridWrap;
+  }
+
   /** Set combat action buttons (Attack, Dash, Dodge, etc.) */
   setCombatActions(actions: { label: string; key: string; enabled: boolean; onClick: () => void }[]): void {
     this.combatActionBar.innerHTML = '';

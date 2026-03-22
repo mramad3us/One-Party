@@ -95,6 +95,21 @@ export class GridPanel extends Component {
     this.renderer?.centerOn(position);
   }
 
+  /** Convert grid coordinate to screen-space center of that cell (relative to canvas). */
+  gridToScreenCenter(coord: Coordinate): { x: number; y: number } | null {
+    return this.renderer?.gridToScreenCenter(coord) ?? null;
+  }
+
+  /** Highlight an entity on the grid (e.g. when hovering in a target selector). */
+  setSelectedEntity(entityId: EntityId | null): void {
+    this.renderer?.setSelectedEntity(entityId);
+  }
+
+  /** Get the canvas container element (for overlaying spell animations). */
+  getCanvasContainer(): HTMLElement {
+    return this.containerEl;
+  }
+
   override destroy(): void {
     this.destroyRenderer();
     super.destroy();

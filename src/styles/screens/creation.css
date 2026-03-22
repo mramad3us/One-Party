@@ -600,3 +600,113 @@
 .creation-screen.mounted .creation-nav {
   animation: slideInUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
 }
+
+/* ── Spell Selection ── */
+.spell-pick-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-sm);
+  margin-top: var(--space-xl);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-family: var(--font-heading);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.spell-pick-section-header:first-of-type {
+  margin-top: 0;
+}
+
+.spell-pick-counter {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
+.spell-pick-counter.full {
+  color: var(--text-primary);
+}
+
+.spell-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 2px;
+  width: 100%;
+  margin-bottom: var(--space-md);
+}
+
+.spell-pick-option {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  padding: 8px var(--space-md);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-smooth);
+  user-select: none;
+  position: relative;
+}
+
+.spell-pick-option:hover {
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.spell-pick-option.selected {
+  border-bottom-color: rgba(212, 170, 60, 0.2);
+  background: rgba(212, 170, 60, 0.03);
+}
+
+.spell-pick-option.selected .checkbox-box {
+  background: var(--gold-dim);
+  border-color: var(--gold-dim);
+}
+
+.spell-pick-option.disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+
+.spell-pick-option-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.spell-pick-name {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.spell-pick-option.selected .spell-pick-name {
+  color: var(--text-primary);
+}
+
+.spell-pick-school {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+}
+
+.spell-pick-details {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  margin-left: 24px;
+  letter-spacing: 0.02em;
+  opacity: 0.7;
+}
+
+.spell-pick-option.selected .spell-pick-details {
+  opacity: 0.9;
+}

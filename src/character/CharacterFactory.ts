@@ -5,6 +5,7 @@ import { DiceRoller } from '@/rules/DiceRoller';
 import { getRace } from '@/data/races';
 import { getClass } from '@/data/classes';
 import { isDevMode } from '@/utils/devmode';
+import { SRD_SPELLS } from '@/data/spells';
 
 export interface CharacterCreateOptions {
   name: string;
@@ -13,6 +14,10 @@ export interface CharacterCreateOptions {
   abilityScores: AbilityScores;
   skills: Skill[];
   level?: number;
+  /** Cantrip IDs selected at creation (or all for dev mode). */
+  selectedCantrips?: string[];
+  /** Spell IDs selected at creation (or all for dev mode). */
+  selectedSpells?: string[];
 }
 
 export class CharacterFactory {
@@ -85,13 +90,37 @@ export class CharacterFactory {
         }
       }
 
+      // Use player-selected spells if provided, otherwise fall back to auto-assign
+      const className = classData.name.toLowerCase();
+      let startingCantrips: string[];
+      let knownSpells: string[];
+
+      if (options.selectedCantrips && options.selectedCantrips.length > 0) {
+        startingCantrips = options.selectedCantrips;
+      } else {
+        const numCantrips = classData.spellcasting.cantripsKnown[levelIndex] ?? 3;
+        const availableCantrips = SRD_SPELLS
+          .filter(s => s.level === 0 && s.classes.includes(className))
+          .map(s => s.id);
+        startingCantrips = availableCantrips.slice(0, numCantrips);
+      }
+
+      if (options.selectedSpells && options.selectedSpells.length > 0) {
+        knownSpells = options.selectedSpells;
+      } else {
+        const maxSpellLevel = Math.max(...Object.keys(spellSlots).map(Number));
+        knownSpells = SRD_SPELLS
+          .filter(s => s.level >= 1 && s.level <= maxSpellLevel && s.classes.includes(className))
+          .map(s => s.id);
+      }
+
       spellcasting = {
         ability: classData.spellcasting.ability,
         spellSlots,
-        knownSpells: [],
-        preparedSpells: [],
+        knownSpells: [...knownSpells],
+        preparedSpells: [...knownSpells],
         concentration: null,
-        cantripsKnown: [],
+        cantripsKnown: startingCantrips,
       };
     }
 
