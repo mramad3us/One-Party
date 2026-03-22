@@ -1,5 +1,6 @@
 import type { GameEngine } from '@/engine/GameEngine';
 import { Component } from '@/ui/Component';
+import { FocusNav } from '@/ui/FocusNav';
 import { el } from '@/utils/dom';
 
 interface ModalAction {
@@ -22,6 +23,7 @@ export interface ModalOptions {
  */
 export class Modal extends Component {
   private resolve?: (value: boolean) => void;
+  private focusNav: FocusNav;
 
   constructor(
     parent: HTMLElement,
@@ -29,6 +31,12 @@ export class Modal extends Component {
     private options: ModalOptions,
   ) {
     super(parent, engine);
+    this.focusNav = new FocusNav({
+      onSelect: (el) => (el as HTMLButtonElement).click(),
+      onCancel: () => {
+        if (this.options.closable ?? true) this.close();
+      },
+    });
   }
 
   protected createElement(): HTMLElement {
@@ -99,14 +107,16 @@ export class Modal extends Component {
           this.close();
         }
       });
-
-      // Close on Escape
-      this.listen(document, 'keydown', (e: Event) => {
-        if ((e as KeyboardEvent).key === 'Escape') {
-          this.close();
-        }
-      });
     }
+
+    // Keyboard navigation for modal action buttons
+    const buttons = Array.from(this.el.querySelectorAll('.modal-footer .btn')) as HTMLElement[];
+    if (buttons.length > 0) {
+      this.focusNav.setItems(buttons);
+      // Focus the last button (usually primary/confirm)
+      this.focusNav.focusIndex(buttons.length - 1);
+    }
+    this.focusNav.attach();
   }
 
   mount(): void {
@@ -193,6 +203,7 @@ export class Modal extends Component {
 
   /** Close the modal with exit animation. */
   async close(): Promise<void> {
+    this.focusNav.detach();
     this.resolve?.(false);
     await this.unmount();
   }

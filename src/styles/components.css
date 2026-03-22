@@ -557,3 +557,20 @@
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
+
+/* ── Keyboard Focus Indicator ── */
+.kbd-focus {
+  outline: 1px solid rgba(255, 255, 255, 0.2) !important;
+  outline-offset: -1px;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Buttons get letter-spacing bump like hover */
+.btn.kbd-focus {
+  color: var(--text-primary) !important;
+  letter-spacing: 0.24em !important;
+}
+
+.btn-primary.kbd-focus {
+  letter-spacing: 0.28em !important;
+}

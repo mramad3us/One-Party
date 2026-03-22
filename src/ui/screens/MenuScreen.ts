@@ -1,5 +1,6 @@
 import type { GameEngine } from '@/engine/GameEngine';
 import { Component } from '@/ui/Component';
+import { FocusNav } from '@/ui/FocusNav';
 import { el } from '@/utils/dom';
 
 /**
@@ -8,8 +9,13 @@ import { el } from '@/utils/dom';
  * letter-by-letter title reveal, and editorial text-link buttons.
  */
 export class MenuScreen extends Component {
+  private focusNav: FocusNav;
+
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
+    this.focusNav = new FocusNav({
+      onSelect: (el) => (el as HTMLButtonElement).click(),
+    });
   }
 
   protected createElement(): HTMLElement {
@@ -88,7 +94,7 @@ export class MenuScreen extends Component {
     // ── Footer ──
     const footer = el('div', { class: 'menu-footer' });
     footer.appendChild(
-      el('span', { class: 'menu-version' }, ['v0.4.9']),
+      el('span', { class: 'menu-version' }, ['v0.4.10']),
     );
     footer.appendChild(
       el('p', { class: 'menu-footer-text' }, [
@@ -163,6 +169,24 @@ export class MenuScreen extends Component {
 
     // Check if saves exist to enable continue/load buttons
     this.checkSaves();
+
+    // Keyboard navigation for menu buttons
+    const buttons = Array.from(this.el.querySelectorAll('.menu-actions .btn')) as HTMLElement[];
+    this.focusNav.setItems(buttons);
+    this.focusNav.attach();
+  }
+
+  mount(): void {
+    super.mount();
+    // Re-attach focus nav when remounting
+    const buttons = Array.from(this.el.querySelectorAll('.menu-actions .btn')) as HTMLElement[];
+    this.focusNav.setItems(buttons);
+    this.focusNav.attach();
+  }
+
+  destroy(): void {
+    this.focusNav.detach();
+    super.destroy();
   }
 
   private checkSaves(): void {

@@ -256,13 +256,23 @@ export class KeyboardInput implements GameSystem {
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
+    // Always intercept Escape — never let the browser handle it
+    if (e.key === 'Escape') {
+      e.preventDefault();
+    }
+
     if (!this.enabled) return;
 
-    // Don't capture when typing in inputs
+    // Don't capture when typing in inputs (except Escape)
     const tag = (document.activeElement?.tagName ?? '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      if (e.key === 'Escape') {
+        (document.activeElement as HTMLElement)?.blur();
+      }
+      return;
+    }
 
-    // Don't capture when a modal is open (modals handle their own input)
+    // Don't capture when a modal is open (modals handle their own input via FocusNav)
     if (document.querySelector('.modal-backdrop')) return;
 
     const bindings = this.keyMap.get(e.key);

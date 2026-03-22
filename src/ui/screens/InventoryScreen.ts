@@ -1,6 +1,7 @@
 import type { GameEngine } from '@/engine/GameEngine';
 import type { EntityId, Inventory, EquipmentSlots, Item } from '@/types';
 import { Component } from '@/ui/Component';
+import { FocusNav } from '@/ui/FocusNav';
 import { ItemCard } from '@/ui/widgets/ItemCard';
 import { IconSystem } from '@/ui/IconSystem';
 import { TooltipSystem } from '@/ui/TooltipSystem';
@@ -50,12 +51,23 @@ export class InventoryScreen extends Component {
   private encumbranceFill!: HTMLElement;
   private encumbranceLabel!: HTMLElement;
   private itemCards: ItemCard[] = [];
+  private focusNav: FocusNav;
 
   // @ts-expect-error Reserved for future drag-and-drop interactions
   private currentItems = new Map<EntityId, Item>();
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
+    this.focusNav = new FocusNav({
+      columns: 3,
+      onSelect: (el) => {
+        // Find and click the first action button inside the card, or the card itself
+        const actionBtn = el.querySelector('.item-action-btn') as HTMLElement | null;
+        if (actionBtn) actionBtn.click();
+        else el.click();
+      },
+      onCancel: () => this.close(),
+    });
   }
 
   protected createElement(): HTMLElement {
@@ -123,7 +135,19 @@ export class InventoryScreen extends Component {
     this.listen(this.el, 'click', (e: Event) => {
       if (e.target === this.el) this.close();
     });
-    // Escape is handled by KeyboardInput → input:cancel → main.ts navigation
+
+    // Keyboard navigation
+    this.focusNav.attach();
+  }
+
+  mount(): void {
+    super.mount();
+    this.focusNav.attach();
+  }
+
+  destroy(): void {
+    this.focusNav.detach();
+    super.destroy();
   }
 
   setInventory(inventory: Inventory, items: Map<EntityId, Item>): void {
@@ -198,6 +222,10 @@ export class InventoryScreen extends Component {
     this.goldDisplay.appendChild(
       document.createTextNode(formatCoin(inventory.gold, inventory.silver, inventory.copper)),
     );
+
+    // Update keyboard-focusable items
+    const focusableItems = Array.from(this.inventoryGrid.querySelectorAll('.item-card')) as HTMLElement[];
+    this.focusNav.setItems(focusableItems);
 
     // Encumbrance
     const pct = inventory.capacity > 0 ? (inventory.currentWeight / inventory.capacity) * 100 : 0;

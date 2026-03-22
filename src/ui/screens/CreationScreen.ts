@@ -1,6 +1,7 @@
 import type { GameEngine } from '@/engine/GameEngine';
 import type { Ability, AbilityScores, Skill } from '@/types';
 import { Component } from '@/ui/Component';
+import { FocusNav } from '@/ui/FocusNav';
 import { el } from '@/utils/dom';
 import { SRD_RACES, type RaceDefinition } from '@/data/races';
 import { SRD_CLASSES, type ClassDefinition } from '@/data/classes';
@@ -69,9 +70,15 @@ export class CreationScreen extends Component {
   // Refs
   private contentEl!: HTMLElement;
   private stepsEl!: HTMLElement;
+  private focusNav: FocusNav;
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
+    this.focusNav = new FocusNav({
+      columns: 3,
+      onSelect: (el) => (el as HTMLElement).click(),
+      onCancel: () => this.goBack(),
+    });
   }
 
   protected createElement(): HTMLElement {
@@ -116,6 +123,12 @@ export class CreationScreen extends Component {
   mount(): void {
     super.mount();
     this.renderStep();
+    this.focusNav.attach();
+  }
+
+  destroy(): void {
+    this.focusNav.detach();
+    super.destroy();
   }
 
   protected setupEvents(): void {
@@ -201,9 +214,56 @@ export class CreationScreen extends Component {
 
     requestAnimationFrame(() => {
       panel.classList.add('active');
+      // Set up keyboard focus for the new step's interactive elements
+      this.updateFocusItems();
     });
 
     this.updateNavButtons();
+  }
+
+  private updateFocusItems(): void {
+    let items: HTMLElement[] = [];
+    switch (this.step) {
+      case 0: // Race
+        items = Array.from(this.contentEl.querySelectorAll('.creation-option')) as HTMLElement[];
+        this.focusNav = new FocusNav({
+          columns: 3,
+          onSelect: (el) => el.click(),
+          onCancel: () => this.goBack(),
+        });
+        break;
+      case 1: // Class
+        items = Array.from(this.contentEl.querySelectorAll('.creation-option')) as HTMLElement[];
+        this.focusNav = new FocusNav({
+          columns: 3,
+          onSelect: (el) => el.click(),
+          onCancel: () => this.goBack(),
+        });
+        break;
+      case 2: // Abilities
+        items = Array.from(this.contentEl.querySelectorAll('.ability-score-btn')) as HTMLElement[];
+        this.focusNav = new FocusNav({
+          columns: 2, // +/- pairs
+          onSelect: (el) => el.click(),
+          onCancel: () => this.goBack(),
+        });
+        break;
+      case 3: // Skills
+        items = Array.from(this.contentEl.querySelectorAll('.skill-option')) as HTMLElement[];
+        this.focusNav = new FocusNav({
+          columns: 3,
+          onSelect: (el) => el.click(),
+          onCancel: () => this.goBack(),
+        });
+        break;
+      case 4: // Name - input handles its own keyboard
+        this.focusNav = new FocusNav({
+          onCancel: () => this.goBack(),
+        });
+        break;
+    }
+    this.focusNav.setItems(items);
+    this.focusNav.attach();
   }
 
   private renderStepIndicator(): void {
