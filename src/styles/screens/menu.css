@@ -135,71 +135,26 @@
   z-index: 1;
 }
 
-/* Strip all default btn styling for menu context */
+/* Menu-specific button tweaks */
 .menu-actions .btn {
   width: 100%;
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
   padding: 18px 0;
-  font-family: var(--font-heading);
-  font-weight: 400;
   font-size: 12.5px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  text-align: center;
-  cursor: pointer;
-  transition: color 0.5s ease, letter-spacing 0.5s ease;
   opacity: 0;
   transform: translateY(12px);
-  position: relative;
-}
-
-/* Remove the default ::before overlay */
-.menu-actions .btn::before {
-  display: none !important;
 }
 
 .menu-actions .btn:hover {
-  color: var(--text-primary) !important;
   letter-spacing: 0.3em;
-  transform: none !important;
-  background: transparent !important;
 }
 
-.menu-actions .btn:active {
-  transform: none !important;
-}
-
-.menu-actions .btn:disabled {
-  color: var(--text-dim) !important;
-  opacity: 0.3;
-  cursor: not-allowed;
-  letter-spacing: 0.22em;
-}
-
-.menu-actions .btn:disabled:hover {
-  color: var(--text-dim) !important;
-  letter-spacing: 0.22em;
-}
-
-/* Primary button — warm accent */
 .menu-actions .btn-primary {
-  color: var(--gold) !important;
-  font-weight: 500;
-  font-size: 14px;
-  letter-spacing: 0.26em;
   padding: 24px 0;
-  border-bottom: 1px solid rgba(212, 170, 60, 0.1) !important;
+  letter-spacing: 0.26em;
 }
 
 .menu-actions .btn-primary:hover {
-  color: var(--gold-light) !important;
   letter-spacing: 0.34em;
-  text-shadow: 0 0 30px rgba(212, 170, 60, 0.2);
 }
 
 /* Stagger animation on mount */
