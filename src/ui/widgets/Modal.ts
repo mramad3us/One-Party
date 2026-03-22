@@ -130,10 +130,10 @@ export class Modal extends Component {
         }
         .modal-dialog {
           z-index: var(--z-modal);
-          background: var(--bg-panel);
-          border: 1px solid var(--border-gold);
+          background: #0c0a07;
+          border: 1px solid rgba(255, 255, 255, 0.04);
           border-radius: var(--radius-xl);
-          box-shadow: var(--shadow-lg), var(--shadow-glow);
+          box-shadow: var(--shadow-lg);
           max-width: 500px;
           width: 90%;
           max-height: 80vh;
@@ -163,7 +163,9 @@ export class Modal extends Component {
         }
         .modal-title {
           font-size: var(--text-xl);
-          color: var(--gold);
+          color: var(--text-primary);
+          letter-spacing: 0.14em;
+          font-weight: 400;
         }
         .modal-close {
           font-size: var(--text-xl);

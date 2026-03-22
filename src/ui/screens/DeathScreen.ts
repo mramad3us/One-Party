@@ -27,13 +27,6 @@ export class DeathScreen extends Component {
     const { options } = this;
     const screen = el('div', { class: 'death-screen screen' });
 
-    // Dark particles
-    const particles = el('div', { class: 'death-particles' });
-    for (let i = 0; i < 12; i++) {
-      particles.appendChild(el('div', { class: 'death-particle' }));
-    }
-    screen.appendChild(particles);
-
     // Skull SVG
     const skullWrap = el('div', { class: 'death-skull' });
     skullWrap.innerHTML = `<svg viewBox="0 0 64 64" class="death-skull-svg" aria-hidden="true">

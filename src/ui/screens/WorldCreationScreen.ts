@@ -61,20 +61,12 @@ export class WorldCreationScreen extends Component {
   protected createElement(): HTMLElement {
     const screen = el('div', { class: 'worldcreation-screen screen' });
 
-    // ── Atmospheric particles ──
-    const particles = el('div', { class: 'worldcreation-particles' });
-    for (let i = 0; i < 12; i++) {
-      particles.appendChild(el('div', { class: 'worldcreation-particle' }));
-    }
-    screen.appendChild(particles);
-
     // ── Content container ──
     const content = el('div', { class: 'worldcreation-content' });
 
     // Title
     const header = el('div', { class: 'worldcreation-header' });
     header.appendChild(el('h1', { class: 'worldcreation-title font-heading' }, ['FORGE YOUR WORLD']));
-    header.appendChild(el('div', { class: 'worldcreation-ornament' }));
     header.appendChild(el('p', { class: 'worldcreation-subtitle font-mono' }, [
       'Shape the land, sea, and sky before your journey begins',
     ]));

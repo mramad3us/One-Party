@@ -5,31 +5,17 @@
 
 /* ── Panel ── */
 .panel {
-  background:
-    linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-panel) 100%);
-  border: 1px solid var(--border-gold);
+  background: var(--bg-panel);
+  border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
-  box-shadow: var(--shadow-md), var(--shadow-inset-glow);
-  transition: border-color var(--duration-normal) var(--ease-smooth),
-              box-shadow var(--duration-normal) var(--ease-smooth);
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--duration-normal) var(--ease-smooth);
   position: relative;
 }
 
-.panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 8%;
-  right: 8%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212, 170, 60, 0.25), transparent);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-
 .panel:hover {
-  border-color: var(--border-gold-hover);
-  box-shadow: var(--shadow-hover), var(--shadow-inset-glow);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .panel-flat {
@@ -46,7 +32,7 @@
   justify-content: center;
   gap: var(--space-sm);
   padding: 10px var(--space-lg);
-  border: 1px solid var(--border-gold);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-md);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
@@ -80,12 +66,11 @@
 
 .btn:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-hover),
-              0 0 16px rgba(212, 170, 60, 0.08);
-  border-color: var(--border-gold-hover);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(255, 255, 255, 0.1);
   background:
     linear-gradient(180deg, var(--bg-hover) 0%, var(--bg-surface) 100%);
-  color: var(--gold-light);
+  color: var(--text-primary);
 }
 
 .btn:active {
@@ -118,25 +103,18 @@
 
 /* ── Button Variants ── */
 .btn-primary {
-  background:
-    linear-gradient(180deg, #e0b840 0%, var(--gold) 40%, var(--gold-dark) 100%);
-  color: var(--bg-darkest);
-  border-color: var(--gold-light);
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.15);
-  box-shadow: var(--shadow-sm),
-              inset 0 1px 0 rgba(255, 255, 255, 0.15),
-              0 0 16px rgba(212, 170, 60, 0.12);
-  font-weight: 700;
+  background: transparent;
+  color: var(--gold);
+  border-color: rgba(212, 170, 60, 0.3);
+  box-shadow: none;
+  font-weight: 600;
 }
 
 .btn-primary:hover {
-  background:
-    linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 100%);
-  border-color: var(--gold-light);
-  color: var(--bg-darkest);
-  box-shadow: var(--shadow-lg),
-              0 0 32px rgba(212, 170, 60, 0.3),
-              0 0 64px rgba(212, 170, 60, 0.1);
+  background: rgba(212, 170, 60, 0.06);
+  border-color: rgba(212, 170, 60, 0.5);
+  color: var(--gold-light);
+  box-shadow: none;
 }
 
 .btn-secondary {
@@ -322,9 +300,9 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(212, 170, 60, 0.08) 20%,
-    rgba(212, 170, 60, 0.2) 50%,
-    rgba(212, 170, 60, 0.08) 80%,
+    rgba(255, 255, 255, 0.04) 20%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.04) 80%,
     transparent 100%
   );
   margin: var(--space-lg) 0;
@@ -465,7 +443,7 @@
   z-index: var(--z-tooltip);
   padding: var(--space-sm) var(--space-md);
   background: var(--bg-darkest);
-  border: 1px solid var(--border-gold-hover);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-family: var(--font-ui);
@@ -598,7 +576,7 @@
 }
 
 .help-modal-category {
-  color: var(--gold);
+  color: var(--text-muted);
   font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
