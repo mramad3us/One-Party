@@ -109,6 +109,7 @@
 
 /* Left: ASCII Grid Map */
 .game-panel-map {
+  position: relative;
   background: #020201;
   min-height: 0;
   overflow: hidden;
