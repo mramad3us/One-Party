@@ -5,7 +5,6 @@ import type {
   DiceRollResult,
   EntityId,
   ResolvedEvent,
-  Item,
   NPC,
 } from '@/types';
 import type { OverworldTerrain } from '@/types/overworld';
@@ -15,6 +14,7 @@ import { CombatManager } from './CombatManager';
 import { generateCombatMap } from './CombatMapGenerator';
 import { DiceDisplay } from '@/ui/widgets/DiceDisplay';
 import { getMonster, type MonsterDefinition } from '@/data/monsters';
+import { getItem } from '@/data/items';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { abilityModifier } from '@/utils/math';
 
@@ -32,9 +32,15 @@ export class CombatController implements GameSystem {
   private engine!: GameEngine;
   private combatManager!: CombatManager;
   private active = false;
+  /** True once initiative rolls have been shown and turns can proceed. */
+  private ready = false;
+  /** Queue of NPC entityIds whose turns arrived before we were ready. */
+  private pendingNPCTurns: EntityId[] = [];
 
   /** Container element for dice roll animations (set by UI layer). */
   private diceContainer: HTMLElement | null = null;
+  /** Serializes dice roll animations so only one shows at a time. */
+  private rollQueue: Promise<void> = Promise.resolve();
 
   /** The encounter that triggered the current combat. */
   private currentEncounter: ResolvedEvent | null = null;
@@ -57,7 +63,12 @@ export class CombatController implements GameSystem {
         isPlayer: boolean;
       };
       if (!isPlayer && this.active) {
-        this.driveNPCTurn(entityId);
+        if (this.ready) {
+          this.driveNPCTurn(entityId);
+        } else {
+          // Queue — initiative rolls are still being shown
+          this.pendingNPCTurns.push(entityId);
+        }
       }
     });
 
@@ -103,6 +114,8 @@ export class CombatController implements GameSystem {
     this.onComplete = onComplete;
     this.spawnedMonsters = [];
     this.monsterMap.clear();
+    this.ready = false;
+    this.pendingNPCTurns = [];
 
     const data = encounter.resolvedData;
     const monsterIds = (data['monsterIds'] as string[]) ?? [];
@@ -168,6 +181,7 @@ export class CombatController implements GameSystem {
         playerStart: combatMap.playerStart,
         enemyPositions: combatMap.enemyPositions,
         participants: allParticipants,
+        placements,
       },
     });
 
@@ -236,10 +250,17 @@ export class CombatController implements GameSystem {
 
   // ── Dice roll display ─────────────────────────────────────────
 
-  /** Show a dice roll animation. Returns when the animation is complete. */
-  private async showRoll(result: DiceRollResult): Promise<void> {
-    if (!this.diceContainer || !this.active) return;
-    await DiceDisplay.showRoll(this.diceContainer, result, this.engine);
+  /** Show a dice roll animation. Serialized so only one plays at a time. */
+  private showRoll(result: DiceRollResult): Promise<void> {
+    if (!this.diceContainer || !this.active) return Promise.resolve();
+    const container = this.diceContainer;
+    this.rollQueue = this.rollQueue.then(async () => {
+      if (!this.active) return;
+      // Clear any leftover elements before showing the next roll
+      container.innerHTML = '';
+      await DiceDisplay.showRoll(container, result, this.engine);
+    });
+    return this.rollQueue;
   }
 
   /** Show all initiative rolls sequentially after combat starts. */
@@ -262,6 +283,14 @@ export class CombatController implements GameSystem {
 
     // Small pause after all initiative rolls before the first turn
     await this.delay(300);
+
+    // Mark ready and flush any queued NPC turns
+    this.ready = true;
+    if (this.pendingNPCTurns.length > 0) {
+      const firstNPC = this.pendingNPCTurns.shift()!;
+      this.pendingNPCTurns = []; // only drive the first; endTurn will trigger the next
+      this.driveNPCTurn(firstNPC);
+    }
   }
 
   // ── NPC turn driver ───────────────────────────────────────────
@@ -274,10 +303,38 @@ export class CombatController implements GameSystem {
     await this.delay(400);
     if (!this.active) return;
 
-    // Execute the full NPC turn (movement + attack already happen inside)
-    const results = this.combatManager.processNPCTurn(entityId);
+    // Plan and execute the NPC turn (returns movement path for animation)
+    const { movementPath, results } = this.combatManager.planAndExecuteNPCTurn(entityId);
 
-    // Show each result with dice animations
+    // Animate movement step-by-step: entity is already at final grid position,
+    // so we visually walk it back through each cell for the animation.
+    if (movementPath.length > 1) {
+      const grid = this.combatManager.getGrid();
+      if (grid) {
+        const finalPos = movementPath[movementPath.length - 1];
+
+        // Move entity back to start position for visual stepping
+        grid.moveEntity(entityId, movementPath[0]);
+        this.emitMoveRefresh();
+
+        // Step through each intermediate cell
+        for (let i = 1; i < movementPath.length; i++) {
+          if (!this.active) return;
+          await this.delay(120);
+          grid.moveEntity(entityId, movementPath[i]);
+          this.emitMoveRefresh();
+        }
+
+        // Ensure we're at the correct final position
+        grid.moveEntity(entityId, finalPos);
+        this.emitMoveRefresh();
+        await this.delay(200);
+      }
+    }
+
+    if (!this.active) return;
+
+    // Show each action result with dice animations
     for (const result of results) {
       if (!this.active) return;
 
@@ -307,6 +364,9 @@ export class CombatController implements GameSystem {
     // Small pause before ending the turn
     await this.delay(300);
     if (!this.active) return;
+
+    // Clear any lingering dice display elements before next turn
+    if (this.diceContainer) this.diceContainer.innerHTML = '';
 
     // End the NPC's turn
     this.combatManager.executeEndTurn(entityId);
@@ -377,7 +437,7 @@ export class CombatController implements GameSystem {
     const attacks = [];
     const mainWeaponId = character.equipment.mainHand;
     if (mainWeaponId) {
-      const weapon = this.engine.entities.get<Item>(mainWeaponId);
+      const weapon = getItem(mainWeaponId);
       if (weapon && weapon.itemType === 'weapon') {
         const props = weapon.properties as WeaponProperties;
         const strMod = abilityModifier(character.abilityScores.strength);
@@ -451,6 +511,15 @@ export class CombatController implements GameSystem {
       position: null,
       initiative: null,
     };
+  }
+
+  /** Emit a combat:move event to trigger entity position refresh in the UI. */
+  private emitMoveRefresh(): void {
+    this.engine.events.emit({
+      type: 'combat:move',
+      category: 'combat',
+      data: {},
+    });
   }
 
   private delay(ms: number): Promise<void> {

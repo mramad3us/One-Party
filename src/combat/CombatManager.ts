@@ -578,9 +578,19 @@ export class CombatManager {
    */
   /** Process an NPC's turn using the combat AI. Returns action results. */
   processNPCTurn(entityId: EntityId): ActionResult[] {
+    const { movementPath, results } = this.planAndExecuteNPCTurn(entityId);
+    void movementPath; // movement already executed
+    return results;
+  }
+
+  /**
+   * Plan an NPC turn: returns the movement path (for animation) and
+   * executes movement + actions, returning results.
+   */
+  planAndExecuteNPCTurn(entityId: EntityId): { movementPath: Coordinate[]; results: ActionResult[] } {
     const results: ActionResult[] = [];
     const p = this.participants.get(entityId);
-    if (!p || !this.combatAI || !this.grid) return results;
+    if (!p || !this.combatAI || !this.grid) return { movementPath: [], results };
 
     const available = this.getAvailableActions(entityId);
     const enemies = this.getEnemiesOf(entityId);
@@ -589,9 +599,8 @@ export class CombatManager {
     // Get NPC data for AI
     const npc = p.npc;
     if (!npc) {
-      // Simple AI for monsters without full NPC data: move toward nearest enemy and attack
-      this.simpleMonsterTurn(entityId, available, enemies, results);
-      return results;
+      // Simple monster: plan movement + attack
+      return this.planSimpleMonsterTurn(entityId, available, enemies);
     }
 
     const plan = this.combatAI.decideTurn(
@@ -613,28 +622,41 @@ export class CombatManager {
       },
     );
 
-    // Execute the planned turn
+    const movementPath = plan.movement && plan.movement.length > 1 ? plan.movement : [];
     this.executePlan(entityId, plan, results);
-
-    return results;
+    return { movementPath, results };
   }
 
   /**
-   * Simple AI for basic monsters without companion data.
+   * Execute only the attack/action part of an NPC turn (movement done separately).
    */
-  private simpleMonsterTurn(
+  executeNPCActions(entityId: EntityId, plan: { action?: { type: string; targetId?: EntityId }; bonusAction?: { type: string; targetId?: EntityId } }): ActionResult[] {
+    const results: ActionResult[] = [];
+    if (plan.action) {
+      const r = this.executeAction(entityId, plan.action);
+      if (r) results.push(r);
+    }
+    if (plan.bonusAction) {
+      const r = this.executeAction(entityId, plan.bonusAction);
+      if (r) results.push(r);
+    }
+    return results;
+  }
+
+  private planSimpleMonsterTurn(
     entityId: EntityId,
     available: AvailableActions,
     enemies: EntityId[],
-    results: ActionResult[],
-  ): void {
-    if (!this.grid) return;
+  ): { movementPath: Coordinate[]; results: ActionResult[] } {
+    const results: ActionResult[] = [];
+    let movementPath: Coordinate[] = [];
+    if (!this.grid) return { movementPath, results };
 
     const p = this.participants.get(entityId);
-    if (!p) return;
+    if (!p) return { movementPath, results };
 
     const pos = this.grid.getEntityPosition(entityId);
-    if (!pos) return;
+    if (!pos) return { movementPath, results };
 
     // Find nearest enemy
     let nearestEnemy: EntityId | null = null;
@@ -648,10 +670,10 @@ export class CombatManager {
       }
     }
 
-    if (!nearestEnemy) return;
+    if (!nearestEnemy) return { movementPath, results };
 
     const targetPos = this.grid.getEntityPosition(nearestEnemy);
-    if (!targetPos) return;
+    if (!targetPos) return { movementPath, results };
 
     // Move toward target if not in melee range
     if (available.canMove && nearestDist > 5) {
@@ -666,6 +688,7 @@ export class CombatManager {
       );
 
       if (path.reachable && path.path.length > 1) {
+        movementPath = path.path;
         const moveResult = this.executeMove(entityId, path.path);
         results.push(...moveResult.opportunityAttacks);
       }
@@ -680,6 +703,8 @@ export class CombatManager {
       const dashResult = this.executeDash(entityId);
       results.push(dashResult);
     }
+
+    return { movementPath, results };
   }
 
   /**

@@ -1258,6 +1258,16 @@ async function main(): Promise<void> {
       };
     });
     hud.setInitiativeOrder(displays);
+
+    // Now that entities are placed on the combat grid, push to the render layer
+    refreshCombatEntities();
+
+    // Center grid on player
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (character) {
+      const playerPos = combatManager.getGrid()?.getEntityPosition(character.id);
+      if (playerPos) activeGameScreen.centerGrid(playerPos);
+    }
   });
 
   // On each turn start, update combat action buttons
@@ -1266,6 +1276,8 @@ async function main(): Promise<void> {
     const { entityId, isPlayer } = event.data as { entityId: string; isPlayer: boolean };
     const hud = activeGameScreen.getCombatHUD();
     if (hud) hud.setCurrentTurn(entityId);
+
+    refreshCombatEntities();
 
     if (isPlayer) {
       updateCombatActionButtons();
@@ -1306,6 +1318,11 @@ async function main(): Promise<void> {
     }
   });
 
+  // Refresh entity positions after movement
+  engine.events.on('combat:move', () => {
+    refreshCombatEntities();
+  });
+
   // Entity defeated narrative
   engine.events.on('combat:kill', (event) => {
     if (!activeGameScreen) return;
@@ -1316,6 +1333,7 @@ async function main(): Promise<void> {
       text: `${name} falls!`,
       category: 'action',
     });
+    refreshCombatEntities();
   });
 
   // Combat ended — show results, clean up
@@ -1372,6 +1390,8 @@ async function main(): Promise<void> {
   // Combat keyboard: movement
   engine.events.on('input:combat_move', (event) => {
     if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    const actions = combatController.getAvailableActions();
+    if (!actions?.canMove || actions.remainingMovement <= 0) return;
     const { dx, dy } = event.data as { dx: number; dy: number };
     const entityId = combatManager.getCurrentTurnEntity();
     const grid = combatManager.getGrid();
@@ -1379,7 +1399,10 @@ async function main(): Promise<void> {
     const pos = grid.getEntityPosition(entityId);
     if (!pos) return;
     const dest = { x: pos.x + dx, y: pos.y + dy };
+    // Check destination is within valid move cells
+    if (!actions.validMoveCells.has(`${dest.x},${dest.y}`)) return;
     combatController.playerMove([pos, dest]);
+    refreshCombatEntities();
     updateCombatActionButtons();
   });
 
@@ -1387,10 +1410,69 @@ async function main(): Promise<void> {
     if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
     const actions = combatController.getAvailableActions();
     if (!actions?.canAction || actions.validAttackTargets.length === 0) return;
-    // Attack the first valid target (TODO: target cycling with Tab)
-    combatController.playerAttack(actions.validAttackTargets[0]).then(() => {
-      updateCombatActionButtons();
+
+    const targets = actions.validAttackTargets;
+
+    const doAttack = (targetId: string) => {
+      combatController.playerAttack(targetId).then(() => {
+        refreshCombatEntities();
+        updateCombatActionButtons();
+      });
+    };
+
+    // Single target — attack directly
+    if (targets.length === 1) {
+      doAttack(targets[0]);
+      return;
+    }
+
+    // Multiple targets — show selector modal
+    const list = el('div', { class: 'target-selector-list' });
+    let closed = false;
+
+    targets.forEach((targetId, i) => {
+      const p = combatManager.getParticipant(targetId);
+      const name = p?.npc?.name ?? 'Unknown';
+      const hp = p?.stats.currentHp ?? 0;
+      const maxHp = p?.stats.maxHp ?? 1;
+      const hpPct = Math.round((hp / maxHp) * 100);
+
+      const btn = el('button', { class: 'target-selector-btn' });
+      btn.innerHTML = `<span class="target-selector-key font-mono">${i + 1}</span>`
+        + `<span class="target-selector-name">${name}</span>`
+        + `<span class="target-selector-hp font-mono">${hp}/${maxHp} HP (${hpPct}%)</span>`;
+      btn.addEventListener('click', () => {
+        if (closed) return;
+        closed = true;
+        targetModal.close();
+        doAttack(targetId);
+      });
+      list.appendChild(btn);
     });
+
+    const targetModal = new Modal(document.body, engine, {
+      title: 'Choose Target',
+      content: list,
+      closable: true,
+      width: '320px',
+    });
+    targetModal.mount();
+
+    // Number keys 1-9 to select
+    const onKey = (e: KeyboardEvent) => {
+      const num = parseInt(e.key, 10);
+      if (num >= 1 && num <= targets.length) {
+        e.preventDefault();
+        if (closed) return;
+        closed = true;
+        document.removeEventListener('keydown', onKey, true);
+        targetModal.close();
+        doAttack(targets[num - 1]);
+      } else if (e.key === 'Escape') {
+        document.removeEventListener('keydown', onKey, true);
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
   });
 
   engine.events.on('input:combat_dash', () => {
@@ -1415,6 +1497,47 @@ async function main(): Promise<void> {
     if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
     combatController.playerEndTurn();
   });
+
+  /** Push current combat entity positions + render info to the grid panel. */
+  function refreshCombatEntities(): void {
+    if (!activeGameScreen || !combatController.isActive()) return;
+    const grid = combatManager.getGrid();
+    if (!grid) return;
+
+    const placements = grid.getAllEntityPlacements();
+    const character = engine.entities.getAll<Character>('character')[0];
+
+    activeGameScreen.updateCombatEntities(placements, (id: string) => {
+      const p = combatManager.getParticipant(id);
+      if (!p) return undefined;
+      if (p.isPlayer && character) {
+        return {
+          name: character.name,
+          color: '#2a2520',
+          symbol: '@',
+          hp: p.stats.currentHp,
+          maxHp: p.stats.maxHp,
+          isPlayer: true,
+          isAlly: true,
+          size: 1,
+          conditions: p.stats.conditions?.map((c: { type: string }) => c.type) ?? [],
+        };
+      }
+      // NPC — derive symbol from first letter of name
+      const symbol = p.npc?.name?.charAt(0).toUpperCase() ?? '?';
+      return {
+        name: p.npc?.name ?? 'Enemy',
+        color: '#8b2020',
+        symbol,
+        hp: p.stats.currentHp,
+        maxHp: p.stats.maxHp,
+        isPlayer: false,
+        isAlly: p.isAlly,
+        size: 1,
+        conditions: p.stats.conditions?.map((c: { type: string }) => c.type) ?? [],
+      };
+    });
+  }
 
   /** Refresh the combat action button bar based on current available actions. */
   function updateCombatActionButtons(): void {

@@ -266,6 +266,9 @@ export class GameScreen extends Component {
     this.combatActionBar.classList.add('combat-action-bar--hidden');
     this.combatActionBar.innerHTML = '';
 
+    // Clear any leftover dice roll elements
+    this.combatDiceContainer.innerHTML = '';
+
     // Remove combat mode class
     this.el.classList.remove('game-screen--combat');
   }

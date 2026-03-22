@@ -4,6 +4,7 @@ import { generateId } from '@/engine/IdGenerator';
 import { DiceRoller } from '@/rules/DiceRoller';
 import { getRace } from '@/data/races';
 import { getClass } from '@/data/classes';
+import { isDevMode } from '@/utils/devmode';
 
 export interface CharacterCreateOptions {
   name: string;
@@ -43,6 +44,11 @@ export class CharacterFactory {
     // Hill dwarf bonus HP
     if (options.raceId === 'dwarf') {
       maxHp += level;
+    }
+
+    // Dev mode: 1000 HP for testing combat
+    if (isDevMode()) {
+      maxHp = 1000;
     }
 
     const profBonus = proficiencyBonus(level);
