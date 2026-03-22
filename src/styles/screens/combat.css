@@ -9,6 +9,7 @@
   inset: 0;
   pointer-events: none;
   z-index: var(--z-dropdown);
+  overflow: hidden;
 }
 
 .combat-hud > * {
@@ -151,8 +152,7 @@
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-xs) var(--space-md);
-  background: rgba(8, 7, 6, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(8, 7, 6, 0.85);
 }
 
 .combat-turn-indicators {
