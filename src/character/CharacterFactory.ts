@@ -103,6 +103,7 @@ export class CharacterFactory {
     // Add starting provisions
     inventoryItems.push({ itemId: 'item_rations', quantity: 3 });
     inventoryItems.push({ itemId: 'item_waterskin', quantity: 1 });
+    inventoryItems.push({ itemId: 'item_torch', quantity: 2 });
 
     // Build features list from class
     const features: Character['features'] = [];

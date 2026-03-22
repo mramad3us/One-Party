@@ -58,6 +58,22 @@ import { TimeActivity } from '@/ui/widgets/TimeActivity';
 import { processWorldDecay, markLocationVisited } from '@/world/WorldDecay';
 import type { CellTerrain, CellFeature } from '@/types/grid';
 import type { Coordinate } from '@/types';
+import type { LocationType, LightingLevel } from '@/types/world';
+
+// ── Lighting by location type ────────────────────────────────────
+
+function getLightingForLocation(locationType: LocationType): LightingLevel {
+  switch (locationType) {
+    case 'dungeon':
+    case 'cave':
+      return 'dark';
+    case 'ruins':
+    case 'temple':
+      return 'dim';
+    default:
+      return 'bright';
+  }
+}
 
 // ── Journey narrative pools ─────────────────────────────────────
 
@@ -708,9 +724,10 @@ async function main(): Promise<void> {
     });
 
     // Enter local exploration
+    const lighting = getLightingForLocation(location.locationType);
     explorationController.enterSpace(
       grid, fog, character.id, spawnPos,
-      character.speed, 'bright',
+      character.speed, lighting,
     );
 
     // Switch to local mode UI
@@ -1384,9 +1401,10 @@ async function main(): Promise<void> {
     if (character) character.position = null;
 
     // Re-enter exploration
+    const travelLighting = getLightingForLocation(dest.locationType);
     explorationController.enterSpace(
       grid, fog, character?.id ?? activeGameState.playerCharacterId, playerStart,
-      character?.speed ?? 30, 'bright',
+      character?.speed ?? 30, travelLighting,
     );
 
     activeGameScreen.enterLocalMode(grid, fog);
@@ -1833,9 +1851,10 @@ async function main(): Promise<void> {
       const grid = new Grid(gridDef);
       character.position = null;
 
+      const stairsLighting = getLightingForLocation(dest.locationType);
       explorationController.enterSpace(
         grid, fog, character.id ?? activeGameState.playerCharacterId, playerStart,
-        character.speed ?? 30, 'bright',
+        character.speed ?? 30, stairsLighting,
       );
 
       activeGameScreen.enterLocalMode(grid, fog);

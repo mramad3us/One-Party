@@ -105,6 +105,14 @@ const FEATURE_NARRATIVES: Record<CellFeature, string[]> = {
     'A stream flows here, swift and clear over smooth stones. The water looks safe to drink.',
     'Running water courses along a natural channel, glinting in the light. You could refill your waterskin here.',
   ],
+  torch_wall: [
+    'A torch burns in an iron sconce on the wall, casting flickering shadows across the stone.',
+    'Firelight dances from a wall-mounted torch, its flame guttering in an unseen draft.',
+  ],
+  brazier: [
+    'A large brazier crackles with burning coals, its warmth radiating outward in waves. The fire pit lights the chamber with a deep orange glow.',
+    'An iron brazier stands here, its bed of embers painting the surrounding stone in shades of amber and crimson.',
+  ],
 };
 
 function pick<T>(arr: T[]): T {
@@ -241,7 +249,7 @@ export class ExplorationController implements GameSystem {
     grid.placeEntity(playerEntityId, startPosition, 1);
 
     // Calculate initial FOV
-    fog.updateVisibility(grid, [{ position: startPosition, range: this.visionRange }]);
+    fog.updateVisibility(grid, this.buildObservers(startPosition));
 
     this.active = true;
 
@@ -395,7 +403,7 @@ export class ExplorationController implements GameSystem {
     }
 
     // Update FOV
-    this.fog.updateVisibility(this.grid, [{ position: target, range: this.visionRange }]);
+    this.fog.updateVisibility(this.grid, this.buildObservers(target));
 
     // Occasional movement flavor text
     this.movesSinceLastFlavor++;
@@ -422,7 +430,7 @@ export class ExplorationController implements GameSystem {
     this.advanceTimeAndTick(rounds);
 
     // Update FOV (in case things changed)
-    this.fog.updateVisibility(this.grid, [{ position: this.playerPosition, range: this.visionRange }]);
+    this.fog.updateVisibility(this.grid, this.buildObservers(this.playerPosition));
 
     this.emitNarrative(
       'You stand still, listening. The world moves around you — the faint drip of water, the whisper of air through unseen passages. A moment passes.',
@@ -609,7 +617,7 @@ export class ExplorationController implements GameSystem {
 
     // Update FOV since LoS may have changed
     if (this.fog && this.playerPosition) {
-      this.fog.updateVisibility(this.grid, [{ position: this.playerPosition, range: this.visionRange }]);
+      this.fog.updateVisibility(this.grid, this.buildObservers(this.playerPosition));
     }
 
     this.engine.events.emit({
@@ -962,10 +970,46 @@ export class ExplorationController implements GameSystem {
   private getVisionRange(): number {
     switch (this.lighting) {
       case 'bright': return 12;
-      case 'dim': return 6;
-      case 'dark': return 0;
+      case 'dim': return 8;
+      case 'dark': return this.getPersonalLightRange();
       default: return 12;
     }
+  }
+
+  /**
+   * In darkness, the player's vision depends on carried light sources.
+   * No light = 1 tile (adjacent only). Torch = 6 tiles (30ft).
+   */
+  private getPersonalLightRange(): number {
+    const character = this.getCharacter?.();
+    if (!character) return 1;
+
+    // Check if player has a torch in inventory
+    const hasTorch = character.inventory.items.some(
+      (entry) => entry.itemId === 'item_torch' && entry.quantity > 0,
+    );
+    return hasTorch ? 6 : 1;
+  }
+
+  /**
+   * Build the full list of vision observers: player + map light sources.
+   * In bright/dim lighting, only the player observer matters (light sources are redundant).
+   * In dark lighting, light sources on the map provide additional visibility.
+   */
+  private buildObservers(playerPos: Coordinate): { position: Coordinate; range: number }[] {
+    const observers: { position: Coordinate; range: number }[] = [
+      { position: playerPos, range: this.visionRange },
+    ];
+
+    // In darkness, add map light sources as independent observers
+    if (this.lighting === 'dark' && this.grid) {
+      const sources = this.grid.getLightSources();
+      for (const src of sources) {
+        observers.push(src);
+      }
+    }
+
+    return observers;
   }
 
   private describesTerrain(terrain: string): string {
@@ -1000,6 +1044,8 @@ export class ExplorationController implements GameSystem {
       tree: 'a gnarled tree',
       rock: 'a large rock',
       running_water: 'flowing water',
+      torch_wall: 'a wall torch',
+      brazier: 'a brazier',
     };
     return descriptions[feature] ?? 'something';
   }

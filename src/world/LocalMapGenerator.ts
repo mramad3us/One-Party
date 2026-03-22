@@ -1028,6 +1028,9 @@ export class LocalMapGenerator {
           }
         }
       }
+
+      // Place light sources in ~60% of rooms
+      this.placeLightSources(cells, w, h, rooms);
     }
 
     const startRoom = rooms[0] ?? { x: 1, y: 1, w: 5, h: 5 };
@@ -1089,6 +1092,9 @@ export class LocalMapGenerator {
         }
       }
     }
+
+    // Place light sources in caves — scattered fires and braziers
+    this.placeCaveLightSources(cells, w, h);
 
     const start = this.findOpenCell(cells, w, h, Math.floor(w / 2), Math.floor(h / 2));
     return { grid: { width: w, height: h, cells }, playerStart: start };
@@ -1707,6 +1713,143 @@ export class LocalMapGenerator {
           cells[edge.y][edge.x] = makeCell('stone', Infinity, true, ['door']);
         }
       }
+    }
+  }
+
+  /**
+   * Place wall torches and braziers in dungeon/cave rooms.
+   * ~60% of rooms get lighting. Wall torches placed on walls adjacent to floor.
+   * Larger rooms may also get a central brazier.
+   */
+  protected placeLightSources(
+    cells: GridCell[][],
+    w: number,
+    h: number,
+    rooms: { x: number; y: number; w: number; h: number }[],
+  ): void {
+    for (const room of rooms) {
+      // ~40% of rooms stay dark for atmosphere
+      if (this.rng.next() < 0.4) continue;
+
+      // Find wall cells adjacent to room floor (good spots for wall torches)
+      const wallSpots: { x: number; y: number }[] = [];
+      for (let y = room.y - 1; y <= room.y + room.h; y++) {
+        for (let x = room.x - 1; x <= room.x + room.w; x++) {
+          if (x < 0 || x >= w || y < 0 || y >= h) continue;
+          const cell = cells[y][x];
+          if (cell.terrain !== 'wall' || cell.features.length > 0) continue;
+
+          // Must be adjacent to a floor cell inside the room
+          let adjacentToFloor = false;
+          for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= room.x && nx < room.x + room.w &&
+                ny >= room.y && ny < room.y + room.h &&
+                nx >= 0 && nx < w && ny >= 0 && ny < h &&
+                cells[ny][nx].terrain !== 'wall' &&
+                cells[ny][nx].movementCost < Infinity) {
+              adjacentToFloor = true;
+              break;
+            }
+          }
+          if (adjacentToFloor) wallSpots.push({ x, y });
+        }
+      }
+
+      // Place 1-3 wall torches, spread apart
+      const torchCount = Math.min(wallSpots.length, 1 + Math.floor(this.rng.next() * 3));
+      const placed: { x: number; y: number }[] = [];
+      for (let i = 0; i < torchCount && wallSpots.length > 0; i++) {
+        // Pick a random spot, prefer ones far from already-placed torches
+        let bestIdx = Math.floor(this.rng.next() * wallSpots.length);
+        if (placed.length > 0) {
+          let bestDist = 0;
+          for (let j = 0; j < Math.min(wallSpots.length, 8); j++) {
+            const idx = Math.floor(this.rng.next() * wallSpots.length);
+            const spot = wallSpots[idx];
+            const minDist = Math.min(...placed.map(p =>
+              Math.abs(p.x - spot.x) + Math.abs(p.y - spot.y)));
+            if (minDist > bestDist) {
+              bestDist = minDist;
+              bestIdx = idx;
+            }
+          }
+        }
+        const spot = wallSpots.splice(bestIdx, 1)[0];
+        cells[spot.y][spot.x] = makeCell('wall', Infinity, true, ['torch_wall']);
+        placed.push(spot);
+      }
+
+      // Larger rooms (area >= 36) have a 50% chance of a central brazier
+      const area = room.w * room.h;
+      if (area >= 36 && this.rng.next() < 0.5) {
+        const cx = Math.floor(room.x + room.w / 2);
+        const cy = Math.floor(room.y + room.h / 2);
+        if (cx > 0 && cx < w - 1 && cy > 0 && cy < h - 1) {
+          const cell = cells[cy][cx];
+          if (cell.terrain === 'stone' && cell.features.length === 0) {
+            cells[cy][cx] = makeCell('stone', 1, false, ['brazier']);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Cave light sources — no rooms to reference, so scatter fires along
+   * walls and open cavern spaces. Sparser than dungeons for atmosphere.
+   */
+  protected placeCaveLightSources(cells: GridCell[][], w: number, h: number): void {
+    // Find wall cells adjacent to stone floor — candidates for wall torches
+    const wallSpots: { x: number; y: number }[] = [];
+    const floorSpots: { x: number; y: number }[] = [];
+
+    for (let y = 2; y < h - 2; y++) {
+      for (let x = 2; x < w - 2; x++) {
+        const cell = cells[y][x];
+        if (cell.terrain === 'wall' && cell.features.length === 0) {
+          // Check if adjacent to stone floor
+          for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h &&
+                cells[ny][nx].terrain === 'stone' && cells[ny][nx].movementCost < Infinity) {
+              wallSpots.push({ x, y });
+              break;
+            }
+          }
+        } else if (cell.terrain === 'stone' && cell.movementCost < Infinity && cell.features.length === 0) {
+          floorSpots.push({ x, y });
+        }
+      }
+    }
+
+    // Place ~3-6 wall torches, well-spaced
+    const torchCount = Math.min(wallSpots.length, 3 + Math.floor(this.rng.next() * 4));
+    const placed: { x: number; y: number }[] = [];
+    for (let i = 0; i < torchCount && wallSpots.length > 0; i++) {
+      let bestIdx = Math.floor(this.rng.next() * wallSpots.length);
+      if (placed.length > 0) {
+        let bestDist = 0;
+        for (let j = 0; j < Math.min(wallSpots.length, 12); j++) {
+          const idx = Math.floor(this.rng.next() * wallSpots.length);
+          const spot = wallSpots[idx];
+          const minDist = Math.min(...placed.map(p =>
+            Math.abs(p.x - spot.x) + Math.abs(p.y - spot.y)));
+          if (minDist > bestDist) {
+            bestDist = minDist;
+            bestIdx = idx;
+          }
+        }
+      }
+      const spot = wallSpots.splice(bestIdx, 1)[0];
+      cells[spot.y][spot.x] = makeCell('wall', Infinity, true, ['torch_wall']);
+      placed.push(spot);
+    }
+
+    // 30% chance of a campfire in an open area
+    if (floorSpots.length > 10 && this.rng.next() < 0.3) {
+      const fireSpot = floorSpots[Math.floor(this.rng.next() * floorSpots.length)];
+      cells[fireSpot.y][fireSpot.x] = makeCell('stone', 1, false, ['fire']);
     }
   }
 

@@ -28,7 +28,17 @@ export type CellFeature =
   | 'pillar'
   | 'tree'
   | 'rock'
-  | 'running_water';
+  | 'running_water'
+  | 'torch_wall'
+  | 'brazier';
+
+/** Features that emit light and their radius in grid cells (1 cell = 5ft) */
+export const LIGHT_SOURCE_RADIUS: Partial<Record<CellFeature, number>> = {
+  torch_wall: 5,   // 25ft — wall sconce
+  brazier: 6,      // 30ft — large fire pit
+  fire: 5,         // 25ft — campfire
+  fountain: 3,     // 15ft — faint magical glow
+};
 
 /** A single cell in the tactical grid */
 export type GridCell = {

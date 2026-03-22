@@ -8,6 +8,7 @@ import { Grid } from './Grid';
 import { FogOfWar } from './FogOfWar';
 import type { Tileset, TilesetRenderContext } from './Tileset';
 import { cellHash, AsciiTileset } from './Tileset';
+import { LIGHT_SOURCE_RADIUS } from '@/types/grid';
 
 // ── Visual info for entity rendering ─────────────────────────
 
@@ -186,6 +187,9 @@ export class GridRenderer {
       }
     }
 
+    // Draw warm glow around light sources
+    this.renderLightGlow(grid, fog, startX, startY);
+
     // Draw highlights
     for (const layer of this.highlights) {
       ctx.globalAlpha = layer.alpha;
@@ -292,6 +296,61 @@ export class GridRenderer {
     }
 
     ctx.restore();
+  }
+
+  // ── Light Glow ──────────────────────────────────────────
+
+  /** Render warm radial glow around light-emitting features. */
+  private renderLightGlow(
+    grid: Grid,
+    fog: FogOfWar,
+    startX: number,
+    startY: number,
+  ): void {
+    const { ctx } = this;
+
+    // Scan visible viewport cells for light sources
+    for (let vy = 0; vy < this.viewRows; vy++) {
+      for (let vx = 0; vx < this.viewCols; vx++) {
+        const gx = startX + vx;
+        const gy = startY + vy;
+
+        if (!fog.isVisible(gx, gy) && !fog.isExplored(gx, gy)) continue;
+
+        const cell = grid.getCell(gx, gy);
+        if (!cell) continue;
+
+        for (const feat of cell.features) {
+          const radiusCells = LIGHT_SOURCE_RADIUS[feat];
+          if (radiusCells === undefined) continue;
+
+          const dim = fog.isVisible(gx, gy) ? 1 : 0.3;
+          const cx = vx * this.cellW + this.cellW / 2;
+          const cy = vy * this.cellH + this.cellH / 2;
+          const radiusPx = radiusCells * Math.max(this.cellW, this.cellH);
+
+          // Pick glow color by feature type
+          let r = 255, g = 160, b = 40; // warm amber default
+          if (feat === 'fountain') { r = 100; g = 180; b = 255; } // cool blue
+          else if (feat === 'brazier') { r = 255; g = 120; b = 20; } // deep orange
+          else if (feat === 'fire') { r = 255; g = 140; b = 30; } // orange-yellow
+
+          const alpha = 0.12 * dim;
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radiusPx);
+          grad.addColorStop(0, `rgba(${r},${g},${b},${alpha * 2.5})`);
+          grad.addColorStop(0.3, `rgba(${r},${g},${b},${alpha * 1.5})`);
+          grad.addColorStop(0.7, `rgba(${r},${g},${b},${alpha * 0.5})`);
+          grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+
+          ctx.fillStyle = grad;
+          ctx.fillRect(
+            cx - radiusPx, cy - radiusPx,
+            radiusPx * 2, radiusPx * 2,
+          );
+          break; // one glow per cell
+        }
+      }
+    }
   }
 
   // ── Highlights ────────────────────────────────────────────

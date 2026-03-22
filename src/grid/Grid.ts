@@ -5,6 +5,7 @@ import type {
   GridDefinition,
   GridEntityPlacement,
 } from '@/types';
+import { LIGHT_SOURCE_RADIUS } from '@/types/grid';
 import { coordToKey } from '@/utils/math';
 
 /**
@@ -181,6 +182,28 @@ export class Grid {
 
   isAdjacent(a: Coordinate, b: Coordinate): boolean {
     return Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1 && !(a.x === b.x && a.y === b.y);
+  }
+
+  // ── Light sources ───────────────────────────────────────────
+
+  /** Find all cells with light-emitting features and return as observers. */
+  getLightSources(): { position: Coordinate; range: number }[] {
+    const sources: { position: Coordinate; range: number }[] = [];
+    const w = this.definition.width;
+    const h = this.definition.height;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const cell = this.definition.cells[y][x];
+        for (const feat of cell.features) {
+          const r = LIGHT_SOURCE_RADIUS[feat];
+          if (r !== undefined) {
+            sources.push({ position: { x, y }, range: r });
+            break; // one light source per cell is enough
+          }
+        }
+      }
+    }
+    return sources;
   }
 
   // ── Grid properties ──────────────────────────────────────────
