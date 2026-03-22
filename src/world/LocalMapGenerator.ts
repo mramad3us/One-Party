@@ -1228,6 +1228,9 @@ export class LocalMapGenerator {
       }
     }
 
+    // Spent torches on remaining walls — abandoned, no light
+    this.placeSpentTorches(cells, w, h, placed);
+
     // Path connecting ruins
     if (placed.length >= 2) {
       for (let i = 0; i < placed.length - 1; i++) {
@@ -1316,6 +1319,23 @@ export class LocalMapGenerator {
     cells[3][15] = makeCell('stone', 1, false, ['altar']);
     cells[h - 4][15] = makeCell('stone', 1, false, ['fountain']);
     cells[h - 2][15] = makeCell('stone', 1, false, ['door']);
+
+    // Spent and lit torches along the nave walls
+    for (let y = 5; y < h - 5; y += 4) {
+      // Left wall — mostly spent
+      if (cells[y][7]?.terrain === 'wall' || cells[y][7]?.movementCost === Infinity) {
+        // skip
+      } else if (cells[y][7]?.terrain === 'stone') {
+        // Place on adjacent wall instead
+      }
+      // Place on actual wall cells adjacent to nave
+      for (const wx of [7, 22]) {
+        if (wx < w && cells[y][wx]?.terrain === 'wall' && cells[y][wx]?.features.length === 0) {
+          const spent = this.rng.next() < 0.6;
+          cells[y][wx] = makeCell('wall', Infinity, true, [spent ? 'torch_wall_spent' : 'torch_wall']);
+        }
+      }
+    }
 
     return {
       grid: { width: w, height: h, cells },
@@ -1728,8 +1748,8 @@ export class LocalMapGenerator {
     rooms: { x: number; y: number; w: number; h: number }[],
   ): void {
     for (const room of rooms) {
-      // ~40% of rooms stay dark for atmosphere
-      if (this.rng.next() < 0.4) continue;
+      // ~40% of rooms are unlit — place spent torches instead
+      const isDark = this.rng.next() < 0.4;
 
       // Find wall cells adjacent to room floor (good spots for wall torches)
       const wallSpots: { x: number; y: number }[] = [];
@@ -1756,7 +1776,18 @@ export class LocalMapGenerator {
         }
       }
 
-      // Place 1-3 wall torches, spread apart
+      if (isDark) {
+        // Dark room — place 1-2 spent torches for atmosphere
+        const spentCount = Math.min(wallSpots.length, 1 + Math.floor(this.rng.next() * 2));
+        for (let i = 0; i < spentCount && wallSpots.length > 0; i++) {
+          const idx = Math.floor(this.rng.next() * wallSpots.length);
+          const spot = wallSpots.splice(idx, 1)[0];
+          cells[spot.y][spot.x] = makeCell('wall', Infinity, true, ['torch_wall_spent']);
+        }
+        continue;
+      }
+
+      // Lit room — place 1-3 wall torches, spread apart
       const torchCount = Math.min(wallSpots.length, 1 + Math.floor(this.rng.next() * 3));
       const placed: { x: number; y: number }[] = [];
       for (let i = 0; i < torchCount && wallSpots.length > 0; i++) {
@@ -1789,6 +1820,43 @@ export class LocalMapGenerator {
           const cell = cells[cy][cx];
           if (cell.terrain === 'stone' && cell.features.length === 0) {
             cells[cy][cx] = makeCell('stone', 1, false, ['brazier']);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Place spent (burned-out) wall torches in ruined buildings.
+   * All torches are spent — the place has been abandoned.
+   */
+  protected placeSpentTorches(
+    cells: GridCell[][], w: number, h: number,
+    buildings: { x: number; y: number; bw: number; bh: number }[],
+  ): void {
+    for (const bld of buildings) {
+      // Find wall cells around the building perimeter
+      for (let y = bld.y; y < bld.y + bld.bh && y < h; y++) {
+        for (let x = bld.x; x < bld.x + bld.bw && x < w; x++) {
+          if (x < 0 || y < 0) continue;
+          const cell = cells[y][x];
+          if (cell.terrain !== 'wall' || cell.features.length > 0) continue;
+
+          // Must be adjacent to interior floor
+          let adjacentFloor = false;
+          for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h &&
+                cells[ny][nx].terrain === 'stone' && cells[ny][nx].movementCost < Infinity) {
+              adjacentFloor = true;
+              break;
+            }
+          }
+          if (!adjacentFloor) continue;
+
+          // ~30% chance per eligible wall cell
+          if (this.rng.next() < 0.3) {
+            cells[y][x] = makeCell('wall', Infinity, true, ['torch_wall_spent']);
           }
         }
       }
@@ -1842,7 +1910,9 @@ export class LocalMapGenerator {
         }
       }
       const spot = wallSpots.splice(bestIdx, 1)[0];
-      cells[spot.y][spot.x] = makeCell('wall', Infinity, true, ['torch_wall']);
+      // ~30% of cave torches are spent — signs of previous explorers
+      const spent = this.rng.next() < 0.3;
+      cells[spot.y][spot.x] = makeCell('wall', Infinity, true, [spent ? 'torch_wall_spent' : 'torch_wall']);
       placed.push(spot);
     }
 

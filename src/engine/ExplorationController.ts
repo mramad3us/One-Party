@@ -109,6 +109,11 @@ const FEATURE_NARRATIVES: Record<CellFeature, string[]> = {
     'A torch burns in an iron sconce on the wall, casting flickering shadows across the stone.',
     'Firelight dances from a wall-mounted torch, its flame guttering in an unseen draft.',
   ],
+  torch_wall_spent: [
+    'An empty iron sconce juts from the wall, its torch long since burned to ash. Soot stains the stone above it like a black tongue.',
+    'A spent torch hangs limp in its bracket, nothing but a charred stub. This place has been dark a long time.',
+    'The remains of a wall torch — a blackened stick in a rusted sconce. Whoever lit it last never came back.',
+  ],
   brazier: [
     'A large brazier crackles with burning coals, its warmth radiating outward in waves. The fire pit lights the chamber with a deep orange glow.',
     'An iron brazier stands here, its bed of embers painting the surrounding stone in shades of amber and crimson.',
@@ -1045,6 +1050,7 @@ export class ExplorationController implements GameSystem {
       rock: 'a large rock',
       running_water: 'flowing water',
       torch_wall: 'a wall torch',
+      torch_wall_spent: 'a spent torch',
       brazier: 'a brazier',
     };
     return descriptions[feature] ?? 'something';

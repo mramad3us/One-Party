@@ -142,8 +142,9 @@ const FEATURE_GLYPHS: Record<CellFeature, { ch: string; fg: string; bg: string }
   tree:        { ch: 'T', fg: '#8b5a2b', bg: '#2a1a0a' },
   rock:        { ch: '.', fg: '#888888', bg: '#333333' },
   running_water: { ch: '~', fg: '#4ac4ff', bg: '#0a2a4a' },
-  torch_wall:    { ch: '!', fg: '#ffaa33', bg: '#331a00' },
-  brazier:       { ch: '0', fg: '#ff6600', bg: '#331100' },
+  torch_wall:       { ch: '!', fg: '#ffaa33', bg: '#331a00' },
+  torch_wall_spent: { ch: '!', fg: '#555544', bg: '#1a1a14' },
+  brazier:          { ch: '0', fg: '#ff6600', bg: '#331100' },
 };
 
 export class AsciiTileset implements Tileset {

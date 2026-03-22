@@ -34,8 +34,9 @@ const FEATURE_COLORS: Record<CellFeature, { primary: RGB; secondary: RGB; bg: RG
   tree:        { primary: [50, 120, 40],   secondary: [100, 70, 30],   bg: [20, 45, 15] },
   rock:        { primary: [120, 115, 108], secondary: [95, 90, 82],    bg: [55, 52, 48] },
   running_water: { primary: [60, 180, 255], secondary: [30, 140, 220], bg: [10, 40, 70] },
-  torch_wall:    { primary: [255, 170, 50], secondary: [200, 120, 30], bg: [80, 40, 10] },
-  brazier:       { primary: [255, 120, 20], secondary: [220, 80, 10],  bg: [80, 30, 5] },
+  torch_wall:       { primary: [255, 170, 50], secondary: [200, 120, 30], bg: [80, 40, 10] },
+  torch_wall_spent: { primary: [85, 80, 65],  secondary: [60, 55, 45],  bg: [30, 28, 22] },
+  brazier:          { primary: [255, 120, 20], secondary: [220, 80, 10],  bg: [80, 30, 5] },
 };
 
 // ── Helper: blend two colors ──────────────────────────────────

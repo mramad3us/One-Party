@@ -30,6 +30,7 @@ export type CellFeature =
   | 'rock'
   | 'running_water'
   | 'torch_wall'
+  | 'torch_wall_spent'
   | 'brazier';
 
 /** Features that emit light and their radius in grid cells (1 cell = 5ft) */
