@@ -222,6 +222,9 @@ export class CreationScreen extends Component {
   }
 
   private updateFocusItems(): void {
+    // Detach the previous FocusNav before creating a new one
+    this.focusNav.detach();
+
     let items: HTMLElement[] = [];
     switch (this.step) {
       case 0: // Race

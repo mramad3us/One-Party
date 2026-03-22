@@ -79,6 +79,28 @@ const LOOK_BINDINGS: KeyBinding[] = [
   { keys: ['x'],                event: 'input:look_exit', data: {},                  label: 'Exit Look',       context: 'look' },
 ];
 
+// ── Combat bindings ─────────────────────────────────────────────
+
+const COMBAT_MOVE_BINDINGS: KeyBinding[] = [
+  { keys: ['k', 'ArrowUp'],     event: 'input:combat_move', data: { dx: 0, dy: -1 },  label: 'North',     context: 'combat' },
+  { keys: ['j', 'ArrowDown'],   event: 'input:combat_move', data: { dx: 0, dy: 1 },   label: 'South',     context: 'combat' },
+  { keys: ['h', 'ArrowLeft'],   event: 'input:combat_move', data: { dx: -1, dy: 0 },  label: 'West',      context: 'combat' },
+  { keys: ['l', 'ArrowRight'],  event: 'input:combat_move', data: { dx: 1, dy: 0 },   label: 'East',      context: 'combat' },
+  { keys: ['y'],                event: 'input:combat_move', data: { dx: -1, dy: -1 }, label: 'Northwest', context: 'combat' },
+  { keys: ['u'],                event: 'input:combat_move', data: { dx: 1, dy: -1 },  label: 'Northeast', context: 'combat' },
+  { keys: ['b'],                event: 'input:combat_move', data: { dx: -1, dy: 1 },  label: 'Southwest', context: 'combat' },
+  { keys: ['n'],                event: 'input:combat_move', data: { dx: 1, dy: 1 },   label: 'Southeast', context: 'combat' },
+];
+
+const COMBAT_ACTION_BINDINGS: KeyBinding[] = [
+  { keys: ['a'],                event: 'input:combat_attack',    data: {},  label: 'Attack',     context: 'combat' },
+  { keys: ['d'],                event: 'input:combat_dash',      data: {},  label: 'Dash',       context: 'combat' },
+  { keys: ['o'],                event: 'input:combat_dodge',     data: {},  label: 'Dodge',      context: 'combat' },
+  { keys: ['g'],                event: 'input:combat_disengage', data: {},  label: 'Disengage',  context: 'combat' },
+  { keys: ['e'],                event: 'input:combat_end_turn',  data: {},  label: 'End Turn',   context: 'combat' },
+  { keys: ['Tab'],              event: 'input:combat_cycle',     data: {},  label: 'Cycle Targets', context: 'combat' },
+];
+
 // ── Traveling bindings ──────────────────────────────────────────
 
 const TRAVELING_BINDINGS: KeyBinding[] = [
@@ -108,6 +130,8 @@ const ALL_BINDINGS = [
   ...MOVE_BINDINGS,
   ...EXPLORATION_ACTION_BINDINGS,
   ...EXPLORATION_META_BINDINGS,
+  ...COMBAT_MOVE_BINDINGS,
+  ...COMBAT_ACTION_BINDINGS,
   ...LOOK_BINDINGS,
   ...TRAVELING_BINDINGS,
   ...WORLDMAP_BINDINGS,
@@ -143,12 +167,18 @@ const CONTEXT_HINTS: Record<InputContext, KeyboardHintDef[]> = {
     { key: 'Esc', label: 'Cancel',    category: 'meta' },
   ],
   combat: [
-    { key: 'k/\u2191', label: 'North',     category: 'movement' },
-    { key: 'j/\u2193', label: 'South',     category: 'movement' },
-    { key: 'h/\u2190', label: 'West',      category: 'movement' },
-    { key: 'l/\u2192', label: 'East',      category: 'movement' },
-    { key: '?',   label: 'Help',      category: 'meta' },
-    { key: 'Esc', label: 'Cancel',    category: 'meta' },
+    { key: 'k/\u2191', label: 'North',       category: 'movement' },
+    { key: 'j/\u2193', label: 'South',       category: 'movement' },
+    { key: 'h/\u2190', label: 'West',        category: 'movement' },
+    { key: 'l/\u2192', label: 'East',        category: 'movement' },
+    { key: 'a',   label: 'Attack',      category: 'action' },
+    { key: 'd',   label: 'Dash',        category: 'action' },
+    { key: 'o',   label: 'Dodge',       category: 'action' },
+    { key: 'g',   label: 'Disengage',   category: 'action' },
+    { key: 'e',   label: 'End Turn',    category: 'action' },
+    { key: 'Tab', label: 'Cycle Target', category: 'action' },
+    { key: '?',   label: 'Help',        category: 'meta' },
+    { key: 'Esc', label: 'Cancel',      category: 'meta' },
   ],
   menu: [
     { key: 'Esc', label: 'Cancel',    category: 'meta' },

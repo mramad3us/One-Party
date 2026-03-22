@@ -1,5 +1,14 @@
-import type { Combatant, EntityId } from '@/types';
+import type { Combatant, DiceRollResult, EntityId } from '@/types';
 import type { DiceRoller } from '@/rules/DiceRoller';
+
+/** Individual initiative roll result for UI display. */
+export interface InitiativeRollEntry {
+  entityId: EntityId;
+  isPlayer: boolean;
+  isAlly: boolean;
+  rollResult: DiceRollResult;
+  total: number;
+}
 
 /**
  * Manages initiative order for combat encounters.
@@ -9,6 +18,9 @@ export class InitiativeTracker {
   private combatants: Combatant[] = [];
   private currentIndex = 0;
   private round = 1;
+
+  /** Stored from the last rollInitiative call for UI display. */
+  lastInitiativeRolls: InitiativeRollEntry[] = [];
 
   constructor() {}
 
@@ -20,8 +32,17 @@ export class InitiativeTracker {
     entities: { entityId: EntityId; modifier: number; isPlayer: boolean; isAlly: boolean }[],
     dice: DiceRoller,
   ): Combatant[] {
+    this.lastInitiativeRolls = [];
+
     this.combatants = entities.map((e) => {
       const roll = dice.rollD20({ modifier: e.modifier });
+      this.lastInitiativeRolls.push({
+        entityId: e.entityId,
+        isPlayer: e.isPlayer,
+        isAlly: e.isAlly,
+        rollResult: roll,
+        total: roll.total,
+      });
       return {
         entityId: e.entityId,
         initiative: roll.total,

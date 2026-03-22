@@ -296,4 +296,91 @@ export const ENCOUNTER_TEMPLATES: Template[] = [
       ],
     },
   },
+  {
+    id: 'encounter_rat_swarm',
+    type: 'encounter',
+    tags: ['dungeon', 'cave', 'combat', 'beast', 'low_level'],
+    weight: 8,
+    conditions: [
+      { type: 'partyLevel', operator: 'gte', value: 1 },
+      { type: 'partyLevel', operator: 'lte', value: 3 },
+    ],
+    variables: [
+      {
+        name: 'enemyCount',
+        source: 'computed',
+        compute: 'partySize + 2',
+      },
+    ],
+    data: {
+      name: 'Rat Swarm',
+      description: 'Dozens of red eyes gleam from the darkness as a swarm of giant rats surges forward.',
+      monsterIds: ['monster_giant_rat'],
+      minEnemies: 4,
+      maxEnemies: 6,
+      crRange: [0.125, 1],
+      lootTableId: null,
+      narrativeHints: [
+        { key: 'rats', tone: 'disgust', context: { description: 'The chittering grows deafening as mangy, oversized rats pour from cracks in the walls, their yellowed teeth snapping with ravenous hunger.' } },
+      ],
+    },
+  },
+  {
+    id: 'encounter_kobold_scouts',
+    type: 'encounter',
+    tags: ['cave', 'wilderness', 'dungeon', 'combat', 'humanoid', 'low_level'],
+    weight: 8,
+    conditions: [
+      { type: 'partyLevel', operator: 'gte', value: 1 },
+      { type: 'partyLevel', operator: 'lte', value: 3 },
+    ],
+    variables: [
+      {
+        name: 'enemyCount',
+        source: 'computed',
+        compute: 'partySize + 1',
+      },
+    ],
+    data: {
+      name: 'Kobold Scouts',
+      description: 'Small, reptilian figures scurry between the rocks, hissing commands in Draconic.',
+      monsterIds: ['monster_kobold'],
+      minEnemies: 3,
+      maxEnemies: 5,
+      crRange: [0.125, 1],
+      lootTableId: 'loot_low',
+      narrativeHints: [
+        { key: 'kobolds', tone: 'tense', context: { description: 'A high-pitched war cry echoes off the stone as scaly kobolds spring from their hiding places, their crude weapons raised with surprising coordination.' } },
+      ],
+    },
+  },
+  {
+    id: 'encounter_walking_dead',
+    type: 'encounter',
+    tags: ['ruins', 'dungeon', 'combat', 'undead', 'low_level'],
+    weight: 8,
+    conditions: [
+      { type: 'partyLevel', operator: 'gte', value: 1 },
+      { type: 'partyLevel', operator: 'lte', value: 4 },
+    ],
+    variables: [
+      {
+        name: 'enemyCount',
+        source: 'computed',
+        compute: 'partySize',
+      },
+    ],
+    data: {
+      name: 'Walking Dead',
+      description: 'The stench of decay fills the air as shambling corpses lurch from the shadows.',
+      monsterIds: ['monster_zombie'],
+      minEnemies: 2,
+      maxEnemies: 4,
+      crRange: [0.25, 2],
+      lootTableId: null,
+      narrativeHints: [
+        { key: 'zombies', tone: 'horror', context: { description: 'A low, guttural moan rises from the darkness. Rotting hands drag decayed bodies forward — the dead walk, and they are hungry.' } },
+      ],
+    },
+  },
 ];

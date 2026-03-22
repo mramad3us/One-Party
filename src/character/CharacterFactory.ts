@@ -90,7 +90,7 @@ export class CharacterFactory {
     }
 
     // Starting equipment as inventory entries
-    const inventoryItems: { itemId: string; quantity: number }[] = [];
+    const inventoryItems: { itemId: string; quantity: number; charges?: number }[] = [];
     for (const itemId of classData.startingEquipment) {
       const existing = inventoryItems.find((e) => e.itemId === itemId);
       if (existing) {
@@ -103,7 +103,8 @@ export class CharacterFactory {
     // Add starting provisions
     inventoryItems.push({ itemId: 'item_rations', quantity: 3 });
     inventoryItems.push({ itemId: 'item_waterskin', quantity: 1 });
-    inventoryItems.push({ itemId: 'item_torch', quantity: 2 });
+    inventoryItems.push({ itemId: 'item_torch', quantity: 1, charges: 6 });
+    inventoryItems.push({ itemId: 'item_torch', quantity: 1, charges: 6 });
 
     // Build features list from class
     const features: Character['features'] = [];
@@ -178,6 +179,7 @@ export class CharacterFactory {
         amulet: null,
         belt: null,
       },
+      equipmentCharges: {},
       spellcasting,
       conditions: [],
       deathSaves: { successes: 0, failures: 0 },

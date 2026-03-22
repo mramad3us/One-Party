@@ -7,6 +7,7 @@ import type {
   ArmorProperties,
   WeaponProperties,
 } from '@/types';
+import { getItem } from '@/data/items';
 
 function isWeaponProperties(props: unknown): props is WeaponProperties {
   return typeof props === 'object' && props !== null && 'damage' in props && 'weaponType' in props;
@@ -44,6 +45,12 @@ export class EquipmentRules {
       return slot === ARMOR_SLOT;
     }
 
+    // Mundane charge-based items (torches) go in off hand only
+    const itemDef = getItem(item.id);
+    if (item.itemType === 'mundane' && itemDef?.maxCharges != null) {
+      return slot === 'offHand';
+    }
+
     // Other equippable items (rings, amulets, etc.)
     return true;
   }
@@ -61,9 +68,16 @@ export class EquipmentRules {
       return { ok: false, error: `Slot '${slot}' is already occupied. Unequip first.` };
     }
 
+    // Save charges for charge-based items (e.g. torches)
+    const itemDef = getItem(itemId);
+    if (itemDef?.maxCharges != null) {
+      character.equipmentCharges[slot] = invEntry.charges ?? itemDef.charges ?? 0;
+    }
+
     // Remove from inventory (or decrement quantity)
     if (invEntry.quantity <= 1) {
-      character.inventory.items = character.inventory.items.filter((e) => e.itemId !== itemId);
+      const idx = character.inventory.items.indexOf(invEntry);
+      if (idx !== -1) character.inventory.items.splice(idx, 1);
     } else {
       invEntry.quantity -= 1;
     }
@@ -81,12 +95,22 @@ export class EquipmentRules {
 
     character.equipment[slot] = null;
 
+    // Restore charges for charge-based items
+    const savedCharges = character.equipmentCharges[slot];
+    delete character.equipmentCharges[slot];
+
     // Add back to inventory
-    const existing = character.inventory.items.find((e) => e.itemId === itemId);
-    if (existing) {
-      existing.quantity += 1;
+    const itemDef = getItem(itemId);
+    if (itemDef?.maxCharges != null) {
+      // Charge-based items are non-stackable; add as new entry with charges
+      character.inventory.items.push({ itemId, quantity: 1, charges: savedCharges ?? 0 });
     } else {
-      character.inventory.items.push({ itemId, quantity: 1 });
+      const existing = character.inventory.items.find((e) => e.itemId === itemId);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        character.inventory.items.push({ itemId, quantity: 1 });
+      }
     }
 
     return { ok: true, value: itemId };

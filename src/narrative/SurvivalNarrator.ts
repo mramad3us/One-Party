@@ -290,26 +290,11 @@ export class SurvivalNarrator {
       'You sit by the water for over an hour, but the fish aren\'t biting today. Perhaps the current is too strong, or perhaps they\'re simply smarter than you.',
       'The water flows clear and empty. You try every trick you know, but the stream keeps its bounty to itself today.',
     ];
-    const TRAP_SET: string[] = [
-      'You find a promising game trail and set a simple snare, disguising it with leaves and brush. With luck, something will wander into it before long.',
-      'Working quickly, you rig a trap from cord and bent sapling along an animal path. Now you need only wait — and remember to come back.',
-    ];
-    const TRAP_SUCCESS: string[] = [
-      `You return to your snare and find it sprung — a fine catch struggling in the cord. You dispatch it quickly and claim your ${itemName ?? 'prize'}. The trap worked beautifully.`,
-      `The trap held! A plump rabbit hangs in the snare, and you add the ${itemName ?? 'fresh meat'} to your supplies with quiet satisfaction.`,
-    ];
-    const TRAP_FAIL: string[] = [
-      'You check your trap, but it sits undisturbed. No tracks nearby — perhaps the wrong spot, or perhaps the local game is too wary.',
-      'The snare has been triggered, but whatever set it off escaped. A few tufts of fur cling to the cord — close, but not close enough.',
-    ];
-
     let pool: string[];
     switch (action) {
       case 'forage': pool = success ? FORAGE_SUCCESS : FORAGE_FAIL; break;
       case 'hunt': pool = success ? HUNT_SUCCESS : HUNT_FAIL; break;
       case 'fish': pool = success ? FISH_SUCCESS : FISH_FAIL; break;
-      case 'set_trap': pool = TRAP_SET; break;
-      case 'check_trap': pool = success ? TRAP_SUCCESS : TRAP_FAIL; break;
       default: pool = success ? FORAGE_SUCCESS : FORAGE_FAIL;
     }
 

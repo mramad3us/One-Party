@@ -6,12 +6,22 @@ export class TooltipSystem {
   private static instance: TooltipSystem;
   private tooltipEl: HTMLElement;
   private hideTimeout: ReturnType<typeof setTimeout> | null = null;
+  private currentTarget: HTMLElement | null = null;
 
   private constructor() {
     this.tooltipEl = document.createElement('div');
     this.tooltipEl.className = 'tooltip';
     this.tooltipEl.setAttribute('role', 'tooltip');
     document.body.appendChild(this.tooltipEl);
+
+    // Auto-hide if the target element is removed from the DOM
+    const checkTarget = () => {
+      if (this.currentTarget && !this.currentTarget.isConnected) {
+        this.hide();
+      }
+      requestAnimationFrame(checkTarget);
+    };
+    requestAnimationFrame(checkTarget);
   }
 
   static init(): TooltipSystem {
@@ -37,6 +47,8 @@ export class TooltipSystem {
       clearTimeout(this.hideTimeout);
       this.hideTimeout = null;
     }
+
+    this.currentTarget = target;
 
     // Set content
     if (typeof content === 'string') {
@@ -98,6 +110,7 @@ export class TooltipSystem {
   }
 
   hide(): void {
+    this.currentTarget = null;
     this.tooltipEl.classList.remove('visible');
   }
 

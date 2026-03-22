@@ -630,25 +630,27 @@ export class MapPanel extends Component {
       // Multi-tile fast travel with path and supply info
       const tiles = this.pathPreview.length;
       const estHours = tiles * 3; // ~3 hours per tile average
-      this.detailEl.appendChild(
+
+      // Journey info section
+      const journeySection = el('div', { class: 'map-detail-journey' });
+      journeySection.appendChild(
         el('div', { class: 'map-detail-sub font-mono' }, [
-          `${tiles} tile${tiles > 1 ? 's' : ''} · ~${estHours} hour${estHours > 1 ? 's' : ''} journey`,
+          `${tiles} tile${tiles > 1 ? 's' : ''} \u00b7 ~${estHours} hour${estHours > 1 ? 's' : ''} journey`,
         ]),
       );
 
       // Supply check
       const supply = this.supplyChecker?.(tiles);
       if (supply) {
-        const supplyEl = el('div', { class: 'map-detail-sub font-mono' });
-        if (supply.sufficient) {
-          supplyEl.textContent = `Supplies: sufficient (range: ${supply.maxTiles} tiles)`;
-          supplyEl.style.color = '#6a9a3a';
-        } else {
-          supplyEl.textContent = `Supplies: insufficient — need more ${supply.limitingFactor} (range: ${supply.maxTiles} tiles)`;
-          supplyEl.style.color = '#c44';
-        }
-        this.detailEl.appendChild(supplyEl);
+        const supplyClass = supply.sufficient ? 'map-detail-supply--ok' : 'map-detail-supply--low';
+        const supplyText = supply.sufficient
+          ? `Supplies: sufficient (range: ${supply.maxTiles} tiles)`
+          : `Supplies: insufficient \u2014 need more ${supply.limitingFactor} (range: ${supply.maxTiles} tiles)`;
+        journeySection.appendChild(
+          el('div', { class: `map-detail-sub font-mono ${supplyClass}` }, [supplyText]),
+        );
       }
+      this.detailEl.appendChild(journeySection);
 
       const canTravel = !supply || supply.sufficient;
       const travelBtn = el('button', {
@@ -667,8 +669,6 @@ export class MapPanel extends Component {
         });
       } else {
         (travelBtn as HTMLButtonElement).disabled = true;
-        travelBtn.style.opacity = '0.5';
-        travelBtn.style.cursor = 'not-allowed';
       }
       this.detailEl.appendChild(travelBtn);
     } else if (!isPlayerHere && isAdjacent && traversable && !canSeeEdge) {

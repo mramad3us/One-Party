@@ -489,21 +489,21 @@
 .inventory-encumbrance {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: var(--space-sm);
 }
 
 .inventory-enc-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-heading);
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.18em;
   color: var(--text-dim);
 }
 
 .inventory-enc-bar {
-  width: 200px;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.04);
+  width: 120px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
   border-radius: 0;
   border: none;
   position: relative;
@@ -513,7 +513,7 @@
 
 .inventory-enc-fill {
   height: 100%;
-  background: var(--green);
+  background: rgba(255, 255, 255, 0.25);
   border-radius: 0;
   transition: width var(--duration-normal) var(--ease-smooth);
   box-shadow: none;
@@ -525,14 +525,9 @@
 }
 
 .inventory-enc-value {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 9px;
+  font-size: 10px;
   font-family: var(--font-mono);
-  color: var(--text-primary);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  color: var(--text-dim);
   white-space: nowrap;
   letter-spacing: 0.04em;
 }

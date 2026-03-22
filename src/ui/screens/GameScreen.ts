@@ -1,6 +1,6 @@
 import type { GameEngine } from '@/engine/GameEngine';
 import type { NarrativeBlock } from '@/types/narrative';
-import type { Character, Coordinate, EntityId, Region, SurvivalState } from '@/types';
+import type { Character, Coordinate, EntityId, GridDefinition, GridEntityPlacement, Region, SurvivalState } from '@/types';
 import type { GameTime } from '@/types/core';
 import type { OverworldData } from '@/types/overworld';
 import { Component } from '@/ui/Component';
@@ -10,6 +10,7 @@ import { StatusPanel } from '@/ui/panels/StatusPanel';
 import { ActionPanel, type ActionContext, type KeyboardHint } from '@/ui/panels/ActionPanel';
 import { MapPanel } from '@/ui/panels/MapPanel';
 import { GridPanel } from '@/ui/panels/GridPanel';
+import { CombatHUD, type CombatantDisplay } from '@/ui/screens/CombatScreen';
 import { IconSystem } from '@/ui/IconSystem';
 import type { EntityRenderInfo } from '@/grid/GridRenderer';
 import { Grid } from '@/grid/Grid';
@@ -55,6 +56,11 @@ export class GameScreen extends Component {
   private isTraveling = false;
   private hintsVisible = false;
 
+  // Combat HUD
+  private combatHUD: CombatHUD | null = null;
+  private combatActionBar!: HTMLElement;
+  private combatDiceContainer!: HTMLElement;
+
   // Status bar elements
   private sunArc!: SunArc;
   private timeEl!: HTMLElement;
@@ -62,7 +68,6 @@ export class GameScreen extends Component {
   private survivalStatusEl!: HTMLElement;
   private locationEl!: HTMLElement;
 
-  // @ts-expect-error Written for future combat mode toggling
   private currentMode: 'exploration' | 'combat' = 'exploration';
 
   constructor(parent: HTMLElement, engine: GameEngine) {
@@ -141,6 +146,14 @@ export class GameScreen extends Component {
     this.actionPanel = new ActionPanel(this.actionWrap, this.engine);
     screen.appendChild(this.actionWrap);
 
+    // ── Combat action bar (hidden until combat) ──
+    this.combatActionBar = el('div', { class: 'combat-action-bar combat-action-bar--hidden' });
+    screen.appendChild(this.combatActionBar);
+
+    // Dice roll animation container (used by CombatController for initiative/attack/damage rolls)
+    this.combatDiceContainer = el('div', { class: 'combat-dice-container' });
+    screen.appendChild(this.combatDiceContainer);
+
     // ── Hidden panels ──
     // Party panel (not shown in main layout, available for future use)
     const hiddenParty = el('div', { style: 'display:none' });
@@ -203,15 +216,99 @@ export class GameScreen extends Component {
     // Overworld map is set via setOverworld() — region/location are legacy no-ops
   }
 
-  enterCombatMode(grid?: Grid, fog?: FogOfWar): void {
+  enterCombatMode(gridDef: GridDefinition, participants: CombatantDisplay[]): void {
     this.currentMode = 'combat';
-    if (grid && fog) {
-      this.gridPanel.initGrid(grid, fog);
+
+    // Build grid + fog (no fog of war in combat — full visibility)
+    const grid = new Grid(gridDef);
+    const fog = new FogOfWar();
+    // Reveal all cells by placing a huge observer at center
+    const cx = Math.floor(gridDef.width / 2);
+    const cy = Math.floor(gridDef.height / 2);
+    fog.updateVisibility(grid, [{ position: { x: cx, y: cy }, range: gridDef.width + gridDef.height }]);
+    // Set full light on all visible tiles
+    for (let y = 0; y < gridDef.height; y++) {
+      for (let x = 0; x < gridDef.width; x++) {
+        fog.setLightLevel(x, y, 10);
+      }
     }
+
+    this.gridPanel.initGrid(grid, fog);
+
+    // Mount CombatHUD on the grid wrapper
+    if (this.combatHUD) {
+      this.combatHUD.destroy();
+    }
+    this.combatHUD = new CombatHUD(this.gridWrap, this.engine);
+    this.combatHUD.mount();
+    this.addChild(this.combatHUD);
+    this.combatHUD.setInitiativeOrder(participants);
+
+    // Show combat action bar only if hints are visible (toggled with ?)
+    if (this.hintsVisible) {
+      this.combatActionBar.classList.remove('combat-action-bar--hidden');
+    }
+
+    // Add combat mode class for CSS
+    this.el.classList.add('game-screen--combat');
   }
 
   exitCombatMode(): void {
     this.currentMode = 'exploration';
+
+    // Remove CombatHUD
+    if (this.combatHUD) {
+      this.combatHUD.destroy();
+      this.combatHUD = null;
+    }
+
+    // Hide combat action bar
+    this.combatActionBar.classList.add('combat-action-bar--hidden');
+    this.combatActionBar.innerHTML = '';
+
+    // Remove combat mode class
+    this.el.classList.remove('game-screen--combat');
+  }
+
+  isInCombat(): boolean {
+    return this.currentMode === 'combat';
+  }
+
+  getCombatHUD(): CombatHUD | null {
+    return this.combatHUD;
+  }
+
+  getCombatDiceContainer(): HTMLElement {
+    return this.combatDiceContainer;
+  }
+
+  /** Set combat action buttons (Attack, Dash, Dodge, etc.) */
+  setCombatActions(actions: { label: string; key: string; enabled: boolean; onClick: () => void }[]): void {
+    this.combatActionBar.innerHTML = '';
+    for (const action of actions) {
+      const btn = el('button', {
+        class: `combat-action-btn${action.enabled ? '' : ' combat-action-btn--disabled'}`,
+      });
+      btn.innerHTML = `<span class="combat-action-btn-key">${action.key}</span><span class="combat-action-btn-label">${action.label}</span>`;
+      if (action.enabled) {
+        btn.addEventListener('click', action.onClick);
+      } else {
+        btn.setAttribute('disabled', 'true');
+      }
+      this.combatActionBar.appendChild(btn);
+    }
+  }
+
+  /** Update entity placements on the combat grid. */
+  updateCombatEntities(
+    placements: Map<EntityId, GridEntityPlacement>,
+    getInfo: (id: EntityId) => EntityRenderInfo | undefined,
+  ): void {
+    this.gridPanel.updateEntities(placements, getInfo);
+  }
+
+  clearNarrative(): void {
+    this.narrativePanel.clear();
   }
 
   addNarrative(block: NarrativeBlock): void {
@@ -371,8 +468,10 @@ export class GameScreen extends Component {
     this.hintsVisible = !this.hintsVisible;
     if (this.hintsVisible) {
       this.actionWrap.classList.remove('game-action-wrap--hidden');
+      this.combatActionBar.classList.remove('combat-action-bar--hidden');
     } else {
       this.actionWrap.classList.add('game-action-wrap--hidden');
+      this.combatActionBar.classList.add('combat-action-bar--hidden');
     }
   }
 

@@ -33,6 +33,7 @@ const EQUIP_SLOT_ORDER: (keyof EquipmentSlots)[] = [
 const ITEM_TYPE_TO_SLOT: Partial<Record<string, keyof EquipmentSlots>> = {
   weapon: 'mainHand',
   armor: 'armor',
+  mundane: 'offHand',
 };
 
 /** Item types that can be consumed (used) rather than equipped. */
@@ -117,9 +118,9 @@ export class InventoryScreen extends Component {
     this.encumbranceBar = el('div', { class: 'inventory-enc-bar' });
     this.encumbranceFill = el('div', { class: 'inventory-enc-fill' });
     this.encumbranceBar.appendChild(this.encumbranceFill);
-    this.encumbranceLabel = el('span', { class: 'inventory-enc-value font-mono' });
-    this.encumbranceBar.appendChild(this.encumbranceLabel);
     encWrap.appendChild(this.encumbranceBar);
+    this.encumbranceLabel = el('span', { class: 'inventory-enc-value font-mono' });
+    encWrap.appendChild(this.encumbranceLabel);
     footer.appendChild(encWrap);
 
     dialog.appendChild(footer);
@@ -196,7 +197,7 @@ export class InventoryScreen extends Component {
           });
         });
         actions.appendChild(useBtn);
-      } else if (item.itemType === 'weapon' || item.itemType === 'armor') {
+      } else if (item.itemType === 'weapon' || item.itemType === 'armor' || (item.itemType === 'mundane' && item.maxCharges != null)) {
         const equipBtn = el('button', { class: 'btn btn-primary btn-sm item-action-btn' }, ['Equip']);
         equipBtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -238,7 +239,7 @@ export class InventoryScreen extends Component {
     this.encumbranceLabel.textContent = `${inventory.currentWeight} / ${inventory.capacity} lb`;
   }
 
-  setEquipment(equipment: EquipmentSlots, items: Map<EntityId, Item>): void {
+  setEquipment(equipment: EquipmentSlots, items: Map<EntityId, Item>, equipmentCharges?: Partial<Record<keyof EquipmentSlots, number>>): void {
     this.currentItems = items;
     this.equipmentEl.innerHTML = '';
 
@@ -253,10 +254,16 @@ export class InventoryScreen extends Component {
         const item = items.get(itemId);
         if (item) {
           const rarityClass = `inventory-equip-item--${item.rarity}`;
+          let displayName = item.name;
+          // Show charges for charge-based equipped items
+          if (item.maxCharges != null && equipmentCharges) {
+            const charges = equipmentCharges[slot] ?? 0;
+            displayName += ` (${charges}/${item.maxCharges})`;
+          }
           const itemEl = el('div', {
             class: `inventory-equip-item ${rarityClass}`,
             'data-tooltip': `${item.name}\n${item.description}\nClick to unequip`,
-          }, [item.name]);
+          }, [displayName]);
           slotEl.appendChild(itemEl);
 
           // Click to unequip

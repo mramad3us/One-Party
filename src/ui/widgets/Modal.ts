@@ -109,12 +109,19 @@ export class Modal extends Component {
       });
     }
 
-    // Keyboard navigation for modal action buttons
-    const buttons = Array.from(this.el.querySelectorAll('.modal-footer .btn')) as HTMLElement[];
+    // Keyboard navigation — prefer footer action buttons, fall back to body buttons
+    let buttons = Array.from(this.el.querySelectorAll('.modal-footer .btn')) as HTMLElement[];
     if (buttons.length > 0) {
       this.focusNav.setItems(buttons);
       // Focus the last button (usually primary/confirm)
       this.focusNav.focusIndex(buttons.length - 1);
+    } else {
+      // Body-level interactive elements (interaction picker, forage menu, etc.)
+      buttons = Array.from(this.el.querySelectorAll('.modal-body button')) as HTMLElement[];
+      if (buttons.length > 0) {
+        this.focusNav.setItems(buttons);
+        this.focusNav.focusIndex(0);
+      }
     }
     this.focusNav.attach();
   }

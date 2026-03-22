@@ -11,8 +11,10 @@ export interface TimeActivityConfig {
   title: string;
   totalHours: number;
   startTime: GameTime;
-  skillName: string;
-  dc: number;
+  /** Skill name shown in the info row (omit for rest/passive activities). */
+  skillName?: string;
+  /** DC shown in the info row (omit for rest/passive activities). */
+  dc?: number;
 }
 
 /**
@@ -41,11 +43,13 @@ export class TimeActivity extends Component {
     // Title
     inner.appendChild(el('h2', { class: 'time-activity-title font-heading' }, [this.config.title]));
 
-    // Skill & DC info
-    const infoRow = el('div', { class: 'time-activity-info font-mono' }, [
-      `${this.config.skillName} check \u2022 DC ${this.config.dc}`,
-    ]);
-    inner.appendChild(infoRow);
+    // Skill & DC info (hidden for passive activities like resting)
+    if (this.config.skillName && this.config.dc != null) {
+      const infoRow = el('div', { class: 'time-activity-info font-mono' }, [
+        `${this.config.skillName} check \u2022 DC ${this.config.dc}`,
+      ]);
+      inner.appendChild(infoRow);
+    }
 
     // Sun arc (large, prominent)
     const arcWrap = el('div', { class: 'time-activity-arc' });
@@ -144,6 +148,22 @@ export class TimeActivity extends Component {
     this.totalEl.textContent = `Found: ${parts.join(', ')}`;
   }
 
+  /** Add a plain text row (for rest or other passive activities). */
+  addTextRow(text: string, icon?: string): void {
+    const row = el('div', { class: 'time-activity-result-row' });
+    if (icon) {
+      row.appendChild(el('span', { class: 'time-activity-text-icon' }, [icon]));
+    }
+    row.appendChild(el('span', { class: 'time-activity-text font-body' }, [text]));
+    this.resultsEl.appendChild(row);
+    this.resultsEl.scrollTop = this.resultsEl.scrollHeight;
+  }
+
+  /** Set the total/summary text directly. */
+  setTotalText(text: string): void {
+    this.totalEl.textContent = text;
+  }
+
   /** Show a vital warning row in the results list. */
   addWarningRow(message: string): void {
     const row = el('div', { class: 'time-activity-result-row time-activity-warning' });
@@ -163,7 +183,7 @@ export class TimeActivity extends Component {
     this.cancelled = true;
   }
 
-  /** Show final summary. */
+  /** Show final summary (item-based). */
   showComplete(items: Map<string, number>): void {
     this.hourLabelEl.textContent = 'Complete';
     if (items.size === 0) {
@@ -173,5 +193,12 @@ export class TimeActivity extends Component {
       this.updateTotal(items);
       this.totalEl.classList.add('time-activity-total--done');
     }
+  }
+
+  /** Show final summary (text-based, for rest etc.). */
+  showCompleteText(text: string): void {
+    this.hourLabelEl.textContent = 'Complete';
+    this.totalEl.textContent = text;
+    this.totalEl.classList.add('time-activity-total--done');
   }
 }

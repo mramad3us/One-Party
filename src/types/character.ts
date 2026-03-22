@@ -140,6 +140,8 @@ export interface Character extends Entity {
   features: FeatureInstance[];
   inventory: Inventory;
   equipment: EquipmentSlots;
+  /** Remaining charges for equipped charge-based items (e.g. torch in offHand). */
+  equipmentCharges: Partial<Record<keyof EquipmentSlots, number>>;
   spellcasting: SpellcastingState | null;
   conditions: ActiveCondition[];
   deathSaves: {

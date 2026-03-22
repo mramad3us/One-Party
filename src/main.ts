@@ -28,6 +28,7 @@ import {
 } from '@/world/OverworldBridge';
 import type { OverworldData } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
+import { isDevMode, setDevMode } from '@/utils/devmode';
 import { DiceRoller } from '@/rules/DiceRoller';
 import { TextNarrativeEngine } from '@/narrative/NarrativeEngine';
 import { SurvivalRules } from '@/rules/SurvivalRules';
@@ -56,8 +57,15 @@ import { ForageRules, type ForageOption, type ForagePlan } from '@/rules/ForageR
 import { AbilityChecks } from '@/rules/AbilityChecks';
 import { TimeActivity } from '@/ui/widgets/TimeActivity';
 import { processWorldDecay, markLocationVisited } from '@/world/WorldDecay';
-import type { CellTerrain, CellFeature } from '@/types/grid';
 import type { Coordinate } from '@/types';
+import { CombatManager, type CombatResult } from '@/combat/CombatManager';
+import { CombatController } from '@/combat/CombatController';
+import { CombatRules } from '@/rules/CombatRules';
+import { ConditionRules } from '@/rules/ConditionRules';
+import { TemplateRegistry } from '@/templates/TemplateRegistry';
+import { Resolver } from '@/resolution/Resolver';
+import { EncounterResolver } from '@/resolution/EncounterResolver';
+import type { CombatantDisplay } from '@/ui/screens/CombatScreen';
 import type { LocationType, LightingLevel } from '@/types/world';
 
 // ── Lighting by location type ────────────────────────────────────
@@ -197,16 +205,6 @@ const FORAGE_ICONS: Record<string, string> = {
     <path d="M27 22L30 19.5L30 24.5Z" stroke="currentColor" stroke-width="1" fill="rgba(80,120,160,0.15)"/>
     <circle cx="20" cy="21" r="0.7" fill="currentColor" opacity="0.6"/>
   </svg>`,
-  set_trap: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M8 8L24 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    <path d="M8 8L4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    <path d="M24 8L28 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    <path d="M10 8C10 8 10 18 16 22C22 18 22 8 22 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-dasharray="3 2"/>
-    <path d="M16 22V28" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    <circle cx="16" cy="28" r="2" stroke="currentColor" stroke-width="1.2" fill="rgba(140,100,50,0.2)"/>
-    <path d="M12 12Q16 16 20 12" stroke="currentColor" stroke-width="0.8" opacity="0.4" fill="none"/>
-    <line x1="16" y1="6" x2="16" y2="10" stroke="currentColor" stroke-width="0.7" opacity="0.3"/>
-  </svg>`,
 };
 
 function pickJourneyNarrative(terrain: OverworldTerrain, time: { totalRounds: number }, rng: () => number): string {
@@ -327,6 +325,20 @@ async function main(): Promise<void> {
   engine.registerSystem(keyboardInput);
   const explorationController = new ExplorationController();
   engine.registerSystem(explorationController);
+
+  // 4c. Combat systems
+  const combatRng = new SeededRNG(Date.now() + 42);
+  const combatDice = new DiceRoller(combatRng);
+  const combatRules = new CombatRules(combatDice);
+  const conditionRules = new ConditionRules();
+  const combatManager = new CombatManager(combatRules, conditionRules, engine.events, combatDice);
+  const combatController = new CombatController();
+  combatController.setCombatManager(combatManager);
+  engine.registerSystem(combatController);
+
+  // 4d. Template / encounter resolution
+  const templateRegistry = new TemplateRegistry();
+  templateRegistry.loadDefaults();
 
   // 5. Get the app container
   const container = document.getElementById('app');
@@ -496,7 +508,7 @@ async function main(): Promise<void> {
       }
     }
     invScreen.setInventory(character.inventory, itemMap);
-    invScreen.setEquipment(character.equipment, itemMap);
+    invScreen.setEquipment(character.equipment, itemMap, character.equipmentCharges);
   }
 
   // ── Inventory interactions ──
@@ -601,6 +613,9 @@ async function main(): Promise<void> {
     state: GameState,
     eng: GameEngine,
   ): void {
+    // Clear narrative log from previous adventure
+    screen.clearNarrative();
+
     // Apply saved tileset preference
     screen.getGridPanel().setTileset(activeTileset);
 
@@ -1193,6 +1208,279 @@ async function main(): Promise<void> {
     }
   });
 
+  // ── Combat event handlers ──────────────────────────────────────
+
+  // Combat UI: when combat starts, switch GameScreen to combat mode
+  engine.events.on('combat:encounter_started', (event) => {
+    if (!activeGameScreen) return;
+    const { grid, participants } = event.data as {
+      grid: import('@/types').GridDefinition;
+      participants: import('@/combat/CombatManager').CombatParticipant[];
+    };
+
+    // Build CombatantDisplay list for the HUD
+    const displays: CombatantDisplay[] = participants.map((p) => ({
+      entityId: p.entityId,
+      name: p.npc?.name ?? (p.isPlayer ? (engine.entities.getAll<Character>('character')[0]?.name ?? 'Player') : 'Unknown'),
+      initiative: p.initiative,
+      isPlayer: p.isPlayer,
+      isAlly: p.isAlly,
+      currentHp: p.stats.currentHp,
+      maxHp: p.stats.maxHp,
+    }));
+
+    keyboardInput.pushContext('combat');
+    combatController.setDiceContainer(activeGameScreen.getCombatDiceContainer());
+    activeGameScreen.enterCombatMode(grid, displays);
+  });
+
+  // When combat starts (after initiative is rolled), update HUD with actual initiative
+  engine.events.on('combat:start', (event) => {
+    if (!activeGameScreen) return;
+    const hud = activeGameScreen.getCombatHUD();
+    if (!hud) return;
+
+    const { initiative } = event.data as {
+      initiative: { entityId: string; initiative: number; isPlayer: boolean }[];
+    };
+
+    // Rebuild displays with real initiative values
+    const displays: CombatantDisplay[] = initiative.map((entry) => {
+      const p = combatManager.getParticipant(entry.entityId);
+      return {
+        entityId: entry.entityId,
+        name: p?.npc?.name ?? (entry.isPlayer ? (engine.entities.getAll<Character>('character')[0]?.name ?? 'Player') : 'Unknown'),
+        initiative: entry.initiative,
+        isPlayer: entry.isPlayer,
+        isAlly: p?.isAlly ?? false,
+        currentHp: p?.stats.currentHp ?? 0,
+        maxHp: p?.stats.maxHp ?? 0,
+      };
+    });
+    hud.setInitiativeOrder(displays);
+  });
+
+  // On each turn start, update combat action buttons
+  engine.events.on('combat:turn_start', (event) => {
+    if (!activeGameScreen) return;
+    const { entityId, isPlayer } = event.data as { entityId: string; isPlayer: boolean };
+    const hud = activeGameScreen.getCombatHUD();
+    if (hud) hud.setCurrentTurn(entityId);
+
+    if (isPlayer) {
+      updateCombatActionButtons();
+    } else {
+      // Disable buttons during NPC turn
+      activeGameScreen.setCombatActions([]);
+    }
+  });
+
+  // Show attack results as toasts
+  engine.events.on('combat:attack', (event) => {
+    if (!activeGameScreen) return;
+    const { result } = event.data as { result: import('@/types').ActionResult };
+    const hud = activeGameScreen.getCombatHUD();
+    if (hud) hud.showActionResult(result);
+
+    // Add to narrative
+    activeGameScreen.addNarrative({
+      text: result.description,
+      category: result.success ? 'action' : 'description',
+    });
+  });
+
+  // Show damage numbers
+  engine.events.on('combat:damage', (event) => {
+    if (!activeGameScreen) return;
+    const { targetId, damage, damageType } = event.data as {
+      targetId: string; damage: number; damageType: string;
+    };
+    const hud = activeGameScreen.getCombatHUD();
+    if (!hud) return;
+
+    // Get target position on grid for damage number placement
+    const grid = combatManager.getGrid();
+    const pos = grid?.getEntityPosition(targetId);
+    if (pos) {
+      hud.showDamageNumber(pos, damage, damageType as import('@/types').DamageType);
+    }
+  });
+
+  // Entity defeated narrative
+  engine.events.on('combat:kill', (event) => {
+    if (!activeGameScreen) return;
+    const { entityId } = event.data as { entityId: string };
+    const p = combatManager.getParticipant(entityId);
+    const name = p?.npc?.name ?? 'the creature';
+    activeGameScreen.addNarrative({
+      text: `${name} falls!`,
+      category: 'action',
+    });
+  });
+
+  // Combat ended — show results, clean up
+  engine.events.on('combat:encounter_ended', (event) => {
+    if (!activeGameScreen || !activeGameState) return;
+    const { result, xpEarned, loot } = event.data as {
+      result: CombatResult;
+      xpEarned: number;
+      loot: { itemId: string; quantity: number }[];
+    };
+
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+
+    if (result.victory) {
+      // Award XP
+      character.xp += xpEarned;
+
+      // Narrative
+      activeGameScreen.addNarrative({
+        text: `Victory! The battle is won. You earn ${xpEarned} experience.`,
+        category: 'action',
+      });
+
+      // Award loot
+      for (const drop of loot) {
+        const item = getItem(drop.itemId);
+        if (item) {
+          const existing = character.inventory.items.find((e) => e.itemId === drop.itemId);
+          if (existing) {
+            existing.quantity += drop.quantity;
+          } else {
+            character.inventory.items.push({ itemId: drop.itemId, quantity: drop.quantity });
+          }
+          activeGameScreen.addNarrative({
+            text: `Found: ${item.name}${drop.quantity > 1 ? ` x${drop.quantity}` : ''}`,
+            category: 'system',
+          });
+        }
+      }
+
+      // Heal a small amount after combat
+      const healAmount = Math.ceil(character.maxHp * 0.1);
+      character.currentHp = Math.min(character.maxHp, character.currentHp + healAmount);
+    }
+
+    // Exit combat mode
+    activeGameScreen.exitCombatMode();
+    if (keyboardInput.getContext() === 'combat') {
+      keyboardInput.popContext();
+    }
+  });
+
+  // Combat keyboard: movement
+  engine.events.on('input:combat_move', (event) => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    const { dx, dy } = event.data as { dx: number; dy: number };
+    const entityId = combatManager.getCurrentTurnEntity();
+    const grid = combatManager.getGrid();
+    if (!grid) return;
+    const pos = grid.getEntityPosition(entityId);
+    if (!pos) return;
+    const dest = { x: pos.x + dx, y: pos.y + dy };
+    combatController.playerMove([pos, dest]);
+    updateCombatActionButtons();
+  });
+
+  engine.events.on('input:combat_attack', () => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    const actions = combatController.getAvailableActions();
+    if (!actions?.canAction || actions.validAttackTargets.length === 0) return;
+    // Attack the first valid target (TODO: target cycling with Tab)
+    combatController.playerAttack(actions.validAttackTargets[0]).then(() => {
+      updateCombatActionButtons();
+    });
+  });
+
+  engine.events.on('input:combat_dash', () => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    combatController.playerDash();
+    updateCombatActionButtons();
+  });
+
+  engine.events.on('input:combat_dodge', () => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    combatController.playerDodge();
+    updateCombatActionButtons();
+  });
+
+  engine.events.on('input:combat_disengage', () => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    combatController.playerDisengage();
+    updateCombatActionButtons();
+  });
+
+  engine.events.on('input:combat_end_turn', () => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    combatController.playerEndTurn();
+  });
+
+  /** Refresh the combat action button bar based on current available actions. */
+  function updateCombatActionButtons(): void {
+    if (!activeGameScreen || !combatController.isActive()) return;
+    const actions = combatController.getAvailableActions();
+    if (!actions) return;
+
+    const hasTargets = actions.validAttackTargets.length > 0;
+
+    activeGameScreen.setCombatActions([
+      { label: 'Attack', key: 'a', enabled: actions.canAction && hasTargets, onClick: () => {
+        engine.events.emit({ type: 'input:combat_attack', category: 'ui', data: {} });
+      }},
+      { label: 'Dash', key: 'd', enabled: actions.canAction, onClick: () => {
+        engine.events.emit({ type: 'input:combat_dash', category: 'ui', data: {} });
+      }},
+      { label: 'Dodge', key: 'o', enabled: actions.canAction, onClick: () => {
+        engine.events.emit({ type: 'input:combat_dodge', category: 'ui', data: {} });
+      }},
+      { label: 'Disengage', key: 'g', enabled: actions.canAction, onClick: () => {
+        engine.events.emit({ type: 'input:combat_disengage', category: 'ui', data: {} });
+      }},
+      { label: 'End Turn', key: 'e', enabled: true, onClick: () => {
+        engine.events.emit({ type: 'input:combat_end_turn', category: 'ui', data: {} });
+      }},
+    ]);
+
+    // Update HUD turn state
+    const hud = activeGameScreen.getCombatHUD();
+    if (hud) {
+      hud.setTurnState({
+        canMove: actions.canMove,
+        canAction: actions.canAction,
+        canBonusAction: actions.canBonusAction,
+        remainingMovement: actions.remainingMovement,
+        maxMovement: 30, // approximate
+      });
+    }
+
+    // Update grid highlights
+    const gridPanel = activeGameScreen.getGridPanel();
+    gridPanel.clearHighlights();
+    if (actions.canMove && actions.validMoveCells.size > 0) {
+      gridPanel.highlightMovement(actions.validMoveCells);
+    }
+    if (actions.canAction && hasTargets) {
+      const grid = combatManager.getGrid();
+      if (grid) {
+        const targetPositions = actions.validAttackTargets
+          .map((id) => grid.getEntityPosition(id))
+          .filter((p): p is Coordinate => p !== null);
+        gridPanel.highlightAttack(targetPositions);
+      }
+    }
+  }
+
+  // Global UI refresh: any game event refreshes the character panel & time display.
+  // This eliminates the need for per-event setCharacter/updateTime calls.
+  engine.events.on('*', () => {
+    if (!activeGameScreen) return;
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (character) activeGameScreen.setCharacter(character);
+    if (activeGameState) activeGameScreen.updateTime(activeGameState.world.time);
+    explorationController.refreshVision();
+  }, 100); // low priority — runs after specific handlers
+
   engine.events.on('exploration:entered', () => {
     if (!activeGameScreen) return;
     activeGameScreen.addNarrative({
@@ -1246,6 +1534,9 @@ async function main(): Promise<void> {
     // Look mode exit is handled by ExplorationController's input:cancel listener
     if (context === 'look') return;
 
+    // Exploration: Escape does nothing — player stays on game screen
+    if (context === 'exploration') return;
+
     // Close world map overlay (stays on game screen)
     if (context === 'worldmap' && activeGameScreen?.isWorldMapVisible()) {
       activeGameScreen.hideWorldMap();
@@ -1289,7 +1580,67 @@ async function main(): Promise<void> {
   // ── Rest Menu ──
   engine.events.on('input:rest', () => {
     if (!activeGameScreen || !activeGameState || !activeDice) return;
-    openRestMenu(engine, activeGameState, activeGameScreen, activeDice, saveManager);
+    openRestMenu(engine, activeGameState, activeGameScreen, activeDice, saveManager, keyboardInput, explorationController);
+  });
+
+  // ── Torch depletion — tick down equipped torch charges as time passes ──
+  const ROUNDS_PER_TORCH_CHARGE = 100; // 10 minutes per charge, 6 charges = 1 hour
+  let torchRoundAccumulator = 0;
+
+  engine.events.on('time:advanced', (event) => {
+    const { rounds } = event.data as { rounds: number };
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+
+    // Only tick if a torch is equipped in offHand
+    if (character.equipment.offHand !== 'item_torch') {
+      torchRoundAccumulator = 0;
+      return;
+    }
+
+    torchRoundAccumulator += rounds;
+
+    // Deplete charges
+    while (torchRoundAccumulator >= ROUNDS_PER_TORCH_CHARGE) {
+      torchRoundAccumulator -= ROUNDS_PER_TORCH_CHARGE;
+      const charges = (character.equipmentCharges.offHand ?? 0) - 1;
+      character.equipmentCharges.offHand = Math.max(0, charges);
+
+      if (charges <= 0) {
+        // Torch is spent — unequip and replace with spent torch
+        character.equipment.offHand = null;
+        delete character.equipmentCharges.offHand;
+        torchRoundAccumulator = 0;
+
+        // Add spent torch to inventory
+        const spentEntry = character.inventory.items.find(e => e.itemId === 'item_torch_spent');
+        if (spentEntry) {
+          spentEntry.quantity += 1;
+        } else {
+          character.inventory.items.push({ itemId: 'item_torch_spent', quantity: 1 });
+        }
+
+        if (activeGameScreen) {
+          activeGameScreen.addNarrative({
+            text: 'Your torch sputters and dies, the last ember winking out. Darkness rushes in like a held breath finally released. You pocket the charred remnant.',
+            category: 'description',
+          });
+          activeGameScreen.setCharacter(character);
+        }
+        break;
+      } else if (charges === 1 && activeGameScreen) {
+        activeGameScreen.addNarrative({
+          text: 'The torch gutters low, its flame reduced to a trembling nub. It will not last much longer.',
+          category: 'description',
+        });
+      } else if (charges === 2 && activeGameScreen) {
+        activeGameScreen.addNarrative({
+          text: 'The torch burns shorter, its light dimming perceptibly.',
+          category: 'description',
+        });
+      }
+    }
+
   });
 
   // Handle travel from overworld map (tile-based)
@@ -1484,8 +1835,8 @@ async function main(): Promise<void> {
 
     for (let idx = 0; idx < options.length; idx++) {
       const opt = options[idx];
-      const skill = opt.action === 'set_trap' ? null : ForageRules.getSkillForAction(opt.action);
-      const skillLabel = skill === 'nature' ? 'Nature' : skill === 'survival' ? 'Survival' : null;
+      const skill = ForageRules.getSkillForAction(opt.action);
+      const skillLabel = skill === 'nature' ? 'Nature' : 'Survival';
 
       // Card wrapper
       const card = el('button', { class: `forage-card forage-card--${opt.action}` });
@@ -1537,15 +1888,14 @@ async function main(): Promise<void> {
   // ── Forage duration picker — choose how many hours to spend ──
   engine.events.on('forage:pick_duration', (event) => {
     if (!activeGameScreen || !activeGameState) return;
-    const { option, terrain, features } = event.data as {
+    const { option, biome } = event.data as {
       option: ForageOption;
-      terrain: CellTerrain;
-      features: CellFeature[];
+      biome: import('@/types/world').BiomeType;
     };
 
     const skill = ForageRules.getSkillForAction(option.action);
     const skillLabel = skill === 'nature' ? 'Nature' : 'Survival';
-    const dc = ForageRules.getBaseDC(option.action, terrain, features);
+    const dc = ForageRules.getBaseDC(option.action, biome);
 
     const content = el('div', { class: 'forage-duration-picker' });
     content.appendChild(el('div', { class: 'forage-duration-info font-mono', style: 'margin-bottom: 12px; color: var(--text-muted);' }, [
@@ -1560,7 +1910,7 @@ async function main(): Promise<void> {
       const btn = el('button', { class: 'btn btn-ghost', style: 'min-width: 48px;' }, [`${hours}h`]);
       btn.addEventListener('click', () => {
         modal.close();
-        const plan = ForageRules.createPlan(option, hours, terrain, features);
+        const plan = ForageRules.createPlan(option, hours, biome);
         startTimedForage(plan);
       });
       btnRow.appendChild(btn);
@@ -1687,6 +2037,10 @@ async function main(): Promise<void> {
         tone: 'atmospheric',
       });
     }
+
+    // Update character panel and FOV (lighting may have changed)
+    activeGameScreen.setCharacter(character);
+    explorationController.refreshVision();
 
     // Hold for a moment, then close
     await new Promise(r => setTimeout(r, 1200));
@@ -1821,6 +2175,62 @@ async function main(): Promise<void> {
 
       // Animation delay — 2 seconds per tile for immersive pacing
       await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // ── Encounter check ──────────────────────────────────────
+      const encounterResolver = new EncounterResolver(
+        new Resolver(templateRegistry, rng), rng,
+      );
+      const shouldFight = isDevMode() || encounterResolver.shouldEncounter(dest, i);
+      if (shouldFight && !fastTravelCancelled) {
+        const encounter = encounterResolver.generateEncounter(dest, character.level, 1);
+        if (encounter) {
+          // Pause travel — show ambush narrative
+          const encounterDesc = (encounter.resolvedData['description'] as string) ?? 'Enemies appear!';
+          activeGameScreen.addNarrative({
+            text: encounterDesc,
+            category: 'action',
+          });
+
+          // Close the world map for combat
+          activeGameScreen.hideWorldMap();
+          activeGameScreen.endTravelLog();
+          if (keyboardInput.getContext() === 'traveling') {
+            keyboardInput.popContext();
+          }
+
+          // Wait for combat to finish
+          const combatResult = await new Promise<CombatResult>((resolve) => {
+            const terrain = tile.terrain as OverworldTerrain;
+            combatController.startEncounter(character, encounter, terrain, resolve);
+          });
+
+          if (!combatResult.victory) {
+            // Player died — break out of travel
+            // TODO: transition to DeathScreen
+            activeGameScreen.addNarrative({
+              text: 'Darkness takes you...',
+              category: 'action',
+            });
+            fastTravelCancelled = true;
+            break;
+          }
+
+          // Resume travel — reopen map
+          keyboardInput.pushContext('traveling');
+          activeGameScreen.showWorldMap();
+          activeGameScreen.startTravelLog(activeGameState.world.time);
+          activeGameScreen.setTravelPath(path, i + 1);
+        }
+      }
+    }
+
+    // If travel was cancelled (defeat or user cancel), skip destination setup
+    if (fastTravelCancelled) {
+      activeGameScreen.endTravelLog();
+      activeGameScreen.clearTravelPath();
+      if (activeGameScreen.isWorldMapVisible()) activeGameScreen.hideWorldMap();
+      if (keyboardInput.getContext() === 'traveling') keyboardInput.popContext();
+      return;
     }
 
     // Final destination setup — generate local map
@@ -2015,6 +2425,7 @@ async function main(): Promise<void> {
         for (const entityData of result.entities) {
           engine.entities.add(entityData as unknown as Entity);
         }
+        engine.entities.getAll<Character>('character').forEach(patchCharacterCompat);
         activeGameState = result.state;
 
         // Ensure dice roller is available for rest/combat
@@ -2147,6 +2558,13 @@ async function main(): Promise<void> {
   engine.start();
 }
 
+/** Patch old saves missing equipmentCharges field. */
+function patchCharacterCompat(character: Character): void {
+  if (!character.equipmentCharges) {
+    character.equipmentCharges = {};
+  }
+}
+
 /** Save management modal — list saves, create new, load, delete. */
 function openSaveModal(
   engine: GameEngine,
@@ -2211,6 +2629,7 @@ function openSaveModal(
         for (const entityData of result.entities) {
           engine.entities.add(entityData as unknown as Entity);
         }
+        engine.entities.getAll<Character>('character').forEach(patchCharacterCompat);
         // Update the outer gameState reference via event
         engine.events.emit({
           type: 'ui:game_loaded',
@@ -2312,6 +2731,7 @@ function openLoadModal(
         for (const entityData of result.entities) {
           engine.entities.add(entityData as unknown as Entity);
         }
+        engine.entities.getAll<Character>('character').forEach(patchCharacterCompat);
         engine.events.emit({
           type: 'ui:game_loaded',
           category: 'ui',
@@ -2345,6 +2765,8 @@ function openRestMenu(
   gameScreen: GameScreen,
   dice: DiceRoller,
   saveManager: SaveManager,
+  keyboardInput: KeyboardInput,
+  explorationController: ExplorationController,
 ): void {
   const character = engine.entities.getAll<Character>('character')[0];
   if (!character) return;
@@ -2382,47 +2804,76 @@ function openRestMenu(
   shortSection.appendChild(hdRow);
 
   const shortBtn = el('button', { class: 'btn btn-secondary rest-btn' }, ['Take Short Rest']);
-  shortBtn.addEventListener('click', () => {
+  shortBtn.addEventListener('click', async () => {
     const hdToSpend = parseInt(hdSelect.value, 10);
-    const result = restRules.shortRest(character, hdToSpend);
+    modal.close();
+
+    // Launch TimeActivity overlay for 1 hour
+    const activity = new TimeActivity(document.body, engine, {
+      title: 'Short Rest',
+      totalHours: 1,
+      startTime: { totalRounds: gameState.world.time.totalRounds },
+    });
+    activity.mount();
+    activity.initTime(gameState.world.time);
+    keyboardInput.setEnabled(false);
+
+    activity.setHourLabel(0);
+    activity.addTextRow('You find a sheltered spot and settle in\u2026', '\uD83D\uDD25');
 
     // Advance time by 1 hour
     gameState.advanceTime(ROUNDS_PER_HOUR);
-    // Tick survival for 1 hour
     const tickResult = SurvivalRules.tick(character.survival, ROUNDS_PER_HOUR);
 
-    // Build narrative
+    // Animate sun arc over 700ms
+    await activity.animateSunTo(gameState.world.time, 700);
+    await new Promise(r => setTimeout(r, 300));
+
+    // Apply rest rules
+    const result = restRules.shortRest(character, hdToSpend);
+
+    if (result.hpHealed > 0) {
+      activity.addTextRow(`Spent ${result.hitDiceUsed} Hit ${result.hitDiceUsed === 1 ? 'Die' : 'Dice'}, recovered ${result.hpHealed} HP.`, '\u2764');
+    } else if (hdToSpend === 0) {
+      activity.addTextRow('Rested without spending Hit Dice.', '\u23F8');
+    }
+    if (result.featuresRecharged.length > 0) {
+      activity.addTextRow(`Recharged: ${result.featuresRecharged.join(', ')}.`, '\u26A1');
+    }
+    if (tickResult.hungerCrossing) {
+      activity.addWarningRow(`You feel ${SurvivalRules.formatThreshold(tickResult.hungerCrossing.to)}.`);
+    }
+    if (tickResult.thirstCrossing) {
+      activity.addWarningRow(`Your throat grows ${SurvivalRules.formatThreshold(tickResult.thirstCrossing.to)}.`);
+    }
+
+    // Summary
+    activity.showCompleteText('An hour passes. You feel steadier.');
+    gameScreen.setCharacter(character);
+    gameScreen.updateTime(gameState.world.time);
+    explorationController.refreshVision();
+
+    // Time transition narrative
+    const timeBefore = { totalRounds: gameState.world.time.totalRounds - ROUNDS_PER_HOUR };
+    const transition = TimeNarrator.describeTimeTransition(timeBefore, gameState.world.time);
+
+    // Build main log narrative
     const parts: string[] = [];
     parts.push('You settle down for a short rest, catching your breath and tending to your wounds.');
     if (result.hpHealed > 0) {
       parts.push(`You spend ${result.hitDiceUsed} Hit ${result.hitDiceUsed === 1 ? 'Die' : 'Dice'} and recover ${result.hpHealed} hit points.`);
-    } else if (hdToSpend === 0) {
-      parts.push('You rest without spending any Hit Dice.');
     }
-    if (result.featuresRecharged.length > 0) {
-      parts.push(`Recharged: ${result.featuresRecharged.join(', ')}.`);
-    }
-    if (tickResult.hungerCrossing) {
-      parts.push(`You feel ${SurvivalRules.formatThreshold(tickResult.hungerCrossing.to)}.`);
-    }
-    if (tickResult.thirstCrossing) {
-      parts.push(`Your throat grows ${SurvivalRules.formatThreshold(tickResult.thirstCrossing.to)}.`);
-    }
-
     gameScreen.addNarrative({ text: parts.join(' '), category: 'system' });
-    gameScreen.setCharacter(character);
-    gameScreen.updateTime(gameState.world.time);
-
-    // Check time transitions
-    const timeBefore = { totalRounds: gameState.world.time.totalRounds - ROUNDS_PER_HOUR };
-    const transition = TimeNarrator.describeTimeTransition(timeBefore, gameState.world.time);
     if (transition) {
       gameScreen.addNarrative({ text: transition, category: 'description' });
     }
 
-    // Autosave
     saveManager.autoSave(gameState, engine.entities).catch(() => {});
-    modal.close();
+
+    // Hold, then close
+    await new Promise(r => setTimeout(r, 1200));
+    await activity.unmount();
+    keyboardInput.setEnabled(true);
   });
   if (character.currentHp >= character.maxHp && character.hitDice.current === 0) {
     shortBtn.setAttribute('disabled', '');
@@ -2444,11 +2895,13 @@ function openRestMenu(
   // Check if rest conditions are met
   const hasFood = character.inventory.items.some(e => {
     const item = getItem(e.itemId);
-    return item && item.itemType === 'food' && e.quantity > 0;
+    if (!item || item.itemType !== 'food') return false;
+    return item.maxCharges != null ? (e.charges ?? item.charges ?? 0) > 0 : e.quantity > 0;
   });
   const hasWater = character.inventory.items.some(e => {
     const item = getItem(e.itemId);
-    return item && item.itemType === 'drink' && e.quantity > 0;
+    if (!item || item.itemType !== 'drink') return false;
+    return item.maxCharges != null ? (e.charges ?? item.charges ?? 0) > 0 : e.quantity > 0;
   });
 
   const longBtn = el('button', { class: 'btn btn-primary rest-btn' }, ['Take Long Rest']);
@@ -2462,86 +2915,152 @@ function openRestMenu(
     longSection.appendChild(warning);
   }
 
-  longBtn.addEventListener('click', () => {
-    const result = restRules.longRest(character);
+  const LONG_REST_FLAVOR = [
+    'You gather wood and kindle a small fire. The flames crackle softly.',
+    'The bedroll is laid out. Muscles ache as you lower yourself down.',
+    'Night sounds fill the air — crickets, distant owls, the whisper of wind.',
+    'Sleep takes hold. Dreams drift through like smoke.',
+    'You stir briefly, adjusting your cloak against the chill.',
+    'Deep, dreamless sleep. The body mends what the road has broken.',
+    'A pale glow touches the horizon. Dawn approaches.',
+    'You rise, stiff but restored. A new day begins.',
+  ];
 
-    // Consume 1 food + 1 drink if available (5e: need food/water during long rest)
+  longBtn.addEventListener('click', async () => {
+    modal.close();
+
+    // Launch TimeActivity overlay for 8 hours
+    const activity = new TimeActivity(document.body, engine, {
+      title: 'Long Rest',
+      totalHours: 8,
+      startTime: { totalRounds: gameState.world.time.totalRounds },
+    });
+    activity.mount();
+    activity.initTime(gameState.world.time);
+    keyboardInput.setEnabled(false);
+
+    const timeBeforeRest = { totalRounds: gameState.world.time.totalRounds };
+
+    // Consume food + drink at the start (charge-aware)
     if (hasFood) {
-      const foodEntry = character.inventory.items.find(e => {
+      const foodIdx = character.inventory.items.findIndex(e => {
         const item = getItem(e.itemId);
-        return item && item.itemType === 'food';
+        return item && item.itemType === 'food' && (item.maxCharges != null ? (e.charges ?? item.charges ?? 0) > 0 : e.quantity > 0);
       });
-      if (foodEntry) {
-        foodEntry.quantity -= 1;
-        if (foodEntry.quantity <= 0) {
-          character.inventory.items = character.inventory.items.filter(e => e !== foodEntry);
+      if (foodIdx >= 0) {
+        const foodEntry = character.inventory.items[foodIdx];
+        const foodItem = getItem(foodEntry.itemId);
+        if (foodItem?.maxCharges != null) {
+          foodEntry.charges = (foodEntry.charges ?? foodItem.charges ?? 0) - 1;
+        } else {
+          foodEntry.quantity -= 1;
+          if (foodEntry.quantity <= 0) {
+            character.inventory.items.splice(foodIdx, 1);
+          }
         }
       }
     }
     if (hasWater) {
-      const waterEntry = character.inventory.items.find(e => {
+      const waterIdx = character.inventory.items.findIndex(e => {
         const item = getItem(e.itemId);
-        return item && item.itemType === 'drink';
+        return item && item.itemType === 'drink' && (item.maxCharges != null ? (e.charges ?? item.charges ?? 0) > 0 : e.quantity > 0);
       });
-      if (waterEntry) {
-        waterEntry.quantity -= 1;
-        if (waterEntry.quantity <= 0) {
-          character.inventory.items = character.inventory.items.filter(e => e !== waterEntry);
+      if (waterIdx >= 0) {
+        const waterEntry = character.inventory.items[waterIdx];
+        const waterItem = getItem(waterEntry.itemId);
+        if (waterItem?.maxCharges != null) {
+          waterEntry.charges = (waterEntry.charges ?? waterItem.charges ?? 0) - 1;
+        } else {
+          waterEntry.quantity -= 1;
+          if (waterEntry.quantity <= 0) {
+            character.inventory.items.splice(waterIdx, 1);
+          }
         }
       }
     }
 
-    // Advance time by 8 hours
-    const longRestRounds = ROUNDS_PER_HOUR * 8;
-    gameState.advanceTime(longRestRounds);
+    // Hourly tick loop — 1 hour per second
+    for (let h = 0; h < 8; h++) {
+      activity.setHourLabel(h);
 
-    // Tick survival for 8 hours (hunger/thirst advance, but fatigue resets)
-    SurvivalRules.tick(character.survival, longRestRounds);
-    // Then reset fatigue (long rest overrides fatigue)
+      // Advance time by 1 hour
+      gameState.advanceTime(ROUNDS_PER_HOUR);
+      const tickResult = SurvivalRules.tick(character.survival, ROUNDS_PER_HOUR);
+
+      // Animate sun arc (500ms of the 1s budget)
+      await activity.animateSunTo(gameState.world.time, 500);
+
+      // Show flavor text for this hour
+      activity.addTextRow(LONG_REST_FLAVOR[h], h === 0 ? '\uD83D\uDD25' : h === 7 ? '\u2600' : '\uD83C\uDF19');
+
+      // Survival warnings
+      if (tickResult.hungerCrossing) {
+        activity.addWarningRow(`You feel ${SurvivalRules.formatThreshold(tickResult.hungerCrossing.to)}.`);
+      }
+      if (tickResult.thirstCrossing) {
+        activity.addWarningRow(`Your throat grows ${SurvivalRules.formatThreshold(tickResult.thirstCrossing.to)}.`);
+      }
+
+      gameScreen.updateTime(gameState.world.time);
+
+      // Remaining 500ms pause
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    // Apply rest rules (full HP, hit dice, spell slots, features)
+    const result = restRules.longRest(character);
+
+    // Reset fatigue
     SurvivalRules.rest(character.survival);
 
-    // If no food/water was available, add exhaustion
+    // If no food/water, add exhaustion
     if (!hasFood || !hasWater) {
       character.survival.exhaustionLevel = Math.min(6, character.survival.exhaustionLevel + 1);
     }
 
-    // Build narrative
-    const parts: string[] = [];
-    parts.push('You make camp and settle in for a long rest. The hours pass as your body mends itself through deep, restorative sleep.');
+    // Show completion
+    const summaryParts: string[] = [];
+    if (result.hpHealed > 0) summaryParts.push(`+${result.hpHealed} HP`);
+    if (result.hitDiceRecovered > 0) summaryParts.push(`+${result.hitDiceRecovered} Hit Dice`);
+    if (result.spellSlotsRecovered) summaryParts.push('Spell slots restored');
+    if (result.featuresRecharged.length > 0) summaryParts.push(result.featuresRecharged.join(', '));
+    activity.showCompleteText(summaryParts.length > 0 ? `Restored: ${summaryParts.join(' \u2022 ')}` : 'You awaken feeling refreshed.');
+
+    gameScreen.setCharacter(character);
+    explorationController.refreshVision();
+
+    // Build main log narrative
+    const narrativeParts: string[] = [];
+    narrativeParts.push('You make camp and settle in for a long rest. The hours pass as your body mends itself through deep, restorative sleep.');
     if (result.hpHealed > 0) {
-      parts.push(`You awaken fully restored, recovering ${result.hpHealed} hit points.`);
+      narrativeParts.push(`You awaken fully restored, recovering ${result.hpHealed} hit points.`);
     } else {
-      parts.push('You awaken feeling refreshed.');
+      narrativeParts.push('You awaken feeling refreshed.');
     }
     if (result.hitDiceRecovered > 0) {
-      parts.push(`You recover ${result.hitDiceRecovered} Hit ${result.hitDiceRecovered === 1 ? 'Die' : 'Dice'}.`);
+      narrativeParts.push(`You recover ${result.hitDiceRecovered} Hit ${result.hitDiceRecovered === 1 ? 'Die' : 'Dice'}.`);
     }
     if (result.spellSlotsRecovered) {
-      parts.push('Your magical reserves are fully replenished.');
-    }
-    if (result.featuresRecharged.length > 0) {
-      parts.push(`Abilities recharged: ${result.featuresRecharged.join(', ')}.`);
+      narrativeParts.push('Your magical reserves are fully replenished.');
     }
     if (hasFood && hasWater) {
-      parts.push('You eat a meal and drink deeply before breaking camp.');
+      narrativeParts.push('You eat a meal and drink deeply before breaking camp.');
     } else {
-      parts.push('Your stomach growls — you had no proper provisions. The lack of sustenance takes its toll.');
+      narrativeParts.push('Your stomach growls — you had no proper provisions. The lack of sustenance takes its toll.');
     }
+    gameScreen.addNarrative({ text: narrativeParts.join(' '), category: 'system' });
 
-    gameScreen.addNarrative({ text: parts.join(' '), category: 'system' });
-    gameScreen.setCharacter(character);
-    gameScreen.updateTime(gameState.world.time);
-
-    // Check time transitions
-    const timeBefore = { totalRounds: gameState.world.time.totalRounds - longRestRounds };
-    const transition = TimeNarrator.describeTimeTransition(timeBefore, gameState.world.time);
+    const transition = TimeNarrator.describeTimeTransition(timeBeforeRest, gameState.world.time);
     if (transition) {
       gameScreen.addNarrative({ text: transition, category: 'description' });
     }
 
-    // Autosave
     saveManager.autoSave(gameState, engine.entities).catch(() => {});
-    modal.close();
+
+    // Hold, then close
+    await new Promise(r => setTimeout(r, 1500));
+    await activity.unmount();
+    keyboardInput.setEnabled(true);
   });
   longSection.appendChild(longBtn);
   content.appendChild(longSection);
@@ -2615,6 +3134,24 @@ function openSettingsModal(
 
   tilesetSection.appendChild(tilesetList);
   content.appendChild(tilesetSection);
+
+  // ── Dev Mode Section ──
+  const devSection = el('div', { class: 'settings-section' });
+  devSection.appendChild(el('h4', { class: 'settings-section-title font-heading' }, ['Developer']));
+
+  const devToggle = el('label', { class: 'settings-toggle' });
+  const devCheckbox = el('input', { type: 'checkbox' }) as HTMLInputElement;
+  devCheckbox.checked = isDevMode();
+  devCheckbox.addEventListener('change', () => {
+    setDevMode(devCheckbox.checked);
+  });
+  devToggle.appendChild(devCheckbox);
+  devToggle.appendChild(el('span', { class: 'settings-toggle-label' }, ['Dev mode']));
+  devSection.appendChild(devToggle);
+  devSection.appendChild(el('p', { class: 'settings-section-desc' }, [
+    'Forces encounters during travel, shows debug info.',
+  ]));
+  content.appendChild(devSection);
 
   const modal = new Modal(document.body, engine, {
     title: 'Settings',

@@ -10,6 +10,8 @@ import { LineOfSight } from './LineOfSight';
 export class FogOfWar {
   private explored: Set<string> = new Set();
   private visible: Set<string> = new Set();
+  /** Per-tile lighting level (1–10). Only set for currently visible tiles. */
+  private lightLevel: Map<string, number> = new Map();
 
   constructor() {}
 
@@ -23,6 +25,7 @@ export class FogOfWar {
     observers: { position: Coordinate; range: number }[],
   ): void {
     this.visible.clear();
+    this.lightLevel.clear();
 
     for (const observer of observers) {
       const visibleFromHere = LineOfSight.getVisibleCells(grid, observer.position, observer.range);
@@ -31,6 +34,21 @@ export class FogOfWar {
         this.explored.add(key);
       }
     }
+  }
+
+  /** Set the lighting level for a tile (1 = near-dark, 10 = full daylight). */
+  setLightLevel(x: number, y: number, level: number): void {
+    const key = coordToKey({ x, y });
+    const current = this.lightLevel.get(key) ?? 0;
+    // Keep the brightest contribution
+    if (level > current) {
+      this.lightLevel.set(key, Math.min(10, Math.max(1, level)));
+    }
+  }
+
+  /** Get the lighting level for a tile (1–10). Returns 0 for non-visible tiles. */
+  getLightLevel(x: number, y: number): number {
+    return this.lightLevel.get(coordToKey({ x, y })) ?? 0;
   }
 
   isVisible(x: number, y: number): boolean {

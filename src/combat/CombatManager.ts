@@ -230,6 +230,18 @@ export class CombatManager {
     return this.initiative.getRound();
   }
 
+  getParticipant(entityId: EntityId): CombatParticipant | undefined {
+    return this.participants.get(entityId);
+  }
+
+  getInitiativeOrder(): { entityId: EntityId; initiative: number; isPlayer: boolean }[] {
+    return this.initiative.getOrder();
+  }
+
+  getInitiativeRolls() {
+    return this.initiative.lastInitiativeRolls;
+  }
+
   // ── Available Actions ────────────────────────────────────────
 
   getAvailableActions(entityId: EntityId): AvailableActions {
@@ -564,7 +576,8 @@ export class CombatManager {
   /**
    * Process an NPC's turn automatically using the combat AI.
    */
-  private processNPCTurn(entityId: EntityId): ActionResult[] {
+  /** Process an NPC's turn using the combat AI. Returns action results. */
+  processNPCTurn(entityId: EntityId): ActionResult[] {
     const results: ActionResult[] = [];
     const p = this.participants.get(entityId);
     if (!p || !this.combatAI || !this.grid) return results;
@@ -711,7 +724,8 @@ export class CombatManager {
   /**
    * Check if combat should end. Returns true if combat is over.
    */
-  private checkCombatEnd(): boolean {
+  /** Check if combat should end (one side eliminated). */
+  checkCombatEnd(): boolean {
     const playerSide = Array.from(this.participants.values())
       .filter((p) => (p.isPlayer || p.isAlly) && !this.casualties.includes(p.entityId));
     const enemySide = Array.from(this.participants.values())
@@ -853,23 +867,9 @@ export class CombatManager {
       },
     });
 
-    // If NPC, process turn automatically
-    if (!current.isPlayer) {
-      const results = this.processNPCTurn(current.entityId);
-
-      // Emit results for UI
-      for (const r of results) {
-        this.events.emit({
-          type: 'combat:action_result',
-          category: 'combat',
-          data: { result: r },
-        });
-      }
-
-      // End NPC turn
-      this.executeEndTurn(current.entityId);
-    }
-    // If player, wait for input (state is 'turn_active')
+    // Both player and NPC turns wait for external driver (CombatController).
+    // CombatController calls processNPCTurn() for NPCs with animation delays,
+    // or waits for player input for the player's turn.
   }
 
   // ── Helpers ──────────────────────────────────────────────────

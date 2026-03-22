@@ -169,7 +169,16 @@ export class GridRenderer {
         // Unexplored: black
         if (!visible && !explored) continue;
 
-        const dim = visible ? 1 : 0.3;
+        // Per-tile lighting: visible tiles use their light level (1–10 → 0.08–1.0)
+        // Explored-but-not-visible tiles stay at 0.25
+        let dim: number;
+        if (visible) {
+          const light = fog.getLightLevel(gx, gy);
+          // Map 1–10 to 0.08–1.0 (very dark at minimum)
+          dim = light > 0 ? 0.08 + (light - 1) * (0.92 / 9) : 0.08;
+        } else {
+          dim = 0.25;
+        }
         const hash = cellHash(gx, gy);
 
         const rc: TilesetRenderContext = {

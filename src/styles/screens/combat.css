@@ -292,3 +292,78 @@
   opacity: 0.7;
   text-align: center;
 }
+
+/* ── Combat Action Bar ── */
+.combat-action-bar {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(8, 7, 6, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(8px);
+  justify-content: center;
+}
+
+.combat-action-bar--hidden {
+  display: none;
+}
+
+.combat-action-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  min-width: 80px;
+  justify-content: center;
+}
+
+.combat-action-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.combat-action-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.combat-action-btn--disabled,
+.combat-action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.combat-action-btn-key {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.combat-action-btn-label {
+  font-family: var(--font-body);
+}
+
+/* ── Combat Mode Screen Adjustments ── */
+.game-screen--combat .game-statusbar-location::before {
+  content: '\u2694 ';
+}
+
+/* ── Combat Grid Highlights ── */
+.combat-move-highlight {
+  background: rgba(50, 100, 255, 0.15);
+  border: 1px solid rgba(50, 100, 255, 0.3);
+}
+
+.combat-attack-highlight {
+  background: rgba(255, 50, 50, 0.15);
+  border: 1px solid rgba(255, 50, 50, 0.3);
+}

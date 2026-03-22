@@ -1,22 +1,15 @@
 /**
- * Dev mode — toggled via a session cookie.
- *
- * Set in browser console:  document.cookie = "devmode=true"
- * Clear:                   document.cookie = "devmode=false"
- *
- * Session cookies disappear when the browser tab closes.
+ * Dev mode — toggled via Settings menu, persisted in localStorage.
  */
 
-const COOKIE_NAME = 'devmode';
+const STORAGE_KEY = 'oneparty-devmode';
 
 /** Check whether dev mode is active. */
 export function isDevMode(): boolean {
-  return document.cookie.split(';').some(
-    (c) => c.trim().startsWith(`${COOKIE_NAME}=true`),
-  );
+  return localStorage.getItem(STORAGE_KEY) === 'true';
 }
 
-/** Enable or disable dev mode (session cookie — no expiry). */
+/** Enable or disable dev mode. */
 export function setDevMode(enabled: boolean): void {
-  document.cookie = `${COOKIE_NAME}=${enabled}; path=/; SameSite=Lax`;
+  localStorage.setItem(STORAGE_KEY, String(enabled));
 }

@@ -1,17 +1,13 @@
-import type { CellTerrain, CellFeature } from '@/types/grid';
+import type { BiomeType } from '@/types/world';
 import type { Character, DiceRollResult, Skill } from '@/types';
-import { ROUNDS_PER_HOUR } from '@/types/time';
 import { AbilityChecks } from './AbilityChecks';
 
-export type ForageAction = 'forage' | 'hunt' | 'fish' | 'set_trap';
+export type ForageAction = 'forage' | 'hunt' | 'fish';
 
 export interface ForageOption {
   action: ForageAction;
   label: string;
   description: string;
-  timeRounds: number;
-  /** Base success chance (still used for set_trap which doesn't use skill checks) */
-  successChance: number;
   possibleItems: { itemId: string; minQty: number; maxQty: number }[];
 }
 
@@ -35,66 +31,55 @@ export interface ForageHourResult {
   quantity: number;
 }
 
+/** Biome DC modifiers — negative = easier, positive = harder. */
+const BIOME_DC_MOD: Record<BiomeType, number> = {
+  forest: -3,     // abundant flora and fauna
+  swamp: -1,      // plenty of life, harder to move through
+  plains: 0,      // open grassland, moderate
+  coast: 0,       // moderate
+  mountain: 1,    // sparse but possible
+  tundra: 2,      // harsh, little grows
+  desert: 4,      // barren, very difficult
+  volcanic: 5,    // near-impossible
+  underdark: 3,   // alien environment, little familiar food
+  urban: 2,       // not much to forage in a town
+};
+
+/** Biomes where fishing is available. */
+const FISH_BIOMES: Set<BiomeType> = new Set([
+  'coast', 'swamp', 'forest', 'plains', 'mountain', 'tundra',
+]);
+
 export class ForageRules {
   /**
-   * Determine which forage actions are available at the current position.
+   * Determine which forage/hunt/fish actions are available in this biome.
+   * Actions are map-wide — the party explores the area, not a single tile.
    */
-  static getAvailableActions(
-    terrain: CellTerrain,
-    features: CellFeature[],
-    adjacentTerrains: CellTerrain[],
-    adjacentFeatures: CellFeature[],
-  ): ForageOption[] {
+  static getAvailableActions(biome: BiomeType): ForageOption[] {
     const options: ForageOption[] = [];
-    const hasTrees = features.includes('tree') || adjacentFeatures.includes('tree');
-    const hasWater = terrain === 'water' || adjacentTerrains.includes('water');
-    const hasRunningWater = features.includes('running_water') || adjacentFeatures.includes('running_water');
-    const isNatural = terrain === 'grass' || terrain === 'wood' || terrain === 'mud';
 
-    // Forage — Nature check
-    if ((isNatural || hasTrees) && terrain !== 'wall' && terrain !== 'lava') {
-      options.push({
-        action: 'forage',
-        label: 'Forage',
-        description: 'Search for edible plants, berries, and herbs. (Nature)',
-        timeRounds: Math.floor(ROUNDS_PER_HOUR * 1),
-        successChance: hasTrees ? 0.60 : 0.45,
-        possibleItems: [{ itemId: 'item_trail_mix', minQty: 1, maxQty: 1 }],
-      });
-    }
+    // Forage — always available (DC varies by biome)
+    options.push({
+      action: 'forage',
+      label: 'Forage',
+      description: 'Search the area for edible plants, berries, and herbs. (Nature)',
+      possibleItems: [{ itemId: 'item_trail_mix', minQty: 1, maxQty: 1 }],
+    });
 
-    // Hunt — Survival check
-    if (isNatural || hasTrees || terrain === 'stone') {
-      options.push({
-        action: 'hunt',
-        label: 'Hunt',
-        description: 'Track and hunt game. Yields meat. (Survival)',
-        timeRounds: Math.floor(ROUNDS_PER_HOUR * 3),
-        successChance: hasTrees ? 0.40 : 0.30,
-        possibleItems: [{ itemId: 'item_dried_meat', minQty: 1, maxQty: 2 }],
-      });
-    }
+    // Hunt — always available
+    options.push({
+      action: 'hunt',
+      label: 'Hunt',
+      description: 'Track and hunt game across the surrounding land. (Survival)',
+      possibleItems: [{ itemId: 'item_dried_meat', minQty: 1, maxQty: 2 }],
+    });
 
-    // Fish — Survival check
-    if (hasWater || hasRunningWater) {
+    // Fish — only in biomes with water
+    if (FISH_BIOMES.has(biome)) {
       options.push({
         action: 'fish',
         label: 'Fish',
-        description: 'Cast a line or fashion a spear. (Survival)',
-        timeRounds: Math.floor(ROUNDS_PER_HOUR * 1.5),
-        successChance: hasRunningWater ? 0.50 : 0.35,
-        possibleItems: [{ itemId: 'item_dried_meat', minQty: 1, maxQty: 1 }],
-      });
-    }
-
-    // Set trap — instant placement, no hourly checks
-    if (terrain !== 'water' && terrain !== 'lava' && terrain !== 'pit' && terrain !== 'ice') {
-      options.push({
-        action: 'set_trap',
-        label: 'Set Trap',
-        description: 'Lay a simple snare. Return later to check.',
-        timeRounds: Math.floor(ROUNDS_PER_HOUR * 1),
-        successChance: 0.40,
+        description: 'Find water and cast a line or fashion a spear. (Survival)',
         possibleItems: [{ itemId: 'item_dried_meat', minQty: 1, maxQty: 1 }],
       });
     }
@@ -107,42 +92,32 @@ export class ForageRules {
     return action === 'forage' ? 'nature' : 'survival';
   }
 
-  /** Calculate the base DC for a forage action at this terrain. */
-  static getBaseDC(
-    action: ForageAction,
-    terrain: CellTerrain,
-    features: CellFeature[],
-  ): number {
-    let dc = 13;
-    if (features.includes('tree')) dc -= 2;        // easier in forests
-    if (features.includes('running_water') && action === 'fish') dc -= 2;
-    if (terrain === 'stone' || terrain === 'sand') dc += 2;
-    if (action === 'hunt') dc += 1;                // hunting is harder
-    return Math.max(8, Math.min(18, dc));
+  /** Calculate the base DC for a forage action in this biome. */
+  static getBaseDC(action: ForageAction, biome: BiomeType): number {
+    let dc = 12;
+    dc += BIOME_DC_MOD[biome] ?? 0;
+    if (action === 'hunt') dc += 1;  // hunting is slightly harder
+    if (action === 'fish') dc -= 1;  // fishing is slightly easier
+    return Math.max(6, Math.min(18, dc));
   }
 
-  /**
-   * Create a forage plan from an option and terrain context.
-   */
+  /** Create a forage plan from an option and biome context. */
   static createPlan(
     option: ForageOption,
     hours: number,
-    terrain: CellTerrain,
-    features: CellFeature[],
+    biome: BiomeType,
   ): ForagePlan {
     return {
       action: option.action,
       skill: ForageRules.getSkillForAction(option.action),
-      baseDC: ForageRules.getBaseDC(option.action, terrain, features),
+      baseDC: ForageRules.getBaseDC(option.action, biome),
       hoursPlanned: hours,
       possibleItems: option.possibleItems,
       label: option.label,
     };
   }
 
-  /**
-   * Resolve one hour of a forage activity via skill check.
-   */
+  /** Resolve one hour of a forage activity via skill check. */
   static resolveHour(
     plan: ForagePlan,
     hourIndex: number,
@@ -164,16 +139,5 @@ export class ForageRules {
     }
 
     return { hour: hourIndex, rollResult: result, success, dc: plan.baseDC, itemId, quantity };
-  }
-
-  /**
-   * Check a previously set trap. Success improves with elapsed time.
-   */
-  static checkTrap(elapsedRounds: number, rng: () => number): { success: boolean; itemId: string | null; quantity: number } {
-    const hoursElapsed = elapsedRounds / ROUNDS_PER_HOUR;
-    const chance = Math.min(0.70, 0.20 + hoursElapsed * 0.10);
-    const success = rng() < chance;
-    if (!success) return { success: false, itemId: null, quantity: 0 };
-    return { success: true, itemId: 'item_dried_meat', quantity: 1 };
   }
 }

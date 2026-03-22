@@ -5,12 +5,14 @@ import type { GameState } from '@/state/GameState';
 import type { NarrativeBlock } from '@/types/narrative';
 import { Grid } from '@/grid/Grid';
 import { FogOfWar } from '@/grid/FogOfWar';
+import { LineOfSight } from '@/grid/LineOfSight';
 import { MovementTracker } from './MovementTracker';
 import { SurvivalRules } from '@/rules/SurvivalRules';
 import { SurvivalNarrator } from '@/narrative/SurvivalNarrator';
 import { ForageRules } from '@/rules/ForageRules';
 import type { ForageOption } from '@/rules/ForageRules';
 import { getItem } from '@/data/items';
+import { gameTimeToCalendar } from '@/types/time';
 
 /** Descriptions for bumping into impassable terrain */
 const BUMP_NARRATIVES: Record<string, string[]> = {
@@ -158,9 +160,6 @@ export class ExplorationController implements GameSystem {
   private lookCursor: Coordinate | null = null;
   private lookMode = false;
 
-  // Active traps: key = "x,y", value = round when placed
-  private activeTraps: Map<string, number> = new Map();
-
   init(engine: GameEngine): void {
     this.engine = engine;
 
@@ -244,17 +243,15 @@ export class ExplorationController implements GameSystem {
     this.playerPosition = { ...startPosition };
     this.movementTracker = new MovementTracker(speed);
     this.lighting = lighting;
+    this.interiorTiles = null;
     this.discoveredFeatures = new Set();
     this.movesSinceLastFlavor = 0;
-
-    // Set vision range based on lighting
-    this.visionRange = this.getVisionRange();
 
     // Place player on grid
     grid.placeEntity(playerEntityId, startPosition, 1);
 
-    // Calculate initial FOV
-    fog.updateVisibility(grid, this.buildObservers(startPosition));
+    // Calculate initial FOV + lighting
+    this.refreshVision(startPosition);
 
     this.active = true;
 
@@ -407,8 +404,8 @@ export class ExplorationController implements GameSystem {
       this.advanceTimeAndTick(roundsElapsed);
     }
 
-    // Update FOV
-    this.fog.updateVisibility(this.grid, this.buildObservers(target));
+    // Update FOV + lighting
+    this.refreshVision(target);
 
     // Occasional movement flavor text
     this.movesSinceLastFlavor++;
@@ -434,8 +431,8 @@ export class ExplorationController implements GameSystem {
     const rounds = this.movementTracker.wait();
     this.advanceTimeAndTick(rounds);
 
-    // Update FOV (in case things changed)
-    this.fog.updateVisibility(this.grid, this.buildObservers(this.playerPosition));
+    // Update FOV + lighting
+    this.refreshVision(this.playerPosition);
 
     this.emitNarrative(
       'You stand still, listening. The world moves around you — the faint drip of water, the whisper of air through unseen passages. A moment passes.',
@@ -620,9 +617,10 @@ export class ExplorationController implements GameSystem {
       );
     }
 
-    // Update FOV since LoS may have changed
+    // Door state changed — recompute interior map and refresh vision
+    this.clearInteriorCache();
     if (this.fog && this.playerPosition) {
-      this.fog.updateVisibility(this.grid, this.buildObservers(this.playerPosition));
+      this.refreshVision(this.playerPosition);
     }
 
     this.engine.events.emit({
@@ -689,6 +687,11 @@ export class ExplorationController implements GameSystem {
         'You hold your waterskin beneath the flow and watch it fill. The leather swells with cool, clean water — enough to see you through the dark hours ahead.',
         'action',
       );
+      this.engine.events.emit({
+        type: 'exploration:waterskin_refilled',
+        category: 'world',
+        data: {},
+      });
     } else {
       this.emitNarrative(
         'Your waterskin is already full.',
@@ -721,52 +724,14 @@ export class ExplorationController implements GameSystem {
   // ── Forage / Hunt / Fish / Trap ──────────────────────────
 
   private handleForage(): void {
-    if (!this.grid || !this.playerPosition) return;
+    if (!this.gameState) return;
 
-    const cell = this.grid.getCell(this.playerPosition.x, this.playerPosition.y);
-    if (!cell) return;
-
-    // Gather adjacent terrain and features
-    const dirs = [
-      { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 },
-      { dx: 1, dy: -1 }, { dx: 1, dy: 1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
-    ];
-    const adjTerrains: import('@/types/grid').CellTerrain[] = [];
-    const adjFeatures: import('@/types/grid').CellFeature[] = [];
-    for (const d of dirs) {
-      const ac = this.grid.getCell(this.playerPosition.x + d.dx, this.playerPosition.y + d.dy);
-      if (ac) {
-        adjTerrains.push(ac.terrain);
-        for (const f of ac.features) adjFeatures.push(f);
-      }
-    }
-
-    // Check for active trap at this position
-    const trapKey = `${this.playerPosition.x},${this.playerPosition.y}`;
-    if (this.activeTraps.has(trapKey)) {
-      this.checkTrap(trapKey);
-      return;
-    }
-    // Also check adjacent cells for traps
-    for (const d of dirs) {
-      const tk = `${this.playerPosition.x + d.dx},${this.playerPosition.y + d.dy}`;
-      if (this.activeTraps.has(tk)) {
-        this.checkTrap(tk);
-        return;
-      }
-    }
-
-    const options = ForageRules.getAvailableActions(cell.terrain, cell.features, adjTerrains, adjFeatures);
-
-    if (options.length === 0) {
-      this.emitNarrative('There is nothing to forage, hunt, or fish for here.', 'system');
-      return;
-    }
+    const biome = this.gameState.getCurrentRegion().biome;
+    const options = ForageRules.getAvailableActions(biome);
 
     if (options.length === 1) {
       this.executeForageAction(options[0]);
     } else {
-      // Emit menu event for main.ts to show a modal
       this.engine.events.emit({
         type: 'forage:menu',
         category: 'ui',
@@ -776,63 +741,14 @@ export class ExplorationController implements GameSystem {
   }
 
   executeForageAction(option: ForageOption): void {
-    const character = this.getCharacter?.();
-    if (!character || !this.playerPosition || !this.grid) return;
+    if (!this.gameState) return;
 
-    // Set trap is special — place it and return later (no hourly loop)
-    if (option.action === 'set_trap') {
-      const trapKey = `${this.playerPosition.x},${this.playerPosition.y}`;
-      this.activeTraps.set(trapKey, this.gameState?.world.time.totalRounds ?? 0);
-      this.advanceTimeAndTick(option.timeRounds);
-      this.emitNarrative(
-        SurvivalNarrator.describeForageAttempt('set_trap', true).text,
-        'action',
-      );
-      return;
-    }
-
-    // For forage/hunt/fish — emit event so main.ts shows duration picker + TimeActivity
-    const cell = this.grid.getCell(this.playerPosition.x, this.playerPosition.y);
+    const biome = this.gameState.getCurrentRegion().biome;
     this.engine.events.emit({
       type: 'forage:pick_duration',
       category: 'ui',
-      data: {
-        option,
-        terrain: cell?.terrain ?? 'grass',
-        features: cell?.features ?? [],
-      },
+      data: { option, biome },
     });
-  }
-
-  private checkTrap(trapKey: string): void {
-    const character = this.getCharacter?.();
-    if (!character) return;
-
-    const placedRound = this.activeTraps.get(trapKey);
-    if (placedRound === undefined) return;
-
-    const currentRound = this.gameState?.world.time.totalRounds ?? 0;
-    const elapsed = currentRound - placedRound;
-
-    // Remove the trap regardless of outcome
-    this.activeTraps.delete(trapKey);
-
-    const result = ForageRules.checkTrap(elapsed, Math.random);
-    const itemDef = result.itemId ? getItem(result.itemId) : null;
-    const itemName = itemDef?.name ?? 'meat';
-
-    const narrative = SurvivalNarrator.describeForageAttempt('check_trap', result.success, itemName);
-    this.emitNarrative(narrative.text, narrative.category);
-
-    if (result.success && result.itemId) {
-      const existingEntry = character.inventory.items.find(e => e.itemId === result.itemId);
-      if (existingEntry) {
-        existingEntry.quantity += result.quantity;
-      } else {
-        character.inventory.items.push({ itemId: result.itemId, quantity: result.quantity });
-      }
-      this.emitNarrative(`Gained ${result.quantity}× ${itemName}.`, 'loot');
-    }
   }
 
   private handleLook(): void {
@@ -972,49 +888,338 @@ export class ExplorationController implements GameSystem {
     });
   }
 
-  private getVisionRange(): number {
-    switch (this.lighting) {
-      case 'bright': return 12;
-      case 'dim': return 8;
-      case 'dark': return this.getPersonalLightRange();
-      default: return 12;
-    }
+  /** Recalculate vision range, FOV, and per-tile lighting in one pass. */
+  refreshVision(pos?: Coordinate): void {
+    const p = pos ?? this.playerPosition;
+    if (!this.fog || !this.grid || !p) return;
+    this.visionRange = this.getVisionRange();
+    this.fog.updateVisibility(this.grid, this.buildObservers(p));
+    this.computeTileLighting(p);
+  }
+
+  // ── Per-tile lighting system ─────────────────────────────────
+
+  /**
+   * Get the ambient light level (1–10) for outdoor tiles based on time of day.
+   * Peak (10) between 8am–5pm, linear dimming outside that window.
+   * Night floor is 1.
+   */
+  private getAmbientLight(): number {
+    if (this.lighting === 'dark') return 1;
+    if (this.lighting === 'dim') return 5;
+
+    // Outdoor 'bright' locations vary with time of day
+    if (!this.gameState) return 10;
+    const cal = gameTimeToCalendar(this.gameState.world.time);
+    const h = cal.hour + cal.minute / 60;
+
+    // 8:00–17:00 = peak daylight (10)
+    if (h >= 8 && h <= 17) return 10;
+    // 17:00–24:00 = linear dim from 10→1 over 7 hours
+    if (h > 17) return Math.max(1, Math.round(10 - (h - 17) * (9 / 7)));
+    // 0:00–5:00 = deep night (1)
+    if (h < 5) return 1;
+    // 5:00–8:00 = dawn brightening from 1→10 over 3 hours
+    return Math.max(1, Math.round(1 + (h - 5) * (9 / 3)));
   }
 
   /**
-   * In darkness, the player's vision depends on carried light sources.
-   * No light = 1 tile (adjacent only). Torch = 6 tiles (30ft).
+   * Get the player's personal light radius in cells.
+   * Torch in off hand = 6 cells. No light = 0.
    */
   private getPersonalLightRange(): number {
     const character = this.getCharacter?.();
-    if (!character) return 1;
+    if (!character) return 0;
 
-    // Check if player has a torch in inventory
-    const hasTorch = character.inventory.items.some(
-      (entry) => entry.itemId === 'item_torch' && entry.quantity > 0,
-    );
-    return hasTorch ? 6 : 1;
+    if (character.equipment.offHand === 'item_torch') {
+      const charges = character.equipmentCharges.offHand ?? 0;
+      if (charges > 0) return 6;
+    }
+    return 0;
   }
 
   /**
-   * Build the full list of vision observers: player + map light sources.
-   * In bright/dim lighting, only the player observer matters (light sources are redundant).
-   * In dark lighting, light sources on the map provide additional visibility.
+   * Compute the effective FOV range based on ambient light + personal light.
+   * Quadratic curve so darkness is felt strongly:
+   *   light 1 → 2 cells (player + immediate neighbors)
+   *   light 3 → 4 cells
+   *   light 5 → 6 cells
+   *   light 10 → 12 cells
+   */
+  /** Get the effective ambient light at the player's current position. */
+  private getEffectiveAmbient(): number {
+    const ambient = this.getAmbientLight();
+    // Interior tiles (enclosed by walls) are always dark regardless of time of day
+    if (this.playerPosition) {
+      const interior = this.computeInteriorTiles();
+      if (interior.has(`${this.playerPosition.x},${this.playerPosition.y}`)) return 1;
+    }
+    return ambient;
+  }
+
+  private getVisionRange(): number {
+    const ambient = this.getEffectiveAmbient();
+    const personalRange = this.getPersonalLightRange();
+
+    // Quadratic: 2 + 10 * ((ambient-1)/9)^1.5  — darkness bites hard
+    const t = (ambient - 1) / 9;
+    const ambientRange = Math.round(2 + 10 * Math.pow(t, 1.5));
+    return Math.max(ambientRange, personalRange);
+  }
+
+  /**
+   * Build the full list of vision observers: player + map light sources in dark conditions.
    */
   private buildObservers(playerPos: Coordinate): { position: Coordinate; range: number }[] {
     const observers: { position: Coordinate; range: number }[] = [
       { position: playerPos, range: this.visionRange },
     ];
 
-    // In darkness, add map light sources as independent observers
-    if (this.lighting === 'dark' && this.grid) {
+    // When effective ambient is low, add map light sources as independent observers.
+    // Skip sources on wall tiles — wall torches illuminate via computeTileLighting,
+    // not by acting as FOV origins (which would let them see through walls).
+    const ambient = this.getEffectiveAmbient();
+    if (ambient <= 3 && this.grid) {
       const sources = this.grid.getLightSources();
       for (const src of sources) {
-        observers.push(src);
+        const cell = this.grid.getCell(src.position.x, src.position.y);
+        if (cell && !cell.blocksLoS) {
+          observers.push({ position: src.position, range: Math.ceil(src.range * 0.6) });
+        }
       }
     }
 
     return observers;
+  }
+
+  /**
+   * After FOV is computed, assign per-tile lighting values to the fog.
+   * Ambient light sets the base, then light sources and player torch add local brightness.
+   */
+  /** Cached set of "x,y" keys for tiles detected as interior (enclosed by walls). */
+  private interiorTiles: Set<string> | null = null;
+
+  /**
+   * Flood-fill from all map edges to find outdoor tiles.
+   * Any passable tile NOT reachable from an edge without crossing a wall is interior.
+   * Cached per grid — call clearInteriorCache() when the grid changes.
+   */
+  private computeInteriorTiles(): Set<string> {
+    if (this.interiorTiles) return this.interiorTiles;
+    if (!this.grid) return new Set();
+
+    const w = this.grid.getWidth();
+    const h = this.grid.getHeight();
+    const outdoor = new Set<string>();
+    const queue: Coordinate[] = [];
+
+    // Seed with all passable edge tiles
+    for (let x = 0; x < w; x++) {
+      for (const y of [0, h - 1]) {
+        const cell = this.grid.getCell(x, y);
+        if (cell && !cell.blocksLoS && cell.terrain !== 'wall') {
+          const key = `${x},${y}`;
+          if (!outdoor.has(key)) { outdoor.add(key); queue.push({ x, y }); }
+        }
+      }
+    }
+    for (let y = 1; y < h - 1; y++) {
+      for (const x of [0, w - 1]) {
+        const cell = this.grid.getCell(x, y);
+        if (cell && !cell.blocksLoS && cell.terrain !== 'wall') {
+          const key = `${x},${y}`;
+          if (!outdoor.has(key)) { outdoor.add(key); queue.push({ x, y }); }
+        }
+      }
+    }
+
+    // BFS flood-fill — walls and closed doors block the flood
+    const dirs = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
+    while (queue.length > 0) {
+      const pos = queue.shift()!;
+      for (const { dx, dy } of dirs) {
+        const nx = pos.x + dx;
+        const ny = pos.y + dy;
+        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+        const key = `${nx},${ny}`;
+        if (outdoor.has(key)) continue;
+        const cell = this.grid.getCell(nx, ny);
+        if (!cell || cell.terrain === 'wall') continue;
+        // Closed doors block the flood (blocksLoS = true when closed)
+        if (cell.features.includes('door') && cell.blocksLoS) continue;
+        outdoor.add(key);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+
+    // Interior = all passable tiles NOT reached by the flood
+    const interior = new Set<string>();
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const cell = this.grid.getCell(x, y);
+        if (!cell || cell.terrain === 'wall') continue;
+        const key = `${x},${y}`;
+        if (!outdoor.has(key)) interior.add(key);
+      }
+    }
+
+    this.interiorTiles = interior;
+    return interior;
+  }
+
+  /** Clear cached interior tiles (call when doors open/close or grid changes). */
+  clearInteriorCache(): void {
+    this.interiorTiles = null;
+  }
+
+  private computeTileLighting(playerPos: Coordinate): void {
+    if (!this.fog || !this.grid) return;
+
+    const ambient = this.getAmbientLight();
+    const w = this.grid.getWidth();
+    const h = this.grid.getHeight();
+    const interior = this.computeInteriorTiles();
+
+    // Set ambient level on all visible tiles
+    // Interior tiles (enclosed by walls) are always dark — only light sources illuminate them
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!this.fog.isVisible(x, y)) continue;
+        const tileAmbient = interior.has(`${x},${y}`) ? 1 : ambient;
+        this.fog.setLightLevel(x, y, tileAmbient);
+      }
+    }
+
+    // Outdoor light leaks through open doors into interior tiles.
+    // Each open door adjacent to an outdoor tile acts as a light source
+    // casting along its LoS path into the interior.
+    if (ambient > 1) {
+      this.castDoorLight(ambient, w, h);
+    }
+
+    // Map light sources boost nearby visible tiles (with LoS so light doesn't bleed through walls)
+    const sources = this.grid.getLightSources();
+    for (const src of sources) {
+      const radius = src.range;
+      // For wall-mounted sources, find the open side to cast from
+      const srcCell = this.grid.getCell(src.position.x, src.position.y);
+      const srcOnWall = srcCell?.blocksLoS ?? false;
+
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx === 0 && dy === 0) {
+            // Light the source tile itself
+            this.fog.setLightLevel(src.position.x, src.position.y, 10);
+            continue;
+          }
+          const tx = src.position.x + dx;
+          const ty = src.position.y + dy;
+          if (!this.fog.isVisible(tx, ty)) continue;
+          const dist = Math.max(Math.abs(dx), Math.abs(dy));
+          if (dist > radius) continue;
+          // LoS check — light doesn't pass through walls
+          // For wall sources, skip the LoS origin-cell block check by testing
+          // from each adjacent open tile instead
+          let hasLos = false;
+          if (srcOnWall) {
+            // Check LoS from each non-blocking cardinal neighbor of the source
+            const cardinals = [{ x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }];
+            for (const c of cardinals) {
+              const ax = src.position.x + c.x;
+              const ay = src.position.y + c.y;
+              const adj = this.grid.getCell(ax, ay);
+              if (adj && !adj.blocksLoS) {
+                if (LineOfSight.hasLineOfSight(this.grid, { x: ax, y: ay }, { x: tx, y: ty })) {
+                  hasLos = true;
+                  break;
+                }
+              }
+            }
+          } else {
+            hasLos = LineOfSight.hasLineOfSight(this.grid, src.position, { x: tx, y: ty });
+          }
+          if (!hasLos) continue;
+          // Light falls off linearly from 10 at source to 1 at edge
+          const falloff = 1 - dist / (radius + 1);
+          const boost = Math.round(10 * falloff);
+          this.fog.setLightLevel(tx, ty, boost);
+        }
+      }
+    }
+
+    // Player torch boosts tiles around the player
+    const torchRange = this.getPersonalLightRange();
+    if (torchRange > 0) {
+      for (let dy = -torchRange; dy <= torchRange; dy++) {
+        for (let dx = -torchRange; dx <= torchRange; dx++) {
+          const tx = playerPos.x + dx;
+          const ty = playerPos.y + dy;
+          if (!this.fog.isVisible(tx, ty)) continue;
+          const dist = Math.max(Math.abs(dx), Math.abs(dy));
+          if (dist > torchRange) continue;
+          const falloff = 1 - dist / (torchRange + 1);
+          const boost = Math.round(10 * falloff);
+          this.fog.setLightLevel(tx, ty, boost);
+        }
+      }
+    }
+  }
+
+  /**
+   * Cast outdoor ambient light through open doors into interior tiles.
+   * For each open door that borders an outdoor tile, light fans inward
+   * along line-of-sight with linear falloff over ~4 cells.
+   */
+  private castDoorLight(ambient: number, w: number, h: number): void {
+    if (!this.fog || !this.grid) return;
+
+    const interior = this.computeInteriorTiles();
+    const DOOR_LIGHT_RANGE = 4;
+    const dirs = [
+      { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
+    ];
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const cell = this.grid.getCell(x, y);
+        if (!cell) continue;
+        // Must be an open door (has door feature, doesn't block LoS)
+        if (!cell.features.includes('door') || cell.blocksLoS) continue;
+
+        // Check if any cardinal neighbor is an outdoor tile
+        for (const { dx, dy } of dirs) {
+          const ox = x + dx;
+          const oy = y + dy;
+          if (ox < 0 || ox >= w || oy < 0 || oy >= h) continue;
+          if (interior.has(`${ox},${oy}`)) continue;
+
+          // This neighbor is outdoor — light leaks in the opposite direction (into interior)
+          // The door tile itself gets full ambient
+          this.fog.setLightLevel(x, y, ambient);
+
+          // Cast a cone of light inward from the door
+          const inDx = -dx;
+          const inDy = -dy;
+          for (let depth = 1; depth <= DOOR_LIGHT_RANGE; depth++) {
+            // Fan out perpendicular to the light direction
+            const spread = Math.ceil(depth * 0.6);
+            for (let s = -spread; s <= spread; s++) {
+              const tx = x + inDx * depth + (inDy === 0 ? 0 : s);
+              const ty = y + inDy * depth + (inDx === 0 ? 0 : s);
+              if (tx < 0 || tx >= w || ty < 0 || ty >= h) continue;
+              if (!this.fog.isVisible(tx, ty)) continue;
+              if (!interior.has(`${tx},${ty}`)) continue;
+              // Check LoS from door to this tile
+              if (!LineOfSight.hasLineOfSight(this.grid, { x, y }, { x: tx, y: ty })) continue;
+              const falloff = 1 - depth / (DOOR_LIGHT_RANGE + 1);
+              const boost = Math.max(1, Math.round(ambient * falloff));
+              this.fog.setLightLevel(tx, ty, boost);
+            }
+          }
+        }
+      }
+    }
   }
 
   private describesTerrain(terrain: string): string {

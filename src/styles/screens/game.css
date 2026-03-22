@@ -584,17 +584,16 @@
   position: absolute;
   top: 12px;
   right: 12px;
-  width: 240px;
+  width: 260px;
   max-height: calc(100% - 24px);
   overflow-y: auto;
   z-index: 10;
-  padding: 12px;
-  background: rgba(10, 8, 6, 0.88);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(196, 162, 74, 0.2);
-  border-radius: var(--radius-md);
+  padding: 14px;
+  background: rgba(10, 8, 6, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(196, 162, 74, 0.12);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7),
-              0 0 1px rgba(196, 162, 74, 0.15);
+              inset 0 1px 0 rgba(196, 162, 74, 0.06);
   animation: fadeIn 0.2s ease-out both;
   scrollbar-width: thin;
   scrollbar-color: rgba(196, 162, 74, 0.12) transparent;
@@ -698,7 +697,8 @@
 .map-detail-sub {
   font-size: 0.72rem;
   color: var(--text-secondary);
-  padding: 1px 0;
+  padding: 2px 0;
+  line-height: 1.4;
 }
 
 .map-detail-visited {
@@ -726,7 +726,35 @@
 
 .map-detail-travel {
   width: 100%;
+  margin-top: 8px;
+  white-space: normal;
+  line-height: 1.3;
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  border: 1px solid rgba(196, 162, 74, 0.15);
+  background: rgba(196, 162, 74, 0.04);
+  transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.map-detail-travel:hover:not(:disabled) {
+  background: rgba(196, 162, 74, 0.08);
+  border-color: rgba(196, 162, 74, 0.25);
+}
+
+.map-detail-journey {
   margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(196, 162, 74, 0.08);
+}
+
+.map-detail-supply--ok {
+  color: #6a9a3a;
+}
+
+.map-detail-supply--low {
+  color: #c44;
 }
 
 .map-detail-unreachable {
@@ -1122,6 +1150,18 @@
 .time-activity-fail { color: #9a4a3a; font-weight: 700; }
 .time-activity-loot { color: var(--gold); }
 .time-activity-nothing { color: var(--text-dim); font-style: italic; }
+
+.time-activity-text-icon {
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+  margin-right: var(--space-xs);
+}
+.time-activity-text {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  font-style: italic;
+}
 
 .time-activity-warning {
   border-bottom-color: rgba(200, 150, 40, 0.1);
@@ -1540,6 +1580,26 @@
   font-size: var(--text-sm);
   color: var(--text-muted);
   margin-bottom: var(--space-md);
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  padding: var(--space-sm) 0;
+}
+
+.settings-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.settings-toggle-label {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
 }
 
 .settings-tileset-list {
