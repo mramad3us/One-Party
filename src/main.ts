@@ -46,6 +46,7 @@ import { TimeNarrator } from '@/narrative/TimeNarrator';
 import { gameTimeToCalendar } from '@/types/time';
 import type { OverworldTerrain } from '@/types/overworld';
 import { Modal } from '@/ui/widgets/Modal';
+import { DiceDisplay } from '@/ui/widgets/DiceDisplay';
 import { el } from '@/utils/dom';
 import type { Tileset } from '@/grid/Tileset';
 import { getTilesetById, getAllTilesets } from '@/grid/Tileset';
@@ -2303,8 +2304,23 @@ async function main(): Promise<void> {
       const encounterResolver = new EncounterResolver(
         new Resolver(templateRegistry, rng), rng,
       );
-      const shouldFight = isDevMode() || encounterResolver.shouldEncounter(dest, i);
-      if (shouldFight && !fastTravelCancelled) {
+
+      // Roll a d20 encounter check — show it to the player
+      const encounterDice = new DiceRoller(new SeededRNG(Date.now() + i));
+      const encounterDC = isDevMode() ? 1 : Math.round(20 * (1 - (0.15 + Math.min(0.3, i * 0.05))));
+      const encounterRoll = encounterDice.rollD20();
+      const encounterTriggered = encounterRoll.total >= encounterDC;
+
+      // Show the encounter roll
+      const encounterRollDisplay: import('@/types').DiceRollResult = {
+        ...encounterRoll,
+        description: encounterTriggered
+          ? `Encounter! (DC ${encounterDC})`
+          : `Safe passage (DC ${encounterDC})`,
+      };
+      await DiceDisplay.showRoll(document.body, encounterRollDisplay, engine);
+
+      if (encounterTriggered && !fastTravelCancelled) {
         const encounter = encounterResolver.generateEncounter(dest, character.level, 1);
         if (encounter) {
           // Pause travel — show ambush narrative
@@ -2313,6 +2329,9 @@ async function main(): Promise<void> {
             text: encounterDesc,
             category: 'action',
           });
+
+          // Brief pause after narrative before combat starts
+          await new Promise(resolve => setTimeout(resolve, 800));
 
           // Close the world map for combat
           activeGameScreen.hideWorldMap();

@@ -694,11 +694,14 @@ export class CombatManager {
       }
     }
 
+    // Recompute valid targets after movement (position changed)
+    const updatedActions = this.getAvailableActions(entityId);
+
     // Attack if in range
-    if (available.canAction && available.validAttackTargets.includes(nearestEnemy)) {
+    if (updatedActions.canAction && updatedActions.validAttackTargets.includes(nearestEnemy)) {
       const attackResult = this.executeAttack(entityId, nearestEnemy);
       results.push(attackResult);
-    } else if (available.canAction && nearestDist > 5) {
+    } else if (updatedActions.canAction) {
       // Dash toward target if can't reach
       const dashResult = this.executeDash(entityId);
       results.push(dashResult);

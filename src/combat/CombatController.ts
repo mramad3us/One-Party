@@ -17,6 +17,7 @@ import { getMonster, type MonsterDefinition } from '@/data/monsters';
 import { getItem } from '@/data/items';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { abilityModifier } from '@/utils/math';
+import { isDevMode } from '@/utils/devmode';
 
 /**
  * Orchestrates the full combat lifecycle.
@@ -450,9 +451,10 @@ export class CombatController implements GameSystem {
             ? dexMod
             : strMod;
 
+        const devBonus = isDevMode() ? 8 : 0;
         attacks.push({
           name: weapon.name,
-          toHitBonus: abilityMod + character.proficiencyBonus,
+          toHitBonus: abilityMod + character.proficiencyBonus + devBonus,
           damage: props.damage,
           reach: props.reach ?? 5,
           rangeNormal: props.rangeNormal,
