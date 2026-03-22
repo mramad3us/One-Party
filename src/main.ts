@@ -1611,6 +1611,26 @@ async function main(): Promise<void> {
       activeGameState.advanceTime(ROUNDS_PER_HOUR);
       tickAndNarrate(character, ROUNDS_PER_HOUR);
 
+      // Auto-consume supplies mid-activity
+      autoConsumeSupplies(character);
+
+      // Check vitals — warn at critical, abort at dangerous
+      const surv = character.survival;
+      if (surv.hunger >= 76 || surv.thirst >= 76 || surv.fatigue >= 76) {
+        const reasons: string[] = [];
+        if (surv.hunger >= 76) reasons.push('starvation');
+        if (surv.thirst >= 76) reasons.push('dehydration');
+        if (surv.fatigue >= 76) reasons.push('exhaustion');
+        activity.addDangerRow(`Too dangerous to continue — ${reasons.join(' and ')} threatens the party.`);
+        break;
+      } else if (surv.hunger >= 61 || surv.thirst >= 61 || surv.fatigue >= 61) {
+        const warnings: string[] = [];
+        if (surv.hunger >= 61) warnings.push('hunger gnaws');
+        if (surv.thirst >= 61) warnings.push('thirst burns');
+        if (surv.fatigue >= 61) warnings.push('exhaustion sets in');
+        activity.addWarningRow(`${warnings.join(', ')} — consider stopping early.`);
+      }
+
       // Animate sun arc (over ~500ms of the 1.5s budget)
       await activity.animateSunTo(activeGameState.world.time, 500);
 

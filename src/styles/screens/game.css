@@ -1124,6 +1124,18 @@
 .time-activity-loot { color: var(--gold); }
 .time-activity-nothing { color: var(--text-dim); font-style: italic; }
 
+.time-activity-warning {
+  border-bottom-color: rgba(200, 150, 40, 0.1);
+}
+.time-activity-warning-icon { color: var(--orange); font-size: var(--text-base); }
+.time-activity-warning-text { color: var(--orange-light); font-style: italic; font-size: var(--text-xs); }
+
+.time-activity-danger {
+  border-bottom-color: rgba(196, 48, 48, 0.1);
+}
+.time-activity-danger-icon { color: var(--red); font-size: var(--text-base); }
+.time-activity-danger-text { color: var(--red-light); font-weight: 700; font-size: var(--text-xs); }
+
 .time-activity-total {
   font-size: var(--text-sm);
   color: var(--text-secondary);

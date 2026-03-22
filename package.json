@@ -1,6 +1,6 @@
 {
   "name": "ai-gm",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "Solo D&D 5e browser game — an AI Game Master for never-ending campaigns",
   "type": "module",
   "scripts": {

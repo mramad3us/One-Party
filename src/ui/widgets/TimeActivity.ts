@@ -144,6 +144,25 @@ export class TimeActivity extends Component {
     this.totalEl.textContent = `Found: ${parts.join(', ')}`;
   }
 
+  /** Show a vital warning row in the results list. */
+  addWarningRow(message: string): void {
+    const row = el('div', { class: 'time-activity-result-row time-activity-warning' });
+    row.appendChild(el('span', { class: 'time-activity-warning-icon' }, ['\u26A0']));
+    row.appendChild(el('span', { class: 'time-activity-warning-text font-mono' }, [` ${message}`]));
+    this.resultsEl.appendChild(row);
+    this.resultsEl.scrollTop = this.resultsEl.scrollHeight;
+  }
+
+  /** Show a critical danger row that auto-stops the activity. */
+  addDangerRow(message: string): void {
+    const row = el('div', { class: 'time-activity-result-row time-activity-danger' });
+    row.appendChild(el('span', { class: 'time-activity-danger-icon' }, ['\u2620']));
+    row.appendChild(el('span', { class: 'time-activity-danger-text font-mono' }, [` ${message}`]));
+    this.resultsEl.appendChild(row);
+    this.resultsEl.scrollTop = this.resultsEl.scrollHeight;
+    this.cancelled = true;
+  }
+
   /** Show final summary. */
   showComplete(items: Map<string, number>): void {
     this.hourLabelEl.textContent = 'Complete';
