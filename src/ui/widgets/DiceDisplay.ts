@@ -92,6 +92,63 @@ export class DiceDisplay extends Component {
   }
 
   /**
+   * Mini dice roll shown on top of an element (e.g. initiative bar icon for NPC rolls).
+   * Much faster and more compact than the full-screen version.
+   */
+  static async showRollMini(anchor: HTMLElement, result: DiceRollResult, _engine: GameEngine): Promise<void> {
+    const mini = el('div', { class: 'dice-mini-overlay' });
+
+    // Die icon
+    const dieType = result.dieType ?? 20;
+    const dieIcon = IconSystem.icon(`dice-d${dieType}`);
+    dieIcon.classList.add('dice-mini-die');
+    mini.appendChild(dieIcon);
+
+    // Total number
+    const totalClasses = ['dice-mini-total'];
+    if (result.isCritical) totalClasses.push('dice-mini-total--crit');
+    if (result.isFumble) totalClasses.push('dice-mini-total--fumble');
+    const totalEl = el('span', { class: totalClasses.join(' ') }, [String(result.total)]);
+    mini.appendChild(totalEl);
+
+    anchor.appendChild(mini);
+
+    // Phase 1: Slide in + quick tumble (die spins while panel enters)
+    mini.animate([
+      { opacity: '0', transform: 'translateX(-50%) translateY(calc(100% - 4px))' },
+      { opacity: '1', transform: 'translateX(-50%) translateY(100%)' },
+    ], { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+
+    dieIcon.animate([
+      { transform: 'rotate(0deg) scale(0.5)', opacity: '0.3' },
+      { transform: 'rotate(540deg) scale(1)', opacity: '1' },
+    ], { duration: 300, easing: 'ease-out', fill: 'forwards' });
+
+    // Hide total initially, reveal after tumble
+    totalEl.style.opacity = '0';
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Phase 2: Reveal total with a quick pop
+    totalEl.animate([
+      { opacity: '0', transform: 'scale(0.7)' },
+      { opacity: '1', transform: 'scale(1)' },
+    ], { duration: 150, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+
+    // Hold — just enough to read the number
+    const holdTime = result.isCritical || result.isFumble ? 650 : 400;
+    await new Promise<void>((r) => setTimeout(r, holdTime));
+
+    // Phase 3: Fade out downward
+    mini.animate([
+      { opacity: '1', transform: 'translateX(-50%) translateY(100%)' },
+      { opacity: '0', transform: 'translateX(-50%) translateY(calc(100% + 6px))' },
+    ], { duration: 180, easing: 'ease-in', fill: 'forwards' });
+    await new Promise<void>((r) => setTimeout(r, 180));
+
+    mini.remove();
+  }
+
+  /**
    * Static helper: show a dice roll with tumbling animation, wait, then auto-remove.
    */
   static async showRoll(parent: HTMLElement, result: DiceRollResult, engine: GameEngine): Promise<void> {

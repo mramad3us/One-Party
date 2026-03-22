@@ -1274,6 +1274,8 @@ async function main(): Promise<void> {
     const combatHud = activeGameScreen.getCombatHUD();
     if (combatHud) {
       combatHud.setGridOverlay(gridToScreen, dmgContainer);
+      // Wire up initiative bar element getter for mini NPC dice rolls
+      combatController.setInitiativeElGetter((id) => combatHud.getCombatantEl(id));
     }
   });
 
@@ -1482,9 +1484,37 @@ async function main(): Promise<void> {
       return;
     }
 
-    // Multiple targets — show selector modal
+    // Multiple targets — show floating picker on grid
+    const gridContainer = activeGameScreen?.getGridPanel().getCanvasContainer();
+    if (!gridContainer) return;
+
+    const picker = el('div', { class: 'target-picker' });
+    const header = el('div', { class: 'target-picker-header' });
+    header.appendChild(el('span', { class: 'target-picker-title' }, ['Choose Target']));
+    const closeBtn = el('button', { class: 'target-picker-close' }, ['\u00D7']);
+    header.appendChild(closeBtn);
+    picker.appendChild(header);
+
     const list = el('div', { class: 'target-selector-list' });
     let closed = false;
+
+    const closePicker = (immediate = false) => {
+      if (closed) return;
+      closed = true;
+      activeGameScreen?.getGridPanel().setSelectedEntity(null);
+      document.removeEventListener('keydown', onKey, true);
+      if (immediate) {
+        picker.remove();
+      } else {
+        picker.animate([
+          { opacity: '1', transform: 'translateY(0)' },
+          { opacity: '0', transform: 'translateY(6px)' },
+        ], { duration: 150, easing: 'ease-in', fill: 'forwards' });
+        setTimeout(() => picker.remove(), 150);
+      }
+    };
+
+    closeBtn.addEventListener('click', () => closePicker());
 
     targets.forEach((targetId, i) => {
       const p = combatManager.getParticipant(targetId);
@@ -1504,37 +1534,28 @@ async function main(): Promise<void> {
         activeGameScreen?.getGridPanel().setSelectedEntity(null);
       });
       btn.addEventListener('click', () => {
-        if (closed) return;
-        closed = true;
-        activeGameScreen?.getGridPanel().setSelectedEntity(null);
-        targetModal.close();
+        closePicker(true);
         doAttack(targetId);
       });
       list.appendChild(btn);
     });
 
-    const targetModal = new Modal(document.body, engine, {
-      title: 'Choose Target',
-      content: list,
-      closable: true,
-      width: '320px',
-    });
-    targetModal.mount();
+    picker.appendChild(list);
+    gridContainer.appendChild(picker);
+
+    // Focus first button
+    const firstBtn = list.querySelector('button');
+    firstBtn?.focus();
 
     // Number keys 1-9 to select
     const onKey = (e: KeyboardEvent) => {
       const num = parseInt(e.key, 10);
       if (num >= 1 && num <= targets.length) {
         e.preventDefault();
-        if (closed) return;
-        closed = true;
-        activeGameScreen?.getGridPanel().setSelectedEntity(null);
-        document.removeEventListener('keydown', onKey, true);
-        targetModal.close();
+        closePicker(true);
         doAttack(targets[num - 1]);
       } else if (e.key === 'Escape') {
-        activeGameScreen?.getGridPanel().setSelectedEntity(null);
-        document.removeEventListener('keydown', onKey, true);
+        closePicker();
       }
     };
     document.addEventListener('keydown', onKey, true);
@@ -1622,10 +1643,41 @@ async function main(): Promise<void> {
           return;
         }
 
-        // Multiple targets — show target selector
+        // Multiple targets — show floating picker on grid
         if (spellOpt.validTargets.length > 1) {
+          const spellGridContainer = activeGameScreen?.getGridPanel().getCanvasContainer();
+          if (!spellGridContainer) return;
+
+          // Close the spell selection modal first
+          spellModal.close();
+
+          const tPicker = el('div', { class: 'target-picker' });
+          const tHeader = el('div', { class: 'target-picker-header' });
+          tHeader.appendChild(el('span', { class: 'target-picker-title' }, ['Choose Target']));
+          const tCloseBtn = el('button', { class: 'target-picker-close' }, ['\u00D7']);
+          tHeader.appendChild(tCloseBtn);
+          tPicker.appendChild(tHeader);
+
           const tList = el('div', { class: 'target-selector-list' });
           let tClosed = false;
+
+          const closeTPicker = (immediate = false) => {
+            if (tClosed) return;
+            tClosed = true;
+            activeGameScreen?.getGridPanel().setSelectedEntity(null);
+            document.removeEventListener('keydown', onTKey, true);
+            if (immediate) {
+              tPicker.remove();
+            } else {
+              tPicker.animate([
+                { opacity: '1', transform: 'translateY(0)' },
+                { opacity: '0', transform: 'translateY(6px)' },
+              ], { duration: 150, easing: 'ease-in', fill: 'forwards' });
+              setTimeout(() => tPicker.remove(), 150);
+            }
+          };
+
+          tCloseBtn.addEventListener('click', () => closeTPicker());
 
           spellOpt.validTargets.forEach((targetId, ti) => {
             const p = combatManager.getParticipant(targetId);
@@ -1645,36 +1697,26 @@ async function main(): Promise<void> {
               activeGameScreen?.getGridPanel().setSelectedEntity(null);
             });
             tBtn.addEventListener('click', () => {
-              if (tClosed) return;
-              tClosed = true;
-              activeGameScreen?.getGridPanel().setSelectedEntity(null);
-              targetModal.close();
+              closeTPicker(true);
               doCast(spellOpt, targetId);
             });
             tList.appendChild(tBtn);
           });
 
-          const targetModal = new Modal(document.body, engine, {
-            title: 'Choose Target',
-            content: tList,
-            closable: true,
-            width: '320px',
-          });
-          targetModal.mount();
+          tPicker.appendChild(tList);
+          spellGridContainer.appendChild(tPicker);
+
+          const tFirstBtn = tList.querySelector('button');
+          tFirstBtn?.focus();
 
           const onTKey = (e: KeyboardEvent) => {
             const num = parseInt(e.key, 10);
             if (num >= 1 && num <= spellOpt.validTargets.length) {
               e.preventDefault();
-              if (tClosed) return;
-              tClosed = true;
-              activeGameScreen?.getGridPanel().setSelectedEntity(null);
-              document.removeEventListener('keydown', onTKey, true);
-              targetModal.close();
+              closeTPicker(true);
               doCast(spellOpt, spellOpt.validTargets[num - 1]);
             } else if (e.key === 'Escape') {
-              activeGameScreen?.getGridPanel().setSelectedEntity(null);
-              document.removeEventListener('keydown', onTKey, true);
+              closeTPicker();
             }
           };
           document.addEventListener('keydown', onTKey, true);

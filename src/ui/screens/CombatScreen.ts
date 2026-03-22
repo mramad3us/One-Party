@@ -211,6 +211,11 @@ export class CombatHUD extends Component {
     }).finished.then(() => numEl.remove());
   }
 
+  /** Get the initiative bar element for a given entity (for mini dice overlays). */
+  getCombatantEl(entityId: EntityId): HTMLElement | null {
+    return this.combatantEls.get(entityId) ?? null;
+  }
+
   private createCombatantEl(c: CombatantDisplay): HTMLElement {
     const classes = ['combat-combatant'];
     if (c.isPlayer) classes.push('combat-combatant--player');

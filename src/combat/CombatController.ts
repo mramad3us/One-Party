@@ -46,6 +46,8 @@ export class CombatController implements GameSystem {
   private rollQueue: Promise<void> = Promise.resolve();
   /** Spell animation system for visual effects during casting. */
   private spellAnimations: SpellAnimationSystem | null = null;
+  /** Getter for initiative bar element by entity ID (for mini NPC dice). */
+  private getInitiativeEl: ((id: EntityId) => HTMLElement | null) | null = null;
 
   /** The encounter that triggered the current combat. */
   private currentEncounter: ResolvedEvent | null = null;
@@ -95,6 +97,11 @@ export class CombatController implements GameSystem {
   /** Set the container where dice roll animations will be shown. */
   setDiceContainer(el: HTMLElement): void {
     this.diceContainer = el;
+  }
+
+  /** Set the getter for initiative bar elements (for mini NPC dice overlays). */
+  setInitiativeElGetter(fn: (id: EntityId) => HTMLElement | null): void {
+    this.getInitiativeEl = fn;
   }
 
   /** Set up the spell animation system with its overlay container, shake target, and coord converter. */
@@ -317,7 +324,7 @@ export class CombatController implements GameSystem {
 
   // ── Dice roll display ─────────────────────────────────────────
 
-  /** Show a dice roll animation. Serialized so only one plays at a time. */
+  /** Show a full-screen dice roll animation (player rolls). Serialized so only one plays at a time. */
   private showRoll(result: DiceRollResult): Promise<void> {
     if (!this.diceContainer || !this.active) return Promise.resolve();
     const container = this.diceContainer;
@@ -326,6 +333,20 @@ export class CombatController implements GameSystem {
       // Clear any leftover elements before showing the next roll
       container.innerHTML = '';
       await DiceDisplay.showRoll(container, result, this.engine);
+    });
+    return this.rollQueue;
+  }
+
+  /** Show a mini dice roll on an NPC's initiative bar icon. */
+  private showRollOnInitiative(entityId: EntityId, result: DiceRollResult): Promise<void> {
+    const anchor = this.getInitiativeEl?.(entityId);
+    if (!anchor || !this.active) {
+      // Fallback to full display if no initiative element found
+      return this.showRoll(result);
+    }
+    this.rollQueue = this.rollQueue.then(async () => {
+      if (!this.active) return;
+      await DiceDisplay.showRollMini(anchor, result, this.engine);
     });
     return this.rollQueue;
   }
@@ -345,7 +366,12 @@ export class CombatController implements GameSystem {
         ...entry.rollResult,
         description: `${name} — Initiative`,
       };
-      await this.showRoll(contextRoll);
+
+      if (entry.isPlayer) {
+        await this.showRoll(contextRoll);
+      } else {
+        await this.showRollOnInitiative(entry.entityId, contextRoll);
+      }
     }
 
     // Small pause after all initiative rolls before the first turn
@@ -401,7 +427,7 @@ export class CombatController implements GameSystem {
 
     if (!this.active) return;
 
-    // Show each action result with dice animations
+    // Show each action result with mini dice on initiative bar
     for (const result of results) {
       if (!this.active) return;
 
@@ -411,9 +437,9 @@ export class CombatController implements GameSystem {
         await this.spellAnimations.showCriticalHit();
       }
 
-      // Show dice rolls for this action
+      // Show dice rolls as mini overlays on the NPC's initiative icon
       for (const roll of result.rolls) {
-        await this.showRoll(roll);
+        await this.showRollOnInitiative(entityId, roll);
         if (!this.active) return;
       }
 
@@ -423,7 +449,7 @@ export class CombatController implements GameSystem {
         data: { result },
       });
 
-      await this.delay(300);
+      await this.delay(150);
     }
 
     if (!this.active) return;
@@ -434,8 +460,8 @@ export class CombatController implements GameSystem {
       return;
     }
 
-    // Small pause before ending the turn
-    await this.delay(300);
+    // Brief pause before ending the turn
+    await this.delay(200);
     if (!this.active) return;
 
     // Clear any lingering dice display elements before next turn
