@@ -222,10 +222,10 @@ export class DiceDisplay extends Component {
     // Hold for reading
     await new Promise<void>((r) => setTimeout(r, result.isCritical || result.isFumble ? 2000 : 1200));
 
-    // Fade out smoothly
+    // Fade out smoothly — preserve the centering transform to avoid position jump
     await display.animateEl(display.el, [
-      { opacity: '1', transform: 'translateY(0)' },
-      { opacity: '0', transform: 'translateY(-12px)' },
+      { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
+      { opacity: '0', transform: 'translate(-50%, -50%) scale(0.95) translateY(-12px)' },
     ], { duration: 350 });
 
     display.destroy();

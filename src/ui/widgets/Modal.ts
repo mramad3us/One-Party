@@ -149,7 +149,7 @@ export class Modal extends Component {
           z-index: var(--z-modal);
           background: #0c0a07;
           border: 1px solid rgba(255, 255, 255, 0.04);
-          border-radius: 0;
+          border-radius: var(--radius-lg);
           box-shadow: 0 0 60px rgba(0, 0, 0, 0.5);
           max-width: 500px;
           width: 90%;
