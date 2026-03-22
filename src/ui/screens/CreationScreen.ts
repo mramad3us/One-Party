@@ -79,9 +79,8 @@ export class CreationScreen extends Component {
 
     // Header
     const header = el('div', { class: 'creation-header' });
-    header.appendChild(
-      el('h2', { class: 'creation-header-title' }, ['Create Your Hero']),
-    );
+    const title = el('h2', { class: 'creation-header-title' }, ['Create Your Hero']);
+    header.appendChild(title);
     screen.appendChild(header);
 
     // Step indicator

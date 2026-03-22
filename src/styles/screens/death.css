@@ -1,7 +1,6 @@
 /* ============================================================
-   ONE PARTY — Death Screen · Obsidian Sanctum
-   The void claims you — crimson embers, cold obsidian,
-   a slow fade into eternal dark.
+   ONE PARTY — Death Screen · Candlelit Manuscript
+   The void claims you — a slow fade into eternal dark.
    ============================================================ */
 
 .death-screen {
@@ -10,11 +9,41 @@
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background:
-    radial-gradient(ellipse at 50% 40%, rgba(120, 30, 20, 0.08) 0%, transparent 50%),
-    var(--bg-darkest);
+  background: #080706;
   overflow: hidden;
   position: relative;
+}
+
+/* Single crimson glow — matching the menu's single-light approach */
+.death-screen::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120%;
+  height: 70%;
+  background:
+    radial-gradient(
+      ellipse 45% 55% at 50% 35%,
+      rgba(140, 40, 30, 0.07) 0%,
+      rgba(100, 30, 20, 0.03) 35%,
+      transparent 65%
+    );
+  pointer-events: none;
+  animation: glowBreathe 8s ease-in-out infinite;
+}
+
+/* Grain texture overlay */
+.death-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
 }
 
 /* ── Dark Particles ── */
@@ -71,6 +100,8 @@
 /* ── Skull ── */
 .death-skull {
   margin-bottom: var(--space-xl);
+  position: relative;
+  z-index: 1;
 }
 
 .death-skull-svg {
@@ -83,17 +114,21 @@
 
 /* ── Title ── */
 .death-title {
+  position: relative;
+  z-index: 1;
   font-size: var(--text-4xl);
   color: var(--red);
-  text-shadow: 0 0 24px rgba(184, 56, 56, 0.35),
-               0 0 48px rgba(184, 56, 56, 0.15);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.20em;
   text-align: center;
   margin-bottom: var(--space-md);
+  font-weight: 400;
+  filter: drop-shadow(0 2px 20px rgba(184, 56, 56, 0.25));
 }
 
 /* ── Character Name ── */
 .death-name {
+  position: relative;
+  z-index: 1;
   font-family: var(--font-heading);
   font-size: var(--text-2xl);
   color: var(--text-primary);
@@ -104,6 +139,8 @@
 
 /* ── Cause of Death ── */
 .death-cause {
+  position: relative;
+  z-index: 1;
   font-family: var(--font-body);
   font-size: var(--text-lg);
   color: var(--text-muted);
@@ -115,12 +152,16 @@
 
 /* ── Divider ── */
 .death-divider {
+  position: relative;
+  z-index: 1;
   width: 200px;
   margin: var(--space-xl) auto;
 }
 
 /* ── Stats ── */
 .death-stats {
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: var(--space-2xl);
   margin-bottom: var(--space-2xl);
@@ -148,6 +189,8 @@
 
 /* ── Actions ── */
 .death-actions {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);

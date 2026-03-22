@@ -173,8 +173,8 @@
 
 .narrative-header-title {
   font-size: 11px;
-  color: var(--text-muted);
-  letter-spacing: 0.1em;
+  color: var(--gold-dim, var(--text-muted));
+  letter-spacing: 0.12em;
   text-shadow: none;
   text-transform: uppercase;
   font-weight: 500;

@@ -11,12 +11,10 @@
 }
 
 .character-dialog {
-  background:
-    radial-gradient(ellipse at 40% 20%, rgba(196, 162, 74, 0.03) 0%, transparent 50%),
-    var(--bg-panel);
-  border: 1px solid var(--border-gold);
+  background: #080706;
+  border: 1px solid rgba(255, 255, 255, 0.03);
   border-radius: 0;
-  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  box-shadow: var(--shadow-lg);
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -44,15 +42,15 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--border-gold);
-  background:
-    linear-gradient(180deg, rgba(18, 16, 11, 0.6) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .character-title {
   font-size: var(--text-xl);
-  color: var(--gold);
-  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  letter-spacing: 0.18em;
+  font-weight: 400;
+  filter: drop-shadow(0 2px 20px rgba(180, 130, 50, 0.12));
 }
 
 /* ── Body ── */
@@ -73,9 +71,11 @@
 
 .char-name {
   font-size: var(--text-3xl);
-  color: var(--gold);
+  color: var(--text-primary);
   margin-bottom: var(--space-xs);
-  text-shadow: 0 0 12px rgba(196, 162, 74, 0.15);
+  letter-spacing: 0.10em;
+  font-weight: 400;
+  filter: drop-shadow(0 2px 20px rgba(180, 130, 50, 0.12));
 }
 
 .char-race-class {

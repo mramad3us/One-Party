@@ -14,16 +14,10 @@
 
 /* ── Dialog ── */
 .inventory-dialog {
-  background:
-    radial-gradient(ellipse at 30% 20%, rgba(196, 162, 74, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 80%, rgba(0, 0, 0, 0.4) 0%, transparent 50%),
-    var(--bg-panel);
-  border: 1px solid var(--border-gold);
+  background: #080706;
+  border: 1px solid rgba(255, 255, 255, 0.03);
   border-radius: 0;
-  box-shadow:
-    var(--shadow-lg),
-    var(--shadow-glow),
-    inset 0 1px 0 rgba(196, 162, 74, 0.08);
+  box-shadow: var(--shadow-lg);
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -67,25 +61,24 @@
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-md) var(--space-xl);
-  border-bottom: 1px solid var(--border-gold);
-  background:
-    linear-gradient(180deg, rgba(196, 162, 74, 0.04) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   flex-shrink: 0;
 }
 
 .inventory-header svg {
   width: 24px;
   height: 24px;
-  color: var(--gold);
-  opacity: 0.75;
+  color: var(--text-muted);
+  opacity: 0.5;
 }
 
 .inventory-title {
   flex: 1;
   font-size: var(--text-2xl);
-  color: var(--gold);
-  letter-spacing: 0.14em;
-  text-shadow: 0 0 16px rgba(196, 162, 74, 0.2);
+  color: var(--text-primary);
+  letter-spacing: 0.18em;
+  font-weight: 400;
+  filter: drop-shadow(0 2px 20px rgba(180, 130, 50, 0.12));
 }
 
 .inventory-header .modal-close {
@@ -450,10 +443,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-md) var(--space-xl);
-  border-top: 1px solid var(--border-gold);
-  background:
-    linear-gradient(0deg, rgba(0, 0, 0, 0.35) 0%, transparent 100%),
-    var(--bg-dark);
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
   flex-shrink: 0;
 }
 
