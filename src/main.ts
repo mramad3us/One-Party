@@ -1543,17 +1543,39 @@ async function main(): Promise<void> {
     picker.appendChild(list);
     gridContainer.appendChild(picker);
 
-    // Focus first button
-    const firstBtn = list.querySelector('button');
-    firstBtn?.focus();
+    // Track keyboard-selected index
+    let selectedIdx = 0;
+    const allBtns = list.querySelectorAll('button');
 
-    // Number keys 1-9 to select
+    const highlightBtn = (idx: number) => {
+      allBtns.forEach((b, i) => b.classList.toggle('target-selector-btn--active', i === idx));
+      activeGameScreen?.getGridPanel().setSelectedEntity(targets[idx]);
+    };
+    highlightBtn(0);
+
+    // Number keys 1-9, arrow keys, Enter, Escape
     const onKey = (e: KeyboardEvent) => {
+      // Block movement keys while picker is open
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'Enter', ' '].includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
       const num = parseInt(e.key, 10);
       if (num >= 1 && num <= targets.length) {
         e.preventDefault();
+        e.stopPropagation();
         closePicker(true);
         doAttack(targets[num - 1]);
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        selectedIdx = (selectedIdx + 1) % targets.length;
+        highlightBtn(selectedIdx);
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        selectedIdx = (selectedIdx - 1 + targets.length) % targets.length;
+        highlightBtn(selectedIdx);
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        closePicker(true);
+        doAttack(targets[selectedIdx]);
       } else if (e.key === 'Escape') {
         closePicker();
       }
@@ -1706,15 +1728,38 @@ async function main(): Promise<void> {
           tPicker.appendChild(tList);
           spellGridContainer.appendChild(tPicker);
 
-          const tFirstBtn = tList.querySelector('button');
-          tFirstBtn?.focus();
+          // Track keyboard-selected index
+          let tSelectedIdx = 0;
+          const tAllBtns = tList.querySelectorAll('button');
+
+          const tHighlightBtn = (idx: number) => {
+            tAllBtns.forEach((b, i) => b.classList.toggle('target-selector-btn--active', i === idx));
+            activeGameScreen?.getGridPanel().setSelectedEntity(spellOpt.validTargets[idx]);
+          };
+          tHighlightBtn(0);
 
           const onTKey = (e: KeyboardEvent) => {
+            // Block movement keys while picker is open
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'Enter', ' '].includes(e.key)) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+
             const num = parseInt(e.key, 10);
             if (num >= 1 && num <= spellOpt.validTargets.length) {
               e.preventDefault();
+              e.stopPropagation();
               closeTPicker(true);
               doCast(spellOpt, spellOpt.validTargets[num - 1]);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+              tSelectedIdx = (tSelectedIdx + 1) % spellOpt.validTargets.length;
+              tHighlightBtn(tSelectedIdx);
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+              tSelectedIdx = (tSelectedIdx - 1 + spellOpt.validTargets.length) % spellOpt.validTargets.length;
+              tHighlightBtn(tSelectedIdx);
+            } else if (e.key === 'Enter' || e.key === ' ') {
+              closeTPicker(true);
+              doCast(spellOpt, spellOpt.validTargets[tSelectedIdx]);
             } else if (e.key === 'Escape') {
               closeTPicker();
             }

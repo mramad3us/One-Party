@@ -223,7 +223,11 @@ export class CombatController implements GameSystem {
     if (!this.active) return;
     const entityId = this.combatManager.getCurrentTurnEntity();
     if (!this.combatManager.isPlayerTurn()) return;
+
+    // Defer events so dice animations play before log/damage visuals
+    this.combatManager.deferEvents = true;
     const result = this.combatManager.executeAttack(entityId, targetId);
+    this.combatManager.deferEvents = false;
 
     // Critical hit — dramatic overlay + screen shake
     const attackRoll = result.rolls[0];
@@ -235,6 +239,9 @@ export class CombatController implements GameSystem {
     for (const roll of result.rolls) {
       await this.showRoll(roll);
     }
+
+    // Now flush deferred events (log, damage numbers, kill notifications)
+    this.combatManager.flushDeferredEvents();
   }
 
   async playerCastSpell(spellId: string, targetId: EntityId | null, slotLevel: number): Promise<void> {
@@ -257,7 +264,10 @@ export class CombatController implements GameSystem {
       ? { targetEntities: [targetId] }
       : { targetEntities: [entityId] }; // self-target for healing
 
+    // Defer events so dice animations play before log/damage visuals
+    this.combatManager.deferEvents = true;
     const result = this.combatManager.executeCastSpell(entityId, spellId, slotLevel, targets);
+    this.combatManager.deferEvents = false;
 
     // Sync spell slot consumption to the real character entity
     if (slotLevel > 0) {
@@ -286,6 +296,9 @@ export class CombatController implements GameSystem {
     for (const roll of result.rolls) {
       await this.showRoll(roll);
     }
+
+    // Now flush deferred events (log, damage numbers, kill notifications)
+    this.combatManager.flushDeferredEvents();
   }
 
   playerDash(): void {
@@ -396,8 +409,10 @@ export class CombatController implements GameSystem {
     await this.delay(400);
     if (!this.active) return;
 
-    // Plan and execute the NPC turn (returns movement path for animation)
+    // Defer events so dice animations play before log/damage visuals
+    this.combatManager.deferEvents = true;
     const { movementPath, results } = this.combatManager.planAndExecuteNPCTurn(entityId);
+    this.combatManager.deferEvents = false;
 
     // Animate movement step-by-step: entity is already at final grid position,
     // so we visually walk it back through each cell for the animation.
@@ -442,6 +457,9 @@ export class CombatController implements GameSystem {
         await this.showRollOnInitiative(entityId, roll);
         if (!this.active) return;
       }
+
+      // Flush deferred events for this result (log, damage numbers, kill)
+      this.combatManager.flushDeferredEvents();
 
       this.engine.events.emit({
         type: 'combat:action_result',

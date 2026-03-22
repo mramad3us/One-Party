@@ -15,7 +15,7 @@ import { abilityModifier } from '@/utils/math';
 import { DiceRoller } from '@/rules/DiceRoller';
 import { CombatRules } from '@/rules/CombatRules';
 import { ConditionRules } from '@/rules/ConditionRules';
-import { EventBus } from '@/engine/EventBus';
+import { EventBus, type GameEvent } from '@/engine/EventBus';
 import { Grid } from '@/grid/Grid';
 import { Pathfinder } from '@/grid/Pathfinder';
 import { InitiativeTracker } from './InitiativeTracker';
@@ -78,6 +78,10 @@ export class CombatManager {
   private participants: Map<EntityId, CombatParticipant> = new Map();
   private casualties: EntityId[] = [];
 
+  /** When true, combat events are queued instead of emitted immediately. */
+  deferEvents = false;
+  private deferredEventQueue: GameEvent[] = [];
+
   constructor(
     private combatRules: CombatRules,
     private conditionRules: ConditionRules,
@@ -94,6 +98,23 @@ export class CombatManager {
     this.initiative = new InitiativeTracker();
     this.turnManager = new TurnManager();
     this.pathfinder = new Pathfinder();
+  }
+
+  /** Emit an event immediately, or queue it if deferEvents is on. */
+  private emitOrDefer(event: GameEvent): void {
+    if (this.deferEvents) {
+      this.deferredEventQueue.push(event);
+    } else {
+      this.events.emit(event);
+    }
+  }
+
+  /** Flush all queued events (in order). */
+  flushDeferredEvents(): void {
+    const queued = this.deferredEventQueue.splice(0);
+    for (const event of queued) {
+      this.events.emit(event);
+    }
   }
 
   // ── Lifecycle ────────────────────────────────────────────────
@@ -421,7 +442,7 @@ export class CombatManager {
       }
     }
 
-    this.events.emit({
+    this.emitOrDefer({
       type: 'combat:attack',
       category: 'combat',
       data: { result },
@@ -580,13 +601,13 @@ export class CombatManager {
 
     // Emit spell event BEFORE applying damage so narrative order is correct
     // (spell log appears before "X falls!" from kill)
-    this.events.emit({
+    this.emitOrDefer({
       type: 'combat:spell',
       category: 'combat',
       data: { entityId, spellId, targets, result },
     });
 
-    this.events.emit({
+    this.emitOrDefer({
       type: 'combat:action_result',
       category: 'combat',
       data: { result },
@@ -1063,7 +1084,7 @@ export class CombatManager {
       this.handleDeath(targetId);
     }
 
-    this.events.emit({
+    this.emitOrDefer({
       type: 'combat:damage',
       category: 'combat',
       data: { targetId, damage, damageType, remainingHp: newHp },
@@ -1078,7 +1099,7 @@ export class CombatManager {
     this.grid?.removeEntity(entityId);
     this.initiative.removeCombatant(entityId);
 
-    this.events.emit({
+    this.emitOrDefer({
       type: 'combat:kill',
       category: 'combat',
       data: { entityId },

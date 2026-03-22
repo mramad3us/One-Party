@@ -303,8 +303,11 @@ export class KeyboardInput implements GameSystem {
       return;
     }
 
-    // Don't capture when a modal is open (modals handle their own input via FocusNav)
-    if (document.querySelector('.modal-backdrop')) return;
+    // Don't capture when a true modal dialog is open (modals handle their own input via FocusNav).
+    // Character/inventory screens reuse the modal-backdrop class for z-index styling
+    // but rely on the keyboard context system, so exclude them from this check.
+    const ctx = this.getContext();
+    if (ctx !== 'character' && ctx !== 'inventory' && document.querySelector('.modal-backdrop')) return;
 
     const bindings = this.keyMap.get(e.key);
     if (!bindings) return;

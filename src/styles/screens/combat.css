@@ -483,10 +483,16 @@
 }
 
 .target-selector-btn:hover,
-.target-selector-btn:focus {
+.target-selector-btn:focus,
+.target-selector-btn--active {
   background: rgba(255, 255, 255, 0.03);
   border-bottom-color: rgba(255, 255, 255, 0.08);
   outline: none;
+}
+
+.target-selector-btn--active .target-selector-name,
+.target-selector-btn:hover .target-selector-name {
+  color: var(--text-primary);
 }
 
 .target-selector-btn:active {

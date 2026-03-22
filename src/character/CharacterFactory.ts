@@ -30,7 +30,7 @@ export class CharacterFactory {
     if (!race) throw new Error(`Unknown race: ${options.raceId}`);
     if (!classData) throw new Error(`Unknown class: ${options.classId}`);
 
-    const level = options.level ?? 1;
+    const level = isDevMode() ? 20 : (options.level ?? 1);
 
     // Apply racial ability bonuses
     const abilityScores = { ...options.abilityScores };
@@ -112,6 +112,13 @@ export class CharacterFactory {
         knownSpells = SRD_SPELLS
           .filter(s => s.level >= 1 && s.level <= maxSpellLevel && s.classes.includes(className))
           .map(s => s.id);
+      }
+
+      // Dev mode: 1000 spell slots for every level
+      if (isDevMode()) {
+        for (let sl = 1; sl <= 9; sl++) {
+          spellSlots[sl] = { current: 1000, max: 1000 };
+        }
       }
 
       spellcasting = {
