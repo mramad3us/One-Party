@@ -132,8 +132,8 @@ export class Modal extends Component {
           z-index: var(--z-modal);
           background: #0c0a07;
           border: 1px solid rgba(255, 255, 255, 0.04);
-          border-radius: var(--radius-xl);
-          box-shadow: var(--shadow-lg);
+          border-radius: 0;
+          box-shadow: 0 0 60px rgba(0, 0, 0, 0.5);
           max-width: 500px;
           width: 90%;
           max-height: 80vh;
@@ -159,7 +159,7 @@ export class Modal extends Component {
           align-items: center;
           justify-content: space-between;
           padding: var(--space-md) var(--space-lg);
-          border-bottom: 1px solid var(--border-subtle);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.04);
         }
         .modal-title {
           font-size: var(--text-xl);
@@ -182,7 +182,7 @@ export class Modal extends Component {
           justify-content: flex-end;
           gap: var(--space-sm);
           padding: var(--space-md) var(--space-lg);
-          border-top: 1px solid var(--border-subtle);
+          border-top: 1px solid rgba(255, 255, 255, 0.04);
         }
       `;
       document.head.appendChild(style);

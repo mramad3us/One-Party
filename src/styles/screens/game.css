@@ -319,15 +319,15 @@
 
 /* ── Party Panel ── */
 .party-panel { padding: 0; border: none; border-radius: 0; box-shadow: none; }
-.party-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border-subtle); color: var(--gold); }
+.party-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid rgba(255, 255, 255, 0.04); color: var(--text-muted); }
 .party-header-title { font-size: var(--text-lg); letter-spacing: 0.1em; }
 .party-list { padding: var(--space-sm); display: flex; flex-direction: column; gap: var(--space-xs); }
-.party-member { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: var(--bg-surface); transition: all var(--duration-normal) var(--ease-smooth); cursor: pointer; }
-.party-member:hover { border-color: var(--border-gold-hover); background: var(--bg-hover); box-shadow: var(--shadow-sm); }
-.party-member--player { border-color: var(--border-gold); background: linear-gradient(135deg, var(--bg-surface) 0%, rgba(196, 162, 74, 0.04) 100%); }
+.party-member { padding: var(--space-sm) var(--space-md); border-radius: 0; border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.04); background: transparent; transition: all var(--duration-normal) var(--ease-smooth); cursor: pointer; }
+.party-member:hover { border-color: rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.02); box-shadow: none; }
+.party-member--player { border-bottom-color: rgba(255, 255, 255, 0.06); background: transparent; }
 .party-member-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xs); }
 .party-member-name { font-family: var(--font-heading); font-size: var(--text-sm); color: var(--text-primary); font-weight: 600; }
-.party-member-name--player { color: var(--gold); }
+.party-member-name--player { color: var(--text-primary); }
 .party-member-ac { font-size: var(--text-xs); padding: 1px 6px; }
 .party-member-info { font-family: var(--font-ui); font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-xs); }
 .party-member-hp { margin-bottom: var(--space-xs); }
@@ -1037,11 +1037,9 @@
 }
 
 .time-activity-inner {
-  background:
-    radial-gradient(ellipse at 50% 20%, rgba(196, 162, 74, 0.04) 0%, transparent 60%),
-    var(--bg-panel);
-  border: 1px solid var(--border-gold);
-  border-radius: var(--radius-lg);
+  background: #080706;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0;
   padding: var(--space-xl) var(--space-2xl);
   width: 480px;
   max-height: 85vh;
@@ -1049,14 +1047,15 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-md);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7), var(--shadow-glow);
+  box-shadow: 0 0 80px rgba(0, 0, 0, 0.6);
 }
 
 .time-activity-title {
   font-size: var(--text-xl);
-  color: var(--gold);
+  color: var(--text-primary);
   letter-spacing: 0.15em;
   margin: 0;
+  font-weight: 400;
 }
 
 .time-activity-info {
@@ -1099,9 +1098,9 @@
   min-height: 0;
   max-height: 240px;
   overflow-y: auto;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.2);
   padding: var(--space-xs);
 }
 
@@ -1409,16 +1408,17 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-sm) var(--space-md);
-  background: var(--bg-deep);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0;
   transition: border-color var(--duration-fast) ease,
               background var(--duration-fast) ease;
 }
 
 .save-modal-row:hover {
-  border-color: var(--border-gold);
-  background: var(--bg-dark);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .save-modal-row-info {
@@ -1466,14 +1466,16 @@
 
 .rest-divider {
   height: 1px;
-  background: var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
   margin: var(--space-md) 0;
 }
 
 .rest-section-title {
   font-size: var(--text-base);
-  color: var(--gold);
+  color: var(--text-primary);
   margin-bottom: var(--space-xs);
+  font-weight: 400;
+  letter-spacing: 0.06em;
 }
 
 .rest-section-desc {
@@ -1497,10 +1499,10 @@
 }
 
 .rest-hd-select {
-  background: var(--bg-deep);
+  background: transparent;
   color: var(--text-primary);
-  border: 1px solid var(--border-gold);
-  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0;
   padding: 4px 8px;
   font-size: var(--text-sm);
   font-family: var(--font-mono);
@@ -1515,9 +1517,9 @@
   font-size: 11px;
   margin-bottom: var(--space-sm);
   padding: var(--space-xs) var(--space-sm);
-  background: rgba(192, 120, 56, 0.06);
-  border-left: 2px solid var(--orange);
-  border-radius: var(--radius-sm);
+  background: rgba(192, 120, 56, 0.04);
+  border-left: 1px solid var(--orange);
+  border-radius: 0;
 }
 
 /* ── Settings Modal ── */
@@ -1528,8 +1530,10 @@
 
 .settings-section-title {
   font-size: var(--text-lg);
-  color: var(--gold-light);
+  color: var(--text-primary);
   margin-bottom: var(--space-xs);
+  font-weight: 400;
+  letter-spacing: 0.06em;
 }
 
 .settings-section-desc {
@@ -1549,23 +1553,24 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-md);
-  background: var(--bg-deep);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0;
   cursor: pointer;
   transition: border-color var(--duration-fast) var(--ease-smooth),
               background var(--duration-fast) var(--ease-smooth);
 }
 
 .settings-tileset-option:hover {
-  border-color: var(--border-gold);
-  background: var(--bg-hover);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .settings-tileset-option--active {
-  border-color: var(--border-gold-hover);
-  background: var(--bg-hover);
-  box-shadow: inset 0 0 20px rgba(212, 170, 60, 0.05);
+  border-bottom-color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
 }
 
 .settings-tileset-info {

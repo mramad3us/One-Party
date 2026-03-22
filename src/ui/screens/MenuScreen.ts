@@ -88,7 +88,7 @@ export class MenuScreen extends Component {
     // ── Footer ──
     const footer = el('div', { class: 'menu-footer' });
     footer.appendChild(
-      el('span', { class: 'menu-version' }, ['v0.4.8']),
+      el('span', { class: 'menu-version' }, ['v0.4.9']),
     );
     footer.appendChild(
       el('p', { class: 'menu-footer-text' }, [

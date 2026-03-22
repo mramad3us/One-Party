@@ -245,8 +245,8 @@
     box-shadow: none;
   }
   to {
-    border-color: var(--border-gold);
-    box-shadow: var(--shadow-inset-glow);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: none;
   }
 }
 
@@ -347,7 +347,7 @@
   transition: box-shadow var(--duration-normal) var(--ease-smooth);
 }
 .hover-glow:hover {
-  box-shadow: var(--shadow-glow);
+  box-shadow: none;
 }
 
 .hover-lift {

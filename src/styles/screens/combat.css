@@ -1,6 +1,6 @@
 /* ============================================================
-   ONE PARTY — Combat HUD · Obsidian Sanctum
-   War-forged overlays — burnished tokens, blood-red danger.
+   ONE PARTY — Combat HUD · Candlelit Manuscript
+   Flat overlays — no gilded tokens, no depth.
    ============================================================ */
 
 /* ── Combat HUD ── */
@@ -20,13 +20,12 @@
   display: flex;
   gap: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
-  background:
-    linear-gradient(180deg, rgba(6, 5, 3, 0.92) 0%, rgba(6, 5, 3, 0.75) 100%);
-  border-bottom: 1px solid var(--border-gold);
+  background: rgba(8, 7, 6, 0.92);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   overflow-x: auto;
   scrollbar-width: none;
   backdrop-filter: blur(8px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
 }
 
 .combat-initiative-bar::-webkit-scrollbar {
@@ -40,41 +39,40 @@
   align-items: center;
   gap: 2px;
   padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-md);
-  border: 2px solid var(--border-subtle);
-  background:
-    linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-dark) 100%);
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: transparent;
   min-width: 64px;
-  transition: all var(--duration-normal) var(--ease-heavy);
+  transition: all var(--duration-normal) var(--ease-smooth);
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .combat-combatant:hover {
-  border-color: var(--border-gold-hover);
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-sm),
-              0 0 8px rgba(196, 162, 74, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: none;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .combat-combatant--active {
-  border-color: var(--gold);
-  background: linear-gradient(135deg, var(--bg-surface) 0%, rgba(196, 162, 74, 0.08) 100%);
-  box-shadow: 0 0 16px rgba(196, 162, 74, 0.25),
-              0 0 32px rgba(196, 162, 74, 0.1);
-  animation: pulseGlow 2.5s ease-in-out infinite;
+  border-bottom-color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+  animation: none;
 }
 
 .combat-combatant--player {
-  border-color: var(--gold-dim);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 .combat-combatant--ally {
-  border-color: var(--blue-dim);
+  border-bottom-color: rgba(100, 160, 220, 0.15);
 }
 
 .combat-combatant--enemy {
-  border-color: var(--red-dim);
+  border-bottom-color: rgba(184, 56, 56, 0.15);
 }
 
 .combat-combatant-init {
@@ -90,8 +88,8 @@
 }
 
 .combat-combatant--player .combat-combatant-symbol {
-  color: var(--gold);
-  text-shadow: 0 0 6px rgba(196, 162, 74, 0.2);
+  color: var(--text-primary);
+  text-shadow: none;
 }
 
 .combat-combatant--ally .combat-combatant-symbol {
@@ -100,11 +98,11 @@
 
 .combat-combatant--enemy .combat-combatant-symbol {
   color: var(--red-light);
-  text-shadow: 0 0 6px rgba(184, 56, 56, 0.2);
+  text-shadow: none;
 }
 
 .combat-combatant-name {
-  font-family: var(--font-ui);
+  font-family: var(--font-body);
   font-size: 9px;
   color: var(--text-secondary);
   text-align: center;
@@ -119,9 +117,32 @@
 }
 
 .combat-combatant-hp .hp-bar {
-  height: 4px;
+  height: 3px;
   border: none;
-  border-radius: 2px;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+}
+
+.combat-combatant-hp .hp-bar-fill {
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--green);
+}
+
+.combat-combatant-hp .hp-bar-fill::after {
+  display: none;
+}
+
+.combat-combatant-hp .hp-bar-fill.hp-medium {
+  background: var(--orange);
+  box-shadow: none;
+}
+
+.combat-combatant-hp .hp-bar-fill.hp-low {
+  background: var(--red);
+  box-shadow: none;
+  animation: none;
 }
 
 /* ── Turn Info ── */
@@ -130,7 +151,7 @@
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-xs) var(--space-md);
-  background: rgba(6, 5, 3, 0.6);
+  background: rgba(8, 7, 6, 0.6);
   backdrop-filter: blur(4px);
 }
 
@@ -145,22 +166,22 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 700;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(255, 255, 255, 0.04);
   transition: all var(--duration-normal) var(--ease-smooth);
 }
 
 .combat-turn-icon--available {
-  background: rgba(196, 162, 74, 0.15);
-  color: var(--gold-light);
-  border-color: var(--gold-dim);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .combat-turn-icon--used {
-  background: rgba(0, 0, 0, 0.3);
+  background: transparent;
   color: var(--text-dim);
   border-color: transparent;
   opacity: 0.4;
@@ -170,30 +191,28 @@
 .combat-turn-movement {
   flex: 1;
   max-width: 200px;
-  height: 12px;
-  background: var(--bg-deep);
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-subtle);
+  height: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0;
+  border: none;
   position: relative;
   overflow: hidden;
 }
 
 .combat-turn-movement-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--blue-dim), var(--blue));
-  border-radius: var(--radius-full);
+  background: var(--blue);
+  border-radius: 0;
   transition: width var(--duration-normal) var(--ease-smooth);
 }
 
 .combat-turn-movement-label {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: -14px;
+  left: 0;
   font-family: var(--font-mono);
   font-size: 8px;
-  color: var(--text-primary);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -211,24 +230,25 @@
 
 .combat-toast {
   padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-md);
-  font-family: var(--font-ui);
+  border-radius: 0;
+  font-family: var(--font-body);
   font-size: var(--text-sm);
   color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-md);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: none;
   backdrop-filter: blur(8px);
+  background: rgba(8, 7, 6, 0.92);
   animation: slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .combat-toast--success {
-  background: linear-gradient(135deg, rgba(72, 146, 76, 0.12) 0%, rgba(18, 16, 11, 0.9) 100%);
-  border-color: rgba(72, 146, 76, 0.25);
+  background: rgba(8, 7, 6, 0.92);
+  border-left: 2px solid var(--green);
 }
 
 .combat-toast--miss {
-  background: linear-gradient(135deg, rgba(184, 56, 56, 0.08) 0%, rgba(18, 16, 11, 0.9) 100%);
-  border-color: rgba(184, 56, 56, 0.2);
+  background: rgba(8, 7, 6, 0.92);
+  border-left: 2px solid var(--red);
 }
 
 /* ── Damage Numbers ── */
@@ -261,7 +281,7 @@
 .combat-damage-number--crit {
   font-size: var(--text-2xl);
   color: #ff6644;
-  text-shadow: 0 0 12px rgba(255, 100, 50, 0.6),
+  text-shadow: 0 0 12px rgba(255, 100, 50, 0.4),
                0 2px 6px rgba(0, 0, 0, 0.9);
 }
 
