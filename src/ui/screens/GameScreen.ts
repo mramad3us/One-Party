@@ -259,9 +259,9 @@ export class GameScreen extends Component {
     // Clear small-map centering offset
     this.gridPanel.setMapSize(0, 0);
 
-    // Remove CombatHUD
+    // Remove CombatHUD from DOM (unmount removes element + cleans up)
     if (this.combatHUD) {
-      this.combatHUD.destroy();
+      this.removeChild(this.combatHUD);
       this.combatHUD = null;
     }
 
