@@ -90,6 +90,20 @@
   text-shadow: 0 0 24px rgba(212, 170, 60, 0.15);
 }
 
+.btn-warn {
+  color: var(--red-light, #c04040);
+  font-weight: 500;
+  font-size: var(--text-base);
+  letter-spacing: 0.16em;
+  border-bottom-color: rgba(192, 64, 64, 0.15);
+}
+
+.btn-warn:hover {
+  color: #e05050;
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 16px rgba(192, 64, 64, 0.2);
+}
+
 .btn-secondary {
   color: var(--text-muted);
   border-bottom-color: rgba(255, 255, 255, 0.03);

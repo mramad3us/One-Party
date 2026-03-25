@@ -1184,6 +1184,27 @@ async function main(): Promise<void> {
     if (result.fatigueCrossing) {
       activeGameScreen.addNarrative(SurvivalNarrator.describeFatigueCrossing(result.fatigueCrossing.to));
     }
+
+    // Apply HP damage from starvation/dehydration/exhaustion
+    if (result.hpDamage > 0 && character.currentHp > 0) {
+      character.currentHp = Math.max(0, character.currentHp - result.hpDamage);
+      const sourceText = result.hpDamageSources.join(' and ');
+      activeGameScreen.addNarrative({
+        text: `Your body pays the price of ${sourceText}. You take ${result.hpDamage} damage. (${character.currentHp}/${character.maxHp} HP)`,
+        category: 'system',
+      });
+
+      // Update status panel
+      activeGameScreen.setCharacter(character);
+
+      // Check for death
+      if (character.currentHp <= 0) {
+        activeGameScreen.addNarrative({
+          text: 'The road claims another victim. Your body gives out, unable to endure any longer.',
+          category: 'system',
+        });
+      }
+    }
   }
 
   function getPartyMembers(eng: GameEngine): import('@/ui/panels/PartyPanel').PartyMember[] {
@@ -2946,15 +2967,14 @@ async function main(): Promise<void> {
     const character = engine.entities.getAll<Character>('character')[0];
     if (!character) return;
 
-    // Check supply range before departing
+    // Warn about insufficient supplies but allow travel
     const { sufficient, range, limitingFactor } = TravelRules.canSustainJourney(character, path.length);
     if (!sufficient) {
       const factor = limitingFactor === 'food' ? 'food' : 'water';
       activeGameScreen.addNarrative({
-        text: `You study the route ahead and grimly calculate your supplies. The journey requires ${path.length} tiles of travel, but your ${factor} will only sustain the party for ${range.maxTiles} tiles. You need more provisions before attempting this trip.`,
+        text: `Your ${factor} won't last the full journey — supplies cover ${range.maxTiles} of ${path.length} tiles. You press on regardless, knowing the cost may be paid in blood and suffering.`,
         category: 'system',
       });
-      return;
     }
 
     fastTravelCancelled = false;

@@ -64,6 +64,10 @@ export interface SurvivalTickResult {
   hungerCrossing: { from: HungerThreshold; to: HungerThreshold } | null;
   thirstCrossing: { from: ThirstThreshold; to: ThirstThreshold } | null;
   fatigueCrossing: { from: FatigueThreshold; to: FatigueThreshold } | null;
+  /** HP damage taken from starvation/dehydration/exhaustion this tick. 0 if none. */
+  hpDamage: number;
+  /** What caused the HP damage, if any. */
+  hpDamageSources: ('starvation' | 'dehydration' | 'exhaustion')[];
 }
 
 /**
@@ -87,10 +91,37 @@ export class SurvivalRules {
 
     survival.exhaustionLevel = SurvivalRules.calculateExhaustion(survival);
 
+    // Calculate HP damage from critical survival levels
+    // Starvation (≥91) or dehydration (≥91): 1d6 damage per hour of travel
+    // Exhaustion level ≥4: additional 1d4 damage per hour
+    const hoursElapsed = roundsElapsed / 600; // 600 rounds per hour
+    let hpDamage = 0;
+    const hpDamageSources: ('starvation' | 'dehydration' | 'exhaustion')[] = [];
+
+    if (survival.hunger >= 91 && hoursElapsed > 0) {
+      // Average 3.5 per hour of starvation
+      hpDamage += Math.max(1, Math.round(3.5 * hoursElapsed));
+      hpDamageSources.push('starvation');
+    }
+    if (survival.thirst >= 91 && hoursElapsed > 0) {
+      // Average 3.5 per hour of dehydration
+      hpDamage += Math.max(1, Math.round(3.5 * hoursElapsed));
+      hpDamageSources.push('dehydration');
+    }
+    if (survival.exhaustionLevel >= 4 && hoursElapsed > 0) {
+      // Average 2.5 per hour at severe exhaustion
+      hpDamage += Math.max(1, Math.round(2.5 * hoursElapsed));
+      if (!hpDamageSources.includes('starvation') && !hpDamageSources.includes('dehydration')) {
+        hpDamageSources.push('exhaustion');
+      }
+    }
+
     return {
       hungerCrossing: hungerBefore !== hungerAfter ? { from: hungerBefore, to: hungerAfter } : null,
       thirstCrossing: thirstBefore !== thirstAfter ? { from: thirstBefore, to: thirstAfter } : null,
       fatigueCrossing: fatigueBefore !== fatigueAfter ? { from: fatigueBefore, to: fatigueAfter } : null,
+      hpDamage,
+      hpDamageSources,
     };
   }
 

@@ -652,24 +652,20 @@ export class MapPanel extends Component {
       }
       this.detailEl.appendChild(journeySection);
 
-      const canTravel = !supply || supply.sufficient;
+      const hasSupplies = !supply || supply.sufficient;
       const travelBtn = el('button', {
-        class: `btn ${canTravel ? 'btn-primary' : 'btn-ghost'} map-detail-travel`,
+        class: `btn ${hasSupplies ? 'btn-primary' : 'btn-warn'} map-detail-travel`,
       }, [
-        canTravel ? `Journey to ${name}` : 'Insufficient supplies',
+        hasSupplies ? `Journey to ${name}` : `Journey to ${name} (risky)`,
       ]);
-      if (canTravel) {
-        travelBtn.addEventListener('click', () => {
-          this.engine.events.emit({
-            type: 'overworld:fast_travel',
-            category: 'ui',
-            data: { path: this.pathPreview },
-          });
-          this.hideDetail();
+      travelBtn.addEventListener('click', () => {
+        this.engine.events.emit({
+          type: 'overworld:fast_travel',
+          category: 'ui',
+          data: { path: this.pathPreview },
         });
-      } else {
-        (travelBtn as HTMLButtonElement).disabled = true;
-      }
+        this.hideDetail();
+      });
       this.detailEl.appendChild(travelBtn);
     } else if (!isPlayerHere && isAdjacent && traversable && !canSeeEdge) {
       this.detailEl.appendChild(
