@@ -50,6 +50,7 @@ export interface Tileset {
     color: string,
     isPlayer: boolean,
     isAlly: boolean,
+    spriteId?: string,
   ): void;
 }
 
@@ -209,6 +210,7 @@ export class AsciiTileset implements Tileset {
     color: string,
     isPlayer: boolean,
     isAlly: boolean,
+    _spriteId?: string,
   ): void {
     const { ctx, px, py, cw, ch } = rc;
     ctx.fillStyle = '#0a0a0a';

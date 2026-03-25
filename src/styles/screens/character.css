@@ -270,7 +270,7 @@
 
 .char-ability-save {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-sm);
   color: var(--text-dim);
 }
 
@@ -434,7 +434,7 @@
 
 .char-spell-slot-level {
   font-family: var(--font-heading);
-  font-size: 10px;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -668,7 +668,7 @@
 
 .dice-display-adv {
   font-family: var(--font-heading);
-  font-size: 10px;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.14em;
   padding: 2px 8px;
@@ -715,7 +715,7 @@
 
 .dice-mini-total {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 900;
   color: var(--text-primary);
   line-height: 1;
@@ -788,7 +788,7 @@
 
 .stat-block-ability-label {
   font-family: var(--font-heading);
-  font-size: 10px;
+  font-size: var(--text-sm);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -845,7 +845,7 @@
 
 .spell-prep-level-header {
   font-family: var(--font-heading);
-  font-size: 10px;
+  font-size: var(--text-sm);
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -915,7 +915,7 @@
 
 .spell-prep-desc {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-sm);
   color: var(--text-dim);
   line-height: 1.4;
   letter-spacing: 0.02em;

@@ -45,6 +45,14 @@ export type SpellEffect = {
   areaSize?: number;
 };
 
+/** How a spell scales when cast at a higher level */
+export type HigherLevelScaling = {
+  /** Extra dice added to the first damage/healing effect per slot level above base */
+  extraDicePerLevel?: number;
+  /** Extra copies of the first effect added per slot level above base (Magic Missile darts, Scorching Ray rays) */
+  extraEffectsPerLevel?: number;
+};
+
 /** A spell definition from the SRD */
 export type Spell = {
   id: string;
@@ -64,4 +72,6 @@ export type Spell = {
   ritual: boolean;
   /** Class names that have this spell on their list */
   classes: string[];
+  /** How the spell scales when cast using a higher-level slot */
+  higherLevelScaling?: HigherLevelScaling;
 };

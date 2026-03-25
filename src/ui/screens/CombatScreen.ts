@@ -4,6 +4,7 @@ import { Component } from '@/ui/Component';
 import { AnimationSystem } from '@/ui/AnimationSystem';
 import { ProgressBar } from '@/ui/widgets/ProgressBar';
 import { el } from '@/utils/dom';
+import { spriteRenderer } from '@/grid/PixelSprites';
 
 export interface CombatantDisplay {
   entityId: EntityId;
@@ -13,6 +14,8 @@ export interface CombatantDisplay {
   isAlly: boolean;
   currentHp: number;
   maxHp: number;
+  /** Sprite ID for pixel art portrait (class id for players, monster id for enemies). */
+  spriteId?: string;
 }
 
 export interface TurnState {
@@ -227,9 +230,17 @@ export class CombatHUD extends Component {
     // Initiative number
     combEl.appendChild(el('span', { class: 'combat-combatant-init' }, [String(c.initiative)]));
 
-    // Symbol/portrait placeholder
-    const symbol = c.isPlayer ? '\u2726' : c.isAlly ? '\u2666' : '\u2620';
-    combEl.appendChild(el('span', { class: 'combat-combatant-symbol' }, [symbol]));
+    // Sprite portrait or fallback unicode symbol
+    if (c.spriteId && spriteRenderer.has(c.spriteId)) {
+      const spriteCanvas = spriteRenderer.createMiniCanvas(c.spriteId, 22);
+      if (spriteCanvas) {
+        spriteCanvas.classList.add('combat-combatant-sprite');
+        combEl.appendChild(spriteCanvas);
+      }
+    } else {
+      const symbol = c.isPlayer ? '\u2726' : c.isAlly ? '\u2666' : '\u2620';
+      combEl.appendChild(el('span', { class: 'combat-combatant-symbol' }, [symbol]));
+    }
 
     // Name
     combEl.appendChild(el('span', { class: 'combat-combatant-name' }, [c.name]));

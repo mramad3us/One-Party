@@ -775,6 +775,7 @@ async function main(): Promise<void> {
       isAlly: false,
       size: 1,
       conditions: character.conditions.map(c => c.type),
+      spriteId: character.class,
     };
     screen.updatePlayerEntity(character.id, spawnPos, playerInfo);
 
@@ -1197,6 +1198,7 @@ async function main(): Promise<void> {
         isAlly: false,
         size: 1,
         conditions: character.conditions.map(c => c.type),
+        spriteId: character.class,
       });
 
       if (roundsElapsed > 0) {
@@ -1234,14 +1236,16 @@ async function main(): Promise<void> {
     };
 
     // Build CombatantDisplay list for the HUD
+    const character_ = engine.entities.getAll<Character>('character')[0];
     const displays: CombatantDisplay[] = participants.map((p) => ({
       entityId: p.entityId,
-      name: p.npc?.name ?? (p.isPlayer ? (engine.entities.getAll<Character>('character')[0]?.name ?? 'Player') : 'Unknown'),
+      name: p.npc?.name ?? (p.isPlayer ? (character_?.name ?? 'Player') : 'Unknown'),
       initiative: p.initiative,
       isPlayer: p.isPlayer,
       isAlly: p.isAlly,
       currentHp: p.stats.currentHp,
       maxHp: p.stats.maxHp,
+      spriteId: p.isPlayer ? character_?.class : p.npc?.templateId,
     }));
 
     keyboardInput.pushContext('combat');
@@ -1290,16 +1294,18 @@ async function main(): Promise<void> {
     };
 
     // Rebuild displays with real initiative values
+    const char = engine.entities.getAll<Character>('character')[0];
     const displays: CombatantDisplay[] = initiative.map((entry) => {
       const p = combatManager.getParticipant(entry.entityId);
       return {
         entityId: entry.entityId,
-        name: p?.npc?.name ?? (entry.isPlayer ? (engine.entities.getAll<Character>('character')[0]?.name ?? 'Player') : 'Unknown'),
+        name: p?.npc?.name ?? (entry.isPlayer ? (char?.name ?? 'Player') : 'Unknown'),
         initiative: entry.initiative,
         isPlayer: entry.isPlayer,
         isAlly: p?.isAlly ?? false,
         currentHp: p?.stats.currentHp ?? 0,
         maxHp: p?.stats.maxHp ?? 0,
+        spriteId: entry.isPlayer ? char?.class : p?.npc?.templateId,
       };
     });
     hud.setInitiativeOrder(displays);
@@ -1854,6 +1860,7 @@ async function main(): Promise<void> {
           isAlly: true,
           size: 1,
           conditions: p.stats.conditions?.map((c: { type: string }) => c.type) ?? [],
+          spriteId: character.class,
         };
       }
       // NPC — derive symbol from first letter of name
@@ -1868,6 +1875,7 @@ async function main(): Promise<void> {
         isAlly: p.isAlly,
         size: 1,
         conditions: p.stats.conditions?.map((c: { type: string }) => c.type) ?? [],
+        spriteId: p.npc?.templateId,
       };
     });
   }
@@ -2238,6 +2246,7 @@ async function main(): Promise<void> {
         isAlly: false,
         size: 1,
         conditions: character.conditions.map(c => c.type),
+        spriteId: character.class,
       });
       activeGameScreen.setCharacter(character);
     }
@@ -2783,6 +2792,7 @@ async function main(): Promise<void> {
         isAlly: false,
         size: 1,
         conditions: character.conditions.map(c => c.type),
+        spriteId: character.class,
       });
       activeGameScreen.setCharacter(character);
       activeGameScreen.setLocationName(tileName);

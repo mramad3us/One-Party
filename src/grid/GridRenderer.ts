@@ -23,6 +23,8 @@ export interface EntityRenderInfo {
   isAlly: boolean;
   size: number;
   conditions: string[];
+  /** Sprite ID for pixel art rendering (class id for players, monster id for enemies). */
+  spriteId?: string;
 }
 
 /** A highlight layer to draw over cells. */
@@ -295,7 +297,7 @@ export class GridRenderer {
         hash: 0, grid: null as unknown as Grid, dim: 1,
       };
 
-      this.tileset.renderEntity(rc, info.symbol, info.color, info.isPlayer, info.isAlly);
+      this.tileset.renderEntity(rc, info.symbol, info.color, info.isPlayer, info.isAlly, info.spriteId);
 
       // Selected: pulsing gold highlight (target indicator)
       if (entityId === this.selectedEntity) {
@@ -416,6 +418,7 @@ export class GridRenderer {
 
   setZoom(zoom: number): void {
     this.camera.zoom = Math.max(0.25, Math.min(3, zoom));
+    this.resizeCanvas();
   }
 
   centerOn(position: Coordinate): void {
@@ -507,15 +510,16 @@ export class GridRenderer {
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
 
+    const zoom = this.camera.zoom;
     if (this.tileset.squareCells) {
-      // Square cells: equal width and height
-      const size = this.tileset.baseCellSize;
+      // Square cells: equal width and height, scaled by zoom
+      const size = Math.round(this.tileset.baseCellSize * zoom);
       this.cellW = size;
       this.cellH = size;
       this.fontSize = Math.floor(size * 0.7);
     } else {
       // ASCII cells: taller than wide (monospace proportions)
-      this.fontSize = this.tileset.baseCellSize;
+      this.fontSize = Math.round(this.tileset.baseCellSize * zoom);
       this.cellW = Math.ceil(this.fontSize * 0.65);
       this.cellH = Math.ceil(this.fontSize * 1.15);
     }

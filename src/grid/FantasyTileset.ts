@@ -1,6 +1,7 @@
 import type { CellTerrain, CellFeature } from '@/types';
 import type { Tileset, TilesetRenderContext } from './Tileset';
 import { getWallChar } from './Tileset';
+import { spriteRenderer, getSpriteAnimOffset } from './PixelSprites';
 
 // ── Color Palettes ────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ export class FantasyTileset implements Tileset {
   readonly name = 'Fantasy';
   readonly id = 'fantasy';
   readonly squareCells = true;
-  readonly baseCellSize = 20;
+  readonly baseCellSize = 40;
 
   renderTerrain(rc: TilesetRenderContext, terrain: CellTerrain): void {
     const { ctx, px, py, cw, ch, gx, gy, hash, grid, dim } = rc;
@@ -170,27 +171,57 @@ export class FantasyTileset implements Tileset {
     color: string,
     isPlayer: boolean,
     isAlly: boolean,
+    spriteId?: string,
   ): void {
     const { ctx, px, py, cw, ch } = rc;
-    const cx = px + cw / 2;
-    const cy = py + ch / 2;
-    const r = Math.min(cw, ch) * 0.38;
 
     // Dark background
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(px, py, cw, ch);
 
+    // Try pixel sprite first
+    if (spriteId && spriteRenderer.has(spriteId)) {
+      // Render shadow beneath entity
+      spriteRenderer.renderShadow(ctx, px, py, cw, ch);
+
+      // Idle breathing animation — subtle 1px vertical bob
+      const bob = Math.round(getSpriteAnimOffset());
+      const rendered = spriteRenderer.renderSprite(ctx, spriteId, px, py + bob, cw, ch);
+      if (rendered) {
+        // Player glow outline
+        if (isPlayer) {
+          ctx.strokeStyle = 'rgba(212, 170, 60, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px + 0.5, py + 0.5, cw - 1, ch - 1);
+        }
+        // Ally tint
+        else if (isAlly) {
+          ctx.fillStyle = 'rgba(68, 170, 255, 0.12)';
+          ctx.fillRect(px, py, cw, ch);
+        }
+        // Enemy subtle red tint
+        else {
+          ctx.fillStyle = 'rgba(180, 40, 40, 0.08)';
+          ctx.fillRect(px, py, cw, ch);
+        }
+        return;
+      }
+    }
+
+    // Fallback: colored circle + symbol
+    const cx = px + cw / 2;
+    const cy = py + ch / 2;
+    const r = Math.min(cw, ch) * 0.38;
+
     let c = color;
     if (isPlayer) c = '#ffffff';
     else if (isAlly) c = '#44aaff';
 
-    // Filled circle for the entity
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = c;
     ctx.fill();
 
-    // Symbol on top
     ctx.fillStyle = '#0a0a0a';
     ctx.font = `bold ${Math.floor(Math.min(cw, ch) * 0.55)}px monospace`;
     ctx.textAlign = 'center';

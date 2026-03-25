@@ -65,6 +65,10 @@ export type ActionResult = {
 export type SpellOption = {
   spellId: string;
   slotLevel: number;
+  /** Lowest slot level this spell can use (= spell.level) */
+  minSlotLevel: number;
+  /** Highest slot level available for upcasting */
+  maxSlotLevel: number;
   validTargets: EntityId[];
   validCells: Coordinate[];
 };

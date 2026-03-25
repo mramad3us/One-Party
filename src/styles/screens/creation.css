@@ -526,7 +526,7 @@
 
 .summary-ability-label {
   font-family: var(--font-heading);
-  font-size: 9px;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-dim);
@@ -623,7 +623,7 @@
 
 .spell-pick-counter {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-sm);
   color: var(--text-dim);
   letter-spacing: 0.04em;
 }
@@ -690,7 +690,7 @@
 
 .spell-pick-school {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--text-xs);
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -699,7 +699,7 @@
 
 .spell-pick-details {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-sm);
   color: var(--text-dim);
   margin-top: 3px;
   margin-left: 24px;
