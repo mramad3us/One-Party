@@ -29,7 +29,8 @@ export type ActionType =
   | 'hide'
   | 'ready'
   | 'use_item'
-  | 'interact';
+  | 'interact'
+  | 'class_feature';
 
 /** A participant in combat */
 export type Combatant = {
@@ -73,6 +74,15 @@ export type SpellOption = {
   validCells: Coordinate[];
 };
 
+/** A class-feature bonus action available to a combatant. */
+export type BonusActionOption = {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  disabledReason?: string;
+};
+
 /** What a combatant can do on their turn */
 export type AvailableActions = {
   canMove: boolean;
@@ -84,6 +94,10 @@ export type AvailableActions = {
   validSpells: SpellOption[];
   /** Set of "x,y" coordinate strings the combatant can move to */
   validMoveCells: Set<string>;
+  /** Class-feature bonus actions (Second Wind, Cunning Action, etc.) */
+  validBonusActions: BonusActionOption[];
+  /** Whether Action Surge is available (Fighter level 2+, free action). */
+  actionSurgeAvailable?: boolean;
 };
 
 /** A specific action to execute */

@@ -60,6 +60,8 @@ export class GameScreen extends Component {
   private combatHUD: CombatHUD | null = null;
   private combatActionBar!: HTMLElement;
   private combatDiceContainer!: HTMLElement;
+  private combatGrid: Grid | null = null;
+  private combatFog: FogOfWar | null = null;
 
   // Status bar elements
   private sunArc!: SunArc;
@@ -219,19 +221,11 @@ export class GameScreen extends Component {
   enterCombatMode(gridDef: GridDefinition, participants: CombatantDisplay[]): void {
     this.currentMode = 'combat';
 
-    // Build grid + fog (no fog of war in combat — full visibility)
+    // Build grid + fog — reveal from all combatant starting positions
     const grid = new Grid(gridDef);
     const fog = new FogOfWar();
-    // Reveal all cells by placing a huge observer at center
-    const cx = Math.floor(gridDef.width / 2);
-    const cy = Math.floor(gridDef.height / 2);
-    fog.updateVisibility(grid, [{ position: { x: cx, y: cy }, range: gridDef.width + gridDef.height }]);
-    // Set full light on all visible tiles
-    for (let y = 0; y < gridDef.height; y++) {
-      for (let x = 0; x < gridDef.width; x++) {
-        fog.setLightLevel(x, y, 10);
-      }
-    }
+    this.combatGrid = grid;
+    this.combatFog = fog;
 
     this.gridPanel.initGrid(grid, fog);
 
@@ -248,10 +242,10 @@ export class GameScreen extends Component {
     this.addChild(this.combatHUD);
     this.combatHUD.setInitiativeOrder(participants);
 
-    // Show combat action bar only if hints are visible (toggled with ?)
-    if (this.hintsVisible) {
-      this.combatActionBar.classList.remove('combat-action-bar--hidden');
-    }
+    // Always show combat action bar during combat — it's the primary keyboard reference
+    this.combatActionBar.classList.remove('combat-action-bar--hidden');
+    // Hide the exploration hints panel during combat (the action bar replaces it)
+    this.actionWrap.classList.add('game-action-wrap--hidden');
 
     // Add combat mode class for CSS
     this.el.classList.add('game-screen--combat');
@@ -259,6 +253,8 @@ export class GameScreen extends Component {
 
   exitCombatMode(): void {
     this.currentMode = 'exploration';
+    this.combatGrid = null;
+    this.combatFog = null;
 
     // Clear small-map centering offset
     this.gridPanel.setMapSize(0, 0);
@@ -269,9 +265,12 @@ export class GameScreen extends Component {
       this.combatHUD = null;
     }
 
-    // Hide combat action bar
+    // Hide combat action bar, restore exploration hints if they were visible
     this.combatActionBar.classList.add('combat-action-bar--hidden');
     this.combatActionBar.innerHTML = '';
+    if (this.hintsVisible) {
+      this.actionWrap.classList.remove('game-action-wrap--hidden');
+    }
 
     // Clear any leftover dice roll elements
     this.combatDiceContainer.innerHTML = '';
@@ -298,20 +297,78 @@ export class GameScreen extends Component {
   }
 
   /** Set combat action buttons (Attack, Dash, Dodge, etc.) */
-  setCombatActions(actions: { label: string; key: string; enabled: boolean; onClick: () => void }[]): void {
+  setCombatActions(actions: { label: string; key: string; enabled: boolean; isBonusAction?: boolean; group?: string; onClick: () => void }[]): void {
     this.combatActionBar.innerHTML = '';
+    if (actions.length === 0) return;
+
+    // Movement hint on the left
+    const moveHint = el('div', { class: 'combat-action-move-hint' });
+    moveHint.innerHTML = '<span class="combat-action-move-keys">hjkl</span><span class="combat-action-move-label">move</span>';
+    this.combatActionBar.appendChild(moveHint);
+
+    this.combatActionBar.appendChild(el('div', { class: 'combat-action-sep' }));
+
+    // Group buttons by their group label
+    const groups: { name: string; buttons: typeof actions }[] = [];
+    let currentGroup = '';
     for (const action of actions) {
-      const btn = el('button', {
-        class: `combat-action-btn${action.enabled ? '' : ' combat-action-btn--disabled'}`,
-      });
-      btn.innerHTML = `<span class="combat-action-btn-key">${action.key}</span><span class="combat-action-btn-label">${action.label}</span>`;
-      if (action.enabled) {
-        btn.addEventListener('click', action.onClick);
-      } else {
-        btn.setAttribute('disabled', 'true');
+      const g = action.group ?? 'actions';
+      if (g !== currentGroup) {
+        currentGroup = g;
+        groups.push({ name: g, buttons: [] });
       }
-      this.combatActionBar.appendChild(btn);
+      groups[groups.length - 1].buttons.push(action);
     }
+
+    const groupLabels: Record<string, string> = {
+      actions: 'ACTION',
+      bonus: 'BONUS',
+      surge: 'FREE',
+      end: '',
+    };
+
+    for (let gi = 0; gi < groups.length; gi++) {
+      const group = groups[gi];
+
+      // Add separator between groups
+      if (gi > 0) {
+        this.combatActionBar.appendChild(el('div', { class: 'combat-action-sep' }));
+      }
+
+      const groupEl = el('div', { class: `combat-action-group combat-action-group--${group.name}` });
+
+      // Group label
+      const label = groupLabels[group.name];
+      if (label) {
+        groupEl.appendChild(el('span', { class: 'combat-action-group-label' }, [label]));
+      }
+
+      const btnsWrap = el('div', { class: 'combat-action-group-buttons' });
+      for (const action of group.buttons) {
+        const classes = ['combat-action-btn'];
+        if (!action.enabled) classes.push('combat-action-btn--disabled');
+        if (action.isBonusAction) classes.push('combat-action-btn--bonus');
+        if (group.name === 'end') classes.push('combat-action-btn--end');
+        if (group.name === 'surge') classes.push('combat-action-btn--surge');
+        const btn = el('button', { class: classes.join(' ') });
+        btn.innerHTML = `<span class="combat-action-btn-key">${action.key}</span><span class="combat-action-btn-label">${action.label}</span>`;
+        if (action.enabled) {
+          btn.addEventListener('click', action.onClick);
+        } else {
+          btn.setAttribute('disabled', 'true');
+        }
+        btnsWrap.appendChild(btn);
+      }
+      groupEl.appendChild(btnsWrap);
+
+      this.combatActionBar.appendChild(groupEl);
+    }
+
+    // Help hint on the right
+    this.combatActionBar.appendChild(el('div', { class: 'combat-action-sep' }));
+    const helpHint = el('div', { class: 'combat-action-help-hint' });
+    helpHint.innerHTML = '<span class="combat-action-btn-key">?</span><span class="combat-action-move-label">help</span>';
+    this.combatActionBar.appendChild(helpHint);
   }
 
   /** Update entity placements on the combat grid. */
@@ -320,6 +377,25 @@ export class GameScreen extends Component {
     getInfo: (id: EntityId) => EntityRenderInfo | undefined,
   ): void {
     this.gridPanel.updateEntities(placements, getInfo);
+  }
+
+  /**
+   * Update combat fog of war from observer positions.
+   * Call after any entity movement to reveal newly visible cells.
+   */
+  updateCombatFog(observers: { position: Coordinate; range: number }[]): void {
+    if (!this.combatGrid || !this.combatFog) return;
+    this.combatFog.updateVisibility(this.combatGrid, observers);
+    // Set full light on all newly visible tiles
+    const w = this.combatGrid.getWidth();
+    const h = this.combatGrid.getHeight();
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (this.combatFog.isVisible(x, y)) {
+          this.combatFog.setLightLevel(x, y, 10);
+        }
+      }
+    }
   }
 
   clearNarrative(): void {
@@ -480,14 +556,20 @@ export class GameScreen extends Component {
 
   /** Toggle keyboard hints visibility (bound to ?) */
   toggleHelp(): void {
+    // During combat, the action bar is always visible — don't toggle it
+    if (this.currentMode === 'combat') return;
+
     this.hintsVisible = !this.hintsVisible;
     if (this.hintsVisible) {
       this.actionWrap.classList.remove('game-action-wrap--hidden');
-      this.combatActionBar.classList.remove('combat-action-bar--hidden');
     } else {
       this.actionWrap.classList.add('game-action-wrap--hidden');
-      this.combatActionBar.classList.add('combat-action-bar--hidden');
     }
+  }
+
+  /** Whether we're in combat mode (used by help system to show modal instead). */
+  isInCombat(): boolean {
+    return this.currentMode === 'combat';
   }
 
   // ── World Map Overlay ──

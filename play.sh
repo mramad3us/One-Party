@@ -6,6 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 PORT="${1:-5173}"
+VERSION=$(node -p "require('./package.json').version")
 
 # Install deps if needed (only first run)
 if [ ! -d node_modules ]; then
@@ -13,7 +14,8 @@ if [ ! -d node_modules ]; then
   npm install
 fi
 
-echo "Starting One Party on http://localhost:$PORT ..."
+echo "🎲 One Party v${VERSION}"
+echo "Starting on http://localhost:$PORT ..."
 
 # Start vite dev server in background
 npx vite --port "$PORT" &

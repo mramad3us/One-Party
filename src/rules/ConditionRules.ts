@@ -20,7 +20,7 @@ const INCAPACITATING_CONDITIONS: ConditionType[] = [
 ];
 
 /** Conditions that impose disadvantage on attack rolls. */
-const ATTACK_DISADVANTAGE_CONDITIONS: ConditionType[] = [
+export const ATTACK_DISADVANTAGE_CONDITIONS: ConditionType[] = [
   'blinded',
   'frightened',
   'poisoned',
@@ -29,12 +29,28 @@ const ATTACK_DISADVANTAGE_CONDITIONS: ConditionType[] = [
 ];
 
 /** Conditions that give attackers advantage against a target. */
-const ADVANTAGE_AGAINST_CONDITIONS: ConditionType[] = [
+export const ADVANTAGE_AGAINST_CONDITIONS: ConditionType[] = [
   'blinded',
   'paralyzed',
   'petrified',
   'restrained',
   'stunned',
+  'unconscious',
+];
+
+/** Conditions that impose disadvantage on Dexterity saving throws. */
+export const DEX_SAVE_DISADVANTAGE_CONDITIONS: ConditionType[] = [
+  'restrained',
+  'stunned',
+  'paralyzed',
+  'unconscious',
+];
+
+/** Conditions that impose disadvantage on Strength saving throws. */
+export const STR_SAVE_DISADVANTAGE_CONDITIONS: ConditionType[] = [
+  'restrained',
+  'stunned',
+  'paralyzed',
   'unconscious',
 ];
 

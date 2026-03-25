@@ -11,7 +11,15 @@ export class TurnManager {
   private reactionUsed = false;
   private movementUsed = 0;
   private maxMovement = 0;
+  private baseSpeed = 0;
   private _disengaged = false;
+
+  /** How many attacks have been used this turn (for Extra Attack). */
+  private attacksUsedThisTurn = 0;
+  /** Maximum attacks per Attack action (1 normally, 2 with Extra Attack). */
+  private maxAttacksThisTurn = 1;
+  /** Whether Sneak Attack has been used this turn (once per turn). */
+  private _sneakAttackUsedThisTurn = false;
 
   constructor() {}
 
@@ -25,7 +33,11 @@ export class TurnManager {
     this.bonusActionUsed = false;
     this.movementUsed = 0;
     this.maxMovement = speed;
+    this.baseSpeed = speed;
     this._disengaged = false;
+    this.attacksUsedThisTurn = 0;
+    this.maxAttacksThisTurn = 1; // will be set by CombatManager based on features
+    this._sneakAttackUsedThisTurn = false;
     // Reaction resets at the start of your turn
     this.reactionUsed = false;
   }
@@ -52,6 +64,54 @@ export class TurnManager {
 
   useAction(): void {
     this.actionUsed = true;
+  }
+
+  /** Reset action used flag (e.g. after Action Surge). */
+  resetAction(): void {
+    this.actionUsed = false;
+    this.attacksUsedThisTurn = 0;
+  }
+
+  // ── Extra Attack ──────────────────────────────────────────────
+
+  /** Set the maximum number of attacks per Attack action. */
+  setMaxAttacks(max: number): void {
+    this.maxAttacksThisTurn = max;
+  }
+
+  /** Whether there are attacks remaining in the current Attack action. */
+  hasAttacksRemaining(): boolean {
+    return this.attacksUsedThisTurn < this.maxAttacksThisTurn;
+  }
+
+  /** Use one attack. If all attacks are spent, marks the action as used. */
+  useAttack(): void {
+    this.attacksUsedThisTurn++;
+    if (this.attacksUsedThisTurn >= this.maxAttacksThisTurn) {
+      this.actionUsed = true;
+    }
+  }
+
+  /** Get the number of attacks used this turn. */
+  getAttacksUsed(): number {
+    return this.attacksUsedThisTurn;
+  }
+
+  /** Get the max attacks for this turn. */
+  getMaxAttacks(): number {
+    return this.maxAttacksThisTurn;
+  }
+
+  // ── Sneak Attack ─────────────────────────────────────────────
+
+  /** Whether Sneak Attack has been used this turn. */
+  get sneakAttackUsed(): boolean {
+    return this._sneakAttackUsedThisTurn;
+  }
+
+  /** Mark Sneak Attack as used this turn. */
+  useSneakAttack(): void {
+    this._sneakAttackUsedThisTurn = true;
   }
 
   // ── Bonus Action ─────────────────────────────────────────────
@@ -103,6 +163,20 @@ export class TurnManager {
     this.maxMovement += this.maxMovement;
   }
 
+  // ── Bonus Action variants ───────────────────────────────────
+
+  /** Bonus action Dash (Cunning Action): gain speed as extra movement, consuming bonus action only. */
+  bonusDash(): void {
+    this.bonusActionUsed = true;
+    this.maxMovement += this.baseSpeed;
+  }
+
+  /** Bonus action Disengage (Cunning Action): immune to OAs, consuming bonus action only. */
+  bonusDisengage(): void {
+    this.bonusActionUsed = true;
+    this._disengaged = true;
+  }
+
   // ── State query ──────────────────────────────────────────────
 
   getEntityId(): EntityId {
@@ -115,6 +189,9 @@ export class TurnManager {
     reactionUsed: boolean;
     movementUsed: number;
     maxMovement: number;
+    attacksUsed: number;
+    maxAttacks: number;
+    sneakAttackUsed: boolean;
   } {
     return {
       actionUsed: this.actionUsed,
@@ -122,6 +199,9 @@ export class TurnManager {
       reactionUsed: this.reactionUsed,
       movementUsed: this.movementUsed,
       maxMovement: this.maxMovement,
+      attacksUsed: this.attacksUsedThisTurn,
+      maxAttacks: this.maxAttacksThisTurn,
+      sneakAttackUsed: this._sneakAttackUsedThisTurn,
     };
   }
 

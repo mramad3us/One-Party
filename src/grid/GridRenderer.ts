@@ -310,8 +310,9 @@ export class GridRenderer {
       const vx = placement.position.x - startX;
       const vy = placement.position.y - startY;
 
-      // Skip if off-viewport
-      if (vx < 0 || vx >= this.viewCols || vy < 0 || vy >= this.viewRows) continue;
+      // Skip if completely off-viewport (allow partial visibility for large entities)
+      const eSize = info.size ?? 1;
+      if (vx + eSize <= 0 || vx >= this.viewCols || vy + eSize <= 0 || vy >= this.viewRows) continue;
 
       const px = vx * this.cellW + this.offsetX;
       const py = vy * this.cellH + this.offsetY;
@@ -322,16 +323,19 @@ export class GridRenderer {
         hash: 0, grid: null as unknown as Grid, dim: 1,
       };
 
-      this.tileset.renderEntity(rc, info.symbol, info.color, info.isPlayer, info.isAlly, info.spriteId);
+      this.tileset.renderEntity(rc, info.symbol, info.color, info.isPlayer, info.isAlly, info.spriteId, info.size);
 
-      // Selected: pulsing gold highlight (target indicator)
+      // Selected: pulsing gold highlight (target indicator) — scale to entity size
       if (entityId === this.selectedEntity) {
+        const s = info.size ?? 1;
+        const totalW = this.cellW * s;
+        const totalH = this.cellH * s;
         const pulse = 0.3 + 0.15 * Math.sin(Date.now() * 0.005);
         ctx.fillStyle = `rgba(212,170,60,${pulse})`;
-        ctx.fillRect(px, py, this.cellW, this.cellH);
+        ctx.fillRect(px, py, totalW, totalH);
         ctx.strokeStyle = `rgba(212,170,60,${pulse + 0.2})`;
         ctx.lineWidth = 1;
-        ctx.strokeRect(px + 0.5, py + 0.5, this.cellW - 1, this.cellH - 1);
+        ctx.strokeRect(px + 0.5, py + 0.5, totalW - 1, totalH - 1);
       }
     }
 

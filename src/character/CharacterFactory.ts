@@ -6,6 +6,7 @@ import { getRace } from '@/data/races';
 import { getClass } from '@/data/classes';
 import { isDevMode } from '@/utils/devmode';
 import { SRD_SPELLS } from '@/data/spells';
+import { CLASS_BONUS_ACTIONS } from '@/data/bonusActions';
 
 export interface CharacterCreateOptions {
   name: string;
@@ -148,15 +149,34 @@ export class CharacterFactory {
     inventoryItems.push({ itemId: 'item_torch', quantity: 1, charges: 6 });
     inventoryItems.push({ itemId: 'item_torch', quantity: 1, charges: 6 });
 
+    // Limited-use features that aren't bonus actions (Action Surge, Indomitable, etc.)
+    const FEATURE_USES: Record<string, { usesMax: number; rechargeOn: 'shortRest' | 'longRest' }> = {
+      feature_action_surge: { usesMax: 1, rechargeOn: 'shortRest' },
+    };
+
     // Build features list from class
     const features: Character['features'] = [];
     for (const feature of classData.features) {
       if (feature.level <= level) {
+        const featureId = `feature_${feature.name.toLowerCase().replace(/\s+/g, '_')}`;
+        // Look up mechanical data from bonus action registry
+        const bonusActionDef = CLASS_BONUS_ACTIONS.find(ba => ba.featureId === featureId);
+        // Also check limited-use feature registry
+        const featureUses = FEATURE_USES[featureId];
         features.push({
-          id: `feature_${feature.name.toLowerCase().replace(/\s+/g, '_')}`,
+          id: featureId,
           name: feature.name,
           description: feature.description,
           source: classData.name,
+          ...(bonusActionDef && bonusActionDef.usesPerRest > 0 ? {
+            usesMax: bonusActionDef.usesPerRest,
+            usesRemaining: bonusActionDef.usesPerRest,
+            rechargeOn: bonusActionDef.rechargeOn,
+          } : featureUses ? {
+            usesMax: featureUses.usesMax,
+            usesRemaining: featureUses.usesMax,
+            rechargeOn: featureUses.rechargeOn,
+          } : {}),
         });
       }
     }

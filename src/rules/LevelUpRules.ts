@@ -3,6 +3,7 @@ import { abilityModifier, proficiencyBonus } from '@/utils/math';
 import { DiceRoller } from './DiceRoller';
 import type { ClassDefinition } from '@/data/classes';
 import { getEpicProgressionForLevel } from '@/data/epic-progression';
+import { CLASS_BONUS_ACTIONS } from '@/data/bonusActions';
 
 /** Standard 5e XP thresholds for levels 2-20. Index 0 = XP needed for level 2. */
 const XP_THRESHOLDS: number[] = [
@@ -83,15 +84,32 @@ export class LevelUpRules {
     character.proficiencyBonus = proficiencyBonus(newLevel);
 
     // Features gained at this level
+    // Limited-use features that aren't bonus actions (Action Surge, etc.)
+    const FEATURE_USES: Record<string, { usesMax: number; rechargeOn: 'shortRest' | 'longRest' }> = {
+      feature_action_surge: { usesMax: 1, rechargeOn: 'shortRest' },
+    };
+
     const featuresGained: string[] = [];
     for (const feature of classData.features) {
       if (feature.level === newLevel) {
         featuresGained.push(feature.name);
+        const featureId = `feature_${feature.name.toLowerCase().replace(/\s+/g, '_')}`;
+        const bonusActionDef = CLASS_BONUS_ACTIONS.find(ba => ba.featureId === featureId);
+        const featureUses = FEATURE_USES[featureId];
         character.features.push({
-          id: `feature_${feature.name.toLowerCase().replace(/\s+/g, '_')}`,
+          id: featureId,
           name: feature.name,
           description: feature.description,
           source: classData.name,
+          ...(bonusActionDef && bonusActionDef.usesPerRest > 0 ? {
+            usesMax: bonusActionDef.usesPerRest,
+            usesRemaining: bonusActionDef.usesPerRest,
+            rechargeOn: bonusActionDef.rechargeOn,
+          } : featureUses ? {
+            usesMax: featureUses.usesMax,
+            usesRemaining: featureUses.usesMax,
+            rechargeOn: featureUses.rechargeOn,
+          } : {}),
         });
       }
     }

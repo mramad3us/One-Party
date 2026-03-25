@@ -51,6 +51,8 @@ export interface Tileset {
     isPlayer: boolean,
     isAlly: boolean,
     spriteId?: string,
+    /** Grid footprint in cells (1=Medium, 2=Large, 3=Huge, 4=Gargantuan) */
+    entitySize?: number,
   ): void;
 }
 
@@ -211,17 +213,28 @@ export class AsciiTileset implements Tileset {
     isPlayer: boolean,
     isAlly: boolean,
     _spriteId?: string,
+    entitySize?: number,
   ): void {
     const { ctx, px, py, cw, ch } = rc;
+    const s = entitySize ?? 1;
+    const totalW = cw * s;
+    const totalH = ch * s;
     ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(px, py, cw, ch);
+    ctx.fillRect(px, py, totalW, totalH);
 
     let c = color;
     if (isPlayer) c = '#ffffff';
     else if (isAlly) c = '#44aaff';
 
     ctx.fillStyle = c;
-    ctx.fillText(symbol, px + cw / 2, py + ch / 2);
+    if (s > 1) {
+      ctx.save();
+      ctx.font = `bold ${Math.floor(rc.ch * s * 0.6)}px monospace`;
+      ctx.fillText(symbol, px + totalW / 2, py + totalH / 2);
+      ctx.restore();
+    } else {
+      ctx.fillText(symbol, px + cw / 2, py + ch / 2);
+    }
   }
 }
 

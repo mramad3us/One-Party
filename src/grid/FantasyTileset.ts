@@ -868,21 +868,25 @@ export class FantasyTileset implements Tileset {
     isPlayer: boolean,
     isAlly: boolean,
     spriteId?: string,
+    entitySize?: number,
   ): void {
     const { ctx, px, py, cw, ch } = rc;
+    const s = entitySize ?? 1;
+    const totalW = cw * s;
+    const totalH = ch * s;
 
     // Try pixel sprite first — rendered directly on terrain, no background box
     if (spriteId && spriteRenderer.has(spriteId)) {
-      // Render shadow beneath entity
-      spriteRenderer.renderShadow(ctx, px, py, cw, ch);
+      // Render shadow beneath entity (scaled for large creatures)
+      spriteRenderer.renderShadow(ctx, px, py, totalW, totalH);
 
-      const rendered = spriteRenderer.renderSprite(ctx, spriteId, px, py, cw, ch);
+      const rendered = spriteRenderer.renderSprite(ctx, spriteId, px, py, totalW, totalH);
       if (rendered) return;
     }
 
     // Fallback: pixel-art style colored block + symbol
-    const pw = cw / 8;
-    const ph = ch / 8;
+    const pw = totalW / 8;
+    const ph = totalH / 8;
     let c = color;
     if (isPlayer) c = '#ffffff';
     else if (isAlly) c = '#44aaff';
@@ -914,9 +918,9 @@ export class FantasyTileset implements Tileset {
 
     // Symbol text on top
     ctx.fillStyle = '#0a0a0a';
-    ctx.font = `bold ${Math.floor(Math.min(cw, ch) * 0.45)}px monospace`;
+    ctx.font = `bold ${Math.floor(Math.min(totalW, totalH) * 0.45)}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(symbol, px + cw / 2, py + ch / 2);
+    ctx.fillText(symbol, px + totalW / 2, py + totalH / 2);
   }
 }

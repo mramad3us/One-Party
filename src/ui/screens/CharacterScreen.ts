@@ -7,6 +7,7 @@ import { TooltipSystem } from '@/ui/TooltipSystem';
 import { el } from '@/utils/dom';
 import { formatModifier, capitalize } from '@/utils/format';
 import { getSpell } from '@/data/spells';
+import { CLASS_BONUS_ACTIONS } from '@/data/bonusActions';
 
 const ABILITIES: Ability[] = [
   'strength', 'dexterity', 'constitution',
@@ -204,7 +205,13 @@ export class CharacterScreen extends Component {
 
       for (const feat of character.features) {
         const featEl = el('div', { class: 'char-feature' });
-        featEl.appendChild(el('div', { class: 'char-feature-name' }, [feat.name]));
+        const nameRow = el('div', { class: 'char-feature-name' }, [feat.name]);
+        // Tag features that are bonus actions
+        const isBonusAction = CLASS_BONUS_ACTIONS.some(ba => ba.featureId === feat.id);
+        if (isBonusAction) {
+          nameRow.appendChild(el('span', { class: 'char-feature-tag char-feature-tag--bonus' }, ['Bonus Action']));
+        }
+        featEl.appendChild(nameRow);
         featEl.appendChild(el('div', { class: 'char-feature-desc' }, [feat.description]));
         if (feat.usesMax !== undefined) {
           featEl.appendChild(el('div', { class: 'char-feature-uses font-mono' }, [

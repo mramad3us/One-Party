@@ -1,5 +1,21 @@
 import type { GameEngine, GameSystem } from './GameEngine';
 
+/**
+ * Maps KeyboardEvent.code → logical key character.
+ * Enables layout-independent matching for AZERTY, QWERTZ, and other non-QWERTY keyboards.
+ * e.g. on AZERTY, the '1' physical key emits code 'Digit1' but e.key is '&'.
+ */
+const CODE_TO_KEY = new Map<string, string>([
+  ['Digit1', '1'], ['Digit2', '2'], ['Digit3', '3'], ['Digit4', '4'], ['Digit5', '5'],
+  ['Digit6', '6'], ['Digit7', '7'], ['Digit8', '8'], ['Digit9', '9'], ['Digit0', '0'],
+  ['KeyA', 'a'], ['KeyB', 'b'], ['KeyC', 'c'], ['KeyD', 'd'], ['KeyE', 'e'],
+  ['KeyF', 'f'], ['KeyG', 'g'], ['KeyH', 'h'], ['KeyI', 'i'], ['KeyJ', 'j'],
+  ['KeyK', 'k'], ['KeyL', 'l'], ['KeyM', 'm'], ['KeyN', 'n'], ['KeyO', 'o'],
+  ['KeyP', 'p'], ['KeyQ', 'q'], ['KeyR', 'r'], ['KeyS', 's'], ['KeyT', 't'],
+  ['KeyU', 'u'], ['KeyV', 'v'], ['KeyW', 'w'], ['KeyX', 'x'], ['KeyY', 'y'],
+  ['KeyZ', 'z'],
+]);
+
 export type InputContext =
   | 'exploration'
   | 'combat'
@@ -98,8 +114,15 @@ const COMBAT_ACTION_BINDINGS: KeyBinding[] = [
   { keys: ['d'],                event: 'input:combat_dash',      data: {},  label: 'Dash',       context: 'combat' },
   { keys: ['o'],                event: 'input:combat_dodge',     data: {},  label: 'Dodge',      context: 'combat' },
   { keys: ['g'],                event: 'input:combat_disengage', data: {},  label: 'Disengage',  context: 'combat' },
+  { keys: ['x'],                event: 'input:combat_action_surge', data: {}, label: 'Action Surge', context: 'combat' },
   { keys: ['e'],                event: 'input:combat_end_turn',  data: {},  label: 'End Turn',   context: 'combat' },
   { keys: ['Tab'],              event: 'input:combat_cycle',     data: {},  label: 'Cycle Targets', context: 'combat' },
+  // Number keys 1-9 for bonus actions (mapped dynamically in main.ts)
+  { keys: ['1'],                event: 'input:combat_bonus_key', data: { index: 0 }, label: 'Bonus 1', context: 'combat' },
+  { keys: ['2'],                event: 'input:combat_bonus_key', data: { index: 1 }, label: 'Bonus 2', context: 'combat' },
+  { keys: ['3'],                event: 'input:combat_bonus_key', data: { index: 2 }, label: 'Bonus 3', context: 'combat' },
+  { keys: ['4'],                event: 'input:combat_bonus_key', data: { index: 3 }, label: 'Bonus 4', context: 'combat' },
+  { keys: ['5'],                event: 'input:combat_bonus_key', data: { index: 4 }, label: 'Bonus 5', context: 'combat' },
 ];
 
 // ── Traveling bindings ──────────────────────────────────────────
@@ -309,7 +332,16 @@ export class KeyboardInput implements GameSystem {
     const ctx = this.getContext();
     if (ctx !== 'character' && ctx !== 'inventory' && document.querySelector('.modal-backdrop')) return;
 
-    const bindings = this.keyMap.get(e.key);
+    let bindings = this.keyMap.get(e.key);
+
+    // Fallback: use e.code for layout-independent matching (AZERTY, QWERTZ, etc.)
+    // e.g. on AZERTY, pressing the '1' key produces '&' as e.key but 'Digit1' as e.code
+    if (!bindings) {
+      const codeKey = CODE_TO_KEY.get(e.code);
+      if (codeKey) {
+        bindings = this.keyMap.get(codeKey);
+      }
+    }
     if (!bindings) return;
 
     const context = this.getContext();

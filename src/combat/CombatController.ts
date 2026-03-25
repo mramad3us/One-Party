@@ -4,6 +4,7 @@ import type {
   Coordinate,
   DiceRollResult,
   EntityId,
+  Item,
   ResolvedEvent,
   NPC,
 } from '@/types';
@@ -20,6 +21,7 @@ import { SeededRNG } from '@/utils/SeededRNG';
 import { abilityModifier } from '@/utils/math';
 import { isDevMode } from '@/utils/devmode';
 import { SpellAnimationSystem, type GridToScreen } from '@/ui/combat/SpellAnimations';
+import { getBonusAction } from '@/data/bonusActions';
 
 /**
  * Orchestrates the full combat lifecycle.
@@ -86,6 +88,18 @@ export class CombatController implements GameSystem {
       if (!this.active) return;
       if (this.combatManager.checkCombatEnd()) {
         this.finishCombat();
+      }
+    });
+
+    // Sync concentration state to real character when concentration breaks
+    engine.events.on('combat:concentration_broken', (e) => {
+      if (!this.active) return;
+      const { isPlayer } = e.data as { entityId: EntityId; isPlayer: boolean };
+      if (isPlayer) {
+        const character = this.engine.entities.getAll<Character>('character')[0];
+        if (character?.spellcasting) {
+          character.spellcasting.concentration = null;
+        }
       }
     });
   }
@@ -298,6 +312,15 @@ export class CombatController implements GameSystem {
       }
     }
 
+    // Sync concentration state back to real character
+    {
+      const character = this.engine.entities.getAll<Character>('character')[0];
+      const participant = this.combatManager.getParticipant(entityId);
+      if (character?.spellcasting && participant?.stats.spellcasting) {
+        character.spellcasting.concentration = participant.stats.spellcasting.concentration;
+      }
+    }
+
     // Critical hit on spell attack — dramatic overlay
     const attackRoll = result.rolls[0];
     if (attackRoll?.isCritical && result.success && this.spellAnimations) {
@@ -332,6 +355,62 @@ export class CombatController implements GameSystem {
     const entityId = this.combatManager.getCurrentTurnEntity();
     if (!this.combatManager.isPlayerTurn()) return;
     this.combatManager.executeDisengage(entityId);
+  }
+
+  async playerBonusAction(bonusActionId: string): Promise<void> {
+    if (!this.active) return;
+    const entityId = this.combatManager.getCurrentTurnEntity();
+    if (!this.combatManager.isPlayerTurn()) return;
+
+    this.combatManager.deferEvents = true;
+    const result = this.combatManager.executeBonusAction(entityId, bonusActionId);
+    this.combatManager.deferEvents = false;
+
+    // Show dice rolls (e.g. Second Wind healing)
+    for (const roll of result.rolls) {
+      await this.showRoll(roll);
+    }
+
+    // Sync healing back to real character entity
+    if (result.healing) {
+      const character = this.engine.entities.getAll<Character>('character')[0];
+      if (character) {
+        character.currentHp = Math.min(character.maxHp, character.currentHp + result.healing);
+      }
+    }
+
+    // Sync feature usage back to real character
+    const def = getBonusAction(bonusActionId);
+    if (def && def.usesPerRest > 0) {
+      const character = this.engine.entities.getAll<Character>('character')[0];
+      if (character) {
+        const feat = character.features.find(f => f.id === def.featureId);
+        if (feat && feat.usesRemaining !== undefined) {
+          feat.usesRemaining = Math.max(0, feat.usesRemaining - 1);
+        }
+      }
+    }
+
+    this.combatManager.flushDeferredEvents();
+  }
+
+  playerActionSurge(): void {
+    if (!this.active) return;
+    const entityId = this.combatManager.getCurrentTurnEntity();
+    if (!this.combatManager.isPlayerTurn()) return;
+
+    const result = this.combatManager.executeActionSurge(entityId);
+
+    // Sync feature usage back to real character
+    if (result.success) {
+      const character = this.engine.entities.getAll<Character>('character')[0];
+      if (character) {
+        const feat = character.features.find(f => f.id === 'feature_action_surge');
+        if (feat && feat.usesRemaining !== undefined) {
+          feat.usesRemaining = Math.max(0, feat.usesRemaining - 1);
+        }
+      }
+    }
   }
 
   playerEndTurn(): void {
@@ -599,6 +678,21 @@ export class CombatController implements GameSystem {
       }
     }
 
+    // Fighting Style: Defense — +1 AC while wearing armor
+    let armorClass = character.armorClass;
+    const hasFightingStyle = character.features.some(f => f.id === 'feature_fighting_style');
+    const hasArmorEquipped = character.equipment.armor !== null;
+    if (hasFightingStyle && hasArmorEquipped) {
+      armorClass += 1;
+    }
+
+    // Build equipped weapons list for Sneak Attack checks
+    const equippedWeapons: Item[] = [];
+    if (mainWeaponId) {
+      const w = getItem(mainWeaponId);
+      if (w) equippedWeapons.push(w);
+    }
+
     return {
       entityId: character.id,
       isPlayer: true,
@@ -607,7 +701,7 @@ export class CombatController implements GameSystem {
         abilityScores: { ...character.abilityScores },
         maxHp: character.maxHp,
         currentHp: character.currentHp,
-        armorClass: character.armorClass,
+        armorClass,
         speed: character.speed,
         level: character.level,
         attacks,
@@ -620,7 +714,12 @@ export class CombatController implements GameSystem {
         vulnerabilities: [],
         conditionImmunities: [],
       },
+      equipment: {
+        weapons: equippedWeapons,
+        armor: [],
+      },
       initiative: 0,
+      savingThrowProficiencies: [...character.proficiencies.savingThrows],
     };
   }
 

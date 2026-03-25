@@ -363,6 +363,19 @@ export class CombatRules {
       }
     }
 
-    return baseAC + shieldBonus;
+    let totalAC = baseAC + shieldBonus;
+
+    // Fighting Style: Defense — +1 AC while wearing armor
+    const hasDefenseStyle = character.features?.some(
+      f => f.id === 'feature_fighting_style',
+    );
+    const hasArmor = equipment.some(
+      item => item.itemType === 'armor' && isArmorProperties(item.properties) && item.properties.armorType !== 'shield',
+    );
+    if (hasDefenseStyle && hasArmor) {
+      totalAC += 1;
+    }
+
+    return totalAC;
   }
 }

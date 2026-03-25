@@ -11,6 +11,7 @@ import { CreationScreen } from '@/ui/screens/CreationScreen';
 import { GameScreen } from '@/ui/screens/GameScreen';
 import { InventoryScreen } from '@/ui/screens/InventoryScreen';
 import { CharacterScreen } from '@/ui/screens/CharacterScreen';
+import { DeathScreen, type DeathScreenOptions } from '@/ui/screens/DeathScreen';
 import { StorageEngine } from '@/storage/StorageEngine';
 import { SaveManager } from '@/storage/SaveManager';
 import { CharacterFactory } from '@/character/CharacterFactory';
@@ -35,6 +36,7 @@ import { SurvivalRules } from '@/rules/SurvivalRules';
 import { SurvivalNarrator } from '@/narrative/SurvivalNarrator';
 import { getItem } from '@/data/items';
 import { getSpell } from '@/data/spells';
+import { getBonusAction } from '@/data/bonusActions';
 import type { ConsumableProperties } from '@/types/item';
 import { ROUNDS_PER_HOUR } from '@/types/time';
 import { KeyboardInput } from '@/engine/KeyboardInput';
@@ -57,6 +59,8 @@ import { RestRules } from '@/rules/RestRules';
 import { TravelRules } from '@/rules/TravelRules';
 import { ForageRules, type ForageOption, type ForagePlan } from '@/rules/ForageRules';
 import { AbilityChecks } from '@/rules/AbilityChecks';
+import { LevelUpRules } from '@/rules/LevelUpRules';
+import { getClass } from '@/data/classes';
 import { TimeActivity } from '@/ui/widgets/TimeActivity';
 import { processWorldDecay, markLocationVisited } from '@/world/WorldDecay';
 import type { Coordinate } from '@/types';
@@ -82,6 +86,69 @@ function getLightingForLocation(locationType: LocationType): LightingLevel {
       return 'dim';
     default:
       return 'bright';
+  }
+}
+
+// ── Level-up check helper ───────────────────────────────────────
+
+/**
+ * Check and apply pending level-ups for a character.
+ * Loops to handle multi-level jumps (e.g. large XP grants).
+ * Posts rich narrative text for each level gained.
+ */
+function checkAndApplyLevelUps(
+  character: Character,
+  screen: GameScreen | null,
+  levelUpRules: LevelUpRules,
+): void {
+  const classData = getClass(character.class);
+  if (!classData) return;
+
+  while (levelUpRules.canLevelUp(character)) {
+    const oldLevel = character.level;
+    const result = levelUpRules.levelUp(character, classData);
+
+    // Build an immersive level-up narrative
+    const parts: string[] = [];
+    parts.push(
+      `A surge of power courses through ${character.name}'s veins. ` +
+      `The trials endured and foes vanquished have forged something greater — ` +
+      `${character.name} has reached Level ${result.newLevel}!`,
+    );
+
+    parts.push(`(+${result.hpGained} HP)`);
+
+    if (result.featuresGained.length > 0) {
+      const featureList = result.featuresGained.join(', ');
+      parts.push(
+        `New power awakens: ${featureList}. ` +
+        `The path ahead grows clearer with each hard-won lesson.`,
+      );
+    }
+
+    if (result.newSpellSlots) {
+      const slotDescriptions: string[] = [];
+      for (const [level, count] of Object.entries(result.newSpellSlots)) {
+        slotDescriptions.push(`${count} level-${level}`);
+      }
+      parts.push(
+        `The arcane wells deepen — spell slots: ${slotDescriptions.join(', ')}.`,
+      );
+    }
+
+    // Check proficiency bonus change
+    const oldProf = Math.floor((oldLevel - 1) / 4) + 2;
+    if (character.proficiencyBonus > oldProf) {
+      parts.push(
+        `Proficiency sharpens to +${character.proficiencyBonus}, ` +
+        `reflecting mastery earned through blood and sweat.`,
+      );
+    }
+
+    screen?.addNarrative({
+      text: parts.join(' '),
+      category: 'system',
+    });
   }
 }
 
@@ -338,6 +405,9 @@ async function main(): Promise<void> {
   combatController.setCombatManager(combatManager);
   engine.registerSystem(combatController);
 
+  // 4c-2. Level-up rules (shared across combat & rest)
+  const levelUpRules = new LevelUpRules(combatDice);
+
   // 4d. Template / encounter resolution
   const templateRegistry = new TemplateRegistry();
   templateRegistry.loadDefaults();
@@ -387,6 +457,50 @@ async function main(): Promise<void> {
     activeCharacterScreen = screen;
     return screen;
   });
+
+  // Death screen — options are set dynamically before navigation
+  let pendingDeathOptions: DeathScreenOptions | null = null;
+  ui.registerScreen('death', () => {
+    const opts = pendingDeathOptions ?? {
+      characterName: 'Unknown',
+      causeOfDeath: 'Claimed by the darkness.',
+      level: 1,
+      timePlayed: '—',
+      enemiesDefeated: 0,
+    };
+    pendingDeathOptions = null;
+    return new DeathScreen(container, engine, opts);
+  });
+
+  /** Compute a formatted play-time string from the game state. */
+  function getTimePlayed(): string {
+    if (!activeGameState) return '—';
+    const cal = gameTimeToCalendar(activeGameState.world.time);
+    const days = cal.day - 1; // day 1 = start
+    if (days > 0) return `${days} day${days !== 1 ? 's' : ''}`;
+    const hours = cal.hour;
+    if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    return 'Moments';
+  }
+
+  /**
+   * Transition to the death screen. Cleans up combat state and navigates.
+   */
+  function transitionToDeathScreen(causeOfDeath: string): void {
+    const character = engine.entities.getAll<Character>('character')[0];
+    pendingDeathOptions = {
+      characterName: character?.name ?? 'Unknown',
+      causeOfDeath,
+      level: character?.level ?? 1,
+      timePlayed: getTimePlayed(),
+      enemiesDefeated: 0, // no persistent stat tracking yet
+    };
+    engine.events.emit({
+      type: 'ui:navigate',
+      category: 'ui',
+      data: { screen: 'death', direction: 'left' },
+    });
+  }
 
   // 8. Listen for navigation events
   engine.events.on('ui:navigate', (event) => {
@@ -1099,20 +1213,42 @@ async function main(): Promise<void> {
   let helpModal: Modal | null = null;
 
   function showContextHelp(): void {
-    const hints = buildKeyboardHints();
+    // Toggle existing modal if open
+    if (helpModal) {
+      helpModal.close();
+      helpModal = null;
+      return;
+    }
 
-    // On the game screen, use the built-in action panel toggle
-    if (activeGameScreen && (keyboardInput.getContext() === 'exploration' || keyboardInput.getContext() === 'combat' || keyboardInput.getContext() === 'worldmap')) {
+    const context = keyboardInput.getContext();
+
+    // On the game screen in exploration/worldmap, use the built-in action panel toggle
+    if (activeGameScreen && (context === 'exploration' || context === 'worldmap')) {
+      const hints = buildKeyboardHints();
       activeGameScreen.setKeyboardHints(hints);
       activeGameScreen.toggleHelp();
       return;
     }
 
-    // On other screens, toggle a Modal with keyboard hints
-    if (helpModal) {
-      helpModal.close();
-      helpModal = null;
-      return;
+    // Combat and all other screens: show a modal with full keyboard reference
+    const hints = buildKeyboardHints();
+
+    // In combat, enrich hints with bonus action info from current available actions
+    if (context === 'combat' && combatController.isActive()) {
+      const actions = combatController.getAvailableActions();
+      // Add Cast spell hint (not in static CONTEXT_HINTS)
+      hints.push({ key: 's', label: 'Cast Spell', available: true, category: 'action' });
+      // Add bonus actions
+      if (actions?.validBonusActions) {
+        for (let i = 0; i < actions.validBonusActions.length; i++) {
+          const ba = actions.validBonusActions[i];
+          hints.push({ key: String(i + 1), label: `${ba.name} (bonus)`, available: ba.enabled, category: 'action' });
+        }
+      }
+      // Add Action Surge if available
+      if (actions?.actionSurgeAvailable) {
+        hints.push({ key: 'x', label: 'Action Surge (free)', available: true, category: 'action' });
+      }
     }
 
     if (hints.length === 0) return;
@@ -1129,7 +1265,7 @@ async function main(): Promise<void> {
     for (const [cat, catHints] of Object.entries(groups)) {
       content.appendChild(el('div', { class: 'help-modal-category font-heading' }, [catLabels[cat] ?? cat]));
       for (const h of catHints) {
-        const row = el('div', { class: 'help-modal-row' });
+        const row = el('div', { class: `help-modal-row${h.available === false ? ' help-modal-row--dim' : ''}` });
         row.appendChild(el('kbd', { class: 'help-modal-key font-mono' }, [h.key]));
         row.appendChild(el('span', { class: 'help-modal-label' }, [h.label]));
         content.appendChild(row);
@@ -1137,7 +1273,7 @@ async function main(): Promise<void> {
     }
 
     helpModal = new Modal(document.body, engine, {
-      title: 'Keyboard Shortcuts',
+      title: context === 'combat' ? 'Combat Controls' : 'Keyboard Shortcuts',
       content,
       closable: true,
       width: '360px',
@@ -1252,6 +1388,8 @@ async function main(): Promise<void> {
     combatController.setDiceContainer(activeGameScreen.getCombatDiceContainer());
     activeGameScreen.enterCombatMode(grid, displays);
 
+    // NOTE: fog is revealed in combat:start handler (grid doesn't exist yet here)
+
     // Set up overlays on the grid canvas (correct coordinate space)
     const gridPanel = activeGameScreen.getGridPanel();
     const canvasContainer = gridPanel.getCanvasContainer();
@@ -1312,6 +1450,8 @@ async function main(): Promise<void> {
 
     // Now that entities are placed on the combat grid, push to the render layer
     refreshCombatEntities();
+    // Reveal fog from all combatant starting positions (grid exists now)
+    refreshCombatFog();
 
     // Center grid on player
     const character = engine.entities.getAll<Character>('character')[0];
@@ -1385,6 +1525,7 @@ async function main(): Promise<void> {
   // Refresh entity positions after movement
   engine.events.on('combat:move', () => {
     refreshCombatEntities();
+    refreshCombatFog();
   });
 
   // Entity defeated narrative
@@ -1398,6 +1539,43 @@ async function main(): Promise<void> {
       category: 'combat',
     });
     refreshCombatEntities();
+  });
+
+  // Concentration check narrative
+  engine.events.on('combat:concentration_check', (event) => {
+    if (!activeGameScreen) return;
+    const { spellName, dc, roll, success, isPlayer } = event.data as {
+      spellName: string;
+      dc: number;
+      roll: import('@/types').DiceRollResult;
+      success: boolean;
+      isPlayer: boolean;
+    };
+    if (isPlayer) {
+      const outcomeText = success
+        ? `Concentration holds! (${roll.total} vs DC ${dc})`
+        : `Concentration check failed! (${roll.total} vs DC ${dc})`;
+      activeGameScreen.addNarrative({
+        text: `Constitution save to maintain ${spellName}: ${outcomeText}`,
+        category: 'combat',
+      });
+    }
+  });
+
+  // Concentration broken narrative
+  engine.events.on('combat:concentration_broken', (event) => {
+    if (!activeGameScreen) return;
+    const { spellName, isPlayer } = event.data as {
+      entityId: string;
+      spellName: string;
+      isPlayer: boolean;
+    };
+    if (isPlayer) {
+      activeGameScreen.addNarrative({
+        text: `Your concentration on ${spellName} breaks!`,
+        category: 'combat',
+      });
+    }
   });
 
   // Combat ended — show summary modal, then clean up
@@ -1436,6 +1614,13 @@ async function main(): Promise<void> {
       healAmount = Math.ceil(character.maxHp * 0.1);
       character.currentHp = Math.min(character.maxHp, character.currentHp + healAmount);
     }
+
+    // Check for level-ups after XP award
+    const levelBefore = character.level;
+    if (result.victory) {
+      checkAndApplyLevelUps(character, activeGameScreen, levelUpRules);
+    }
+    const levelsGained = character.level - levelBefore;
 
     // Build summary modal content
     const content = el('div', { class: 'combat-summary' });
@@ -1481,6 +1666,14 @@ async function main(): Promise<void> {
       xpSection.appendChild(el('span', { class: 'combat-summary-xp-value' }, [`+${xpEarned} XP`]));
       content.appendChild(xpSection);
 
+      // Level Up
+      if (levelsGained > 0) {
+        const lvlSection = el('div', { class: 'combat-summary-section combat-summary-xp' });
+        lvlSection.appendChild(el('span', { class: 'combat-summary-xp-label' }, ['Level Up!']));
+        lvlSection.appendChild(el('span', { class: 'combat-summary-xp-value' }, [`Level ${character.level}`]));
+        content.appendChild(lvlSection);
+      }
+
       // Loot
       if (lootItems.length > 0) {
         const lootSection = el('div', { class: 'combat-summary-section' });
@@ -1516,13 +1709,19 @@ async function main(): Promise<void> {
       closable: false,
       width: '420px',
       actions: [{
-        label: result.victory ? 'Continue' : 'Press On',
+        label: result.victory ? 'Continue' : 'Accept Your Fate',
         variant: 'primary',
         onClick: () => {
           modal.close();
 
-          // Add narrative after modal dismissed
+          // Exit combat mode
+          activeGameScreen?.exitCombatMode();
+          if (keyboardInput.getContext() === 'combat') {
+            keyboardInput.popContext();
+          }
+
           if (result.victory) {
+            // Add narrative after modal dismissed
             activeGameScreen?.addNarrative({
               text: `Victory! The battle is won. You earn ${xpEarned} experience.`,
               category: 'action',
@@ -1533,16 +1732,31 @@ async function main(): Promise<void> {
                 category: 'system',
               });
             }
-          }
 
-          // Exit combat mode
-          activeGameScreen?.exitCombatMode();
-          if (keyboardInput.getContext() === 'combat') {
-            keyboardInput.popContext();
-          }
+            // Refresh character UI if level changed
+            if (levelsGained > 0) {
+              activeGameScreen?.setCharacter(character);
+            }
 
-          // Resume travel / trigger deferred onComplete callback
-          combatController.dismissCombatSummary();
+            // Resume travel / trigger deferred onComplete callback
+            combatController.dismissCombatSummary();
+          } else {
+            // Player died — build cause of death from enemies and transition
+            const uniqueEnemies = [...new Set(enemiesDefeated)];
+            let causeOfDeath: string;
+            if (uniqueEnemies.length === 1) {
+              causeOfDeath = `Slain by ${uniqueEnemies[0]} after ${result.rounds} round${result.rounds !== 1 ? 's' : ''} of desperate combat.`;
+            } else if (uniqueEnemies.length > 1) {
+              causeOfDeath = `Overwhelmed by ${uniqueEnemies.join(' and ')} after ${result.rounds} round${result.rounds !== 1 ? 's' : ''} of desperate combat.`;
+            } else {
+              causeOfDeath = `Fell in battle after ${result.rounds} round${result.rounds !== 1 ? 's' : ''} of combat.`;
+            }
+
+            // Dismiss combat so the pending travel callback fires (marking defeat)
+            combatController.dismissCombatSummary();
+
+            transitionToDeathScreen(causeOfDeath);
+          }
         },
       }],
     });
@@ -1565,6 +1779,7 @@ async function main(): Promise<void> {
     if (!actions.validMoveCells.has(`${dest.x},${dest.y}`)) return;
     combatController.playerMove([pos, dest]);
     refreshCombatEntities();
+    refreshCombatFog();
     updateCombatActionButtons();
   });
 
@@ -1915,18 +2130,65 @@ async function main(): Promise<void> {
   engine.events.on('input:combat_dash', () => {
     if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
     combatController.playerDash();
+    activeGameScreen?.addNarrative({ text: 'You dash forward, doubling your movement.', category: 'combat' });
     updateCombatActionButtons();
   });
 
   engine.events.on('input:combat_dodge', () => {
     if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
     combatController.playerDodge();
+    activeGameScreen?.addNarrative({ text: 'You take the Dodge action — attacks against you have disadvantage.', category: 'combat' });
     updateCombatActionButtons();
   });
 
   engine.events.on('input:combat_disengage', () => {
     if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
     combatController.playerDisengage();
+    activeGameScreen?.addNarrative({ text: 'You disengage — your movement won\'t provoke opportunity attacks.', category: 'combat' });
+    updateCombatActionButtons();
+  });
+
+  // Number keys 1-9 → resolve to bonus action by index
+  engine.events.on('input:combat_bonus_key', (e) => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    const { index } = e.data as { index: number };
+    const actions = combatController.getAvailableActions();
+    if (!actions?.validBonusActions || !actions.canBonusAction) return;
+    const ba = actions.validBonusActions[index];
+    if (!ba || !ba.enabled) return;
+    engine.events.emit({ type: 'input:combat_bonus_action', category: 'ui', data: { bonusActionId: ba.id } });
+  });
+
+  engine.events.on('input:combat_bonus_action', async (e) => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    const { bonusActionId } = e.data as { bonusActionId: string };
+    await combatController.playerBonusAction(bonusActionId);
+    const def = getBonusAction(bonusActionId);
+    if (def) {
+      // Rich narrative feedback per effect type
+      let text: string;
+      switch (def.effect.type) {
+        case 'heal':
+          text = `You channel your resolve — ${def.name} mends your wounds.`;
+          break;
+        case 'grant_action':
+          text = `You use ${def.name}.`;
+          break;
+        default:
+          text = `You use ${def.name}.`;
+      }
+      activeGameScreen?.addNarrative({ text, category: 'combat' });
+    }
+    updateCombatActionButtons();
+  });
+
+  engine.events.on('input:combat_action_surge', () => {
+    if (!combatController.isActive() || !combatManager.isPlayerTurn()) return;
+    combatController.playerActionSurge();
+    activeGameScreen?.addNarrative({
+      text: 'You surge with renewed vigor — an additional action courses through you!',
+      category: 'combat',
+    });
     updateCombatActionButtons();
   });
 
@@ -1947,6 +2209,9 @@ async function main(): Promise<void> {
     activeGameScreen.updateCombatEntities(placements, (id: string) => {
       const p = combatManager.getParticipant(id);
       if (!p) return undefined;
+      // Use actual grid placement size (Large=2, Huge=3, etc.)
+      const placement = placements.get(id);
+      const entitySize = placement?.size ?? 1;
       if (p.isPlayer && character) {
         return {
           name: character.name,
@@ -1956,7 +2221,7 @@ async function main(): Promise<void> {
           maxHp: p.stats.maxHp,
           isPlayer: true,
           isAlly: true,
-          size: 1,
+          size: entitySize,
           conditions: p.stats.conditions?.map((c: { type: string }) => c.type) ?? [],
           spriteId: character.class,
         };
@@ -1971,11 +2236,28 @@ async function main(): Promise<void> {
         maxHp: p.stats.maxHp,
         isPlayer: false,
         isAlly: p.isAlly,
-        size: 1,
+        size: entitySize,
         conditions: p.stats.conditions?.map((c: { type: string }) => c.type) ?? [],
         spriteId: p.npc?.templateId,
       };
     });
+  }
+
+  /** Update combat fog of war based on all combatant positions. */
+  function refreshCombatFog(): void {
+    if (!activeGameScreen || !combatController.isActive()) return;
+    const grid = combatManager.getGrid();
+    if (!grid) return;
+
+    const observers: { position: Coordinate; range: number }[] = [];
+    const placements = grid.getAllEntityPlacements();
+    for (const [id, placement] of placements) {
+      const p = combatManager.getParticipant(id);
+      if (!p) continue;
+      // All combatants reveal fog (player, allies, and enemies are all visible in combat)
+      observers.push({ position: placement.position, range: 30 });
+    }
+    activeGameScreen.updateCombatFog(observers);
   }
 
   /** Refresh the combat action button bar based on current available actions. */
@@ -1993,26 +2275,55 @@ async function main(): Promise<void> {
     });
     const spellEnabled = (actions.canAction && hasSpells) || (actions.canBonusAction && hasBonusSpells);
 
-    activeGameScreen.setCombatActions([
-      { label: 'Attack', key: 'a', enabled: actions.canAction && hasTargets, onClick: () => {
+    // Standard action buttons
+    const standardButtons = [
+      { label: 'Attack', key: 'a', group: 'actions', enabled: actions.canAction && hasTargets, isBonusAction: false, onClick: () => {
         engine.events.emit({ type: 'input:combat_attack', category: 'ui', data: {} });
       }},
-      { label: 'Cast', key: 's', enabled: spellEnabled, onClick: () => {
+      { label: 'Cast', key: 's', group: 'actions', enabled: spellEnabled, isBonusAction: false, onClick: () => {
         engine.events.emit({ type: 'input:combat_cast_spell', category: 'ui', data: {} });
       }},
-      { label: 'Dash', key: 'd', enabled: actions.canAction, onClick: () => {
+      { label: 'Dash', key: 'd', group: 'actions', enabled: actions.canAction, isBonusAction: false, onClick: () => {
         engine.events.emit({ type: 'input:combat_dash', category: 'ui', data: {} });
       }},
-      { label: 'Dodge', key: 'o', enabled: actions.canAction, onClick: () => {
+      { label: 'Dodge', key: 'o', group: 'actions', enabled: actions.canAction, isBonusAction: false, onClick: () => {
         engine.events.emit({ type: 'input:combat_dodge', category: 'ui', data: {} });
       }},
-      { label: 'Disengage', key: 'g', enabled: actions.canAction, onClick: () => {
+      { label: 'Disengage', key: 'g', group: 'actions', enabled: actions.canAction, isBonusAction: false, onClick: () => {
         engine.events.emit({ type: 'input:combat_disengage', category: 'ui', data: {} });
       }},
-      { label: 'End Turn', key: 'e', enabled: true, onClick: () => {
+    ];
+
+    // Class-feature bonus action buttons (dynamic per class)
+    const bonusButtons = actions.validBonusActions.map((ba, i) => ({
+      label: ba.name,
+      key: String(i + 1),
+      group: 'bonus',
+      enabled: ba.enabled && actions.canBonusAction,
+      isBonusAction: true,
+      onClick: () => {
+        engine.events.emit({ type: 'input:combat_bonus_action', category: 'ui', data: { bonusActionId: ba.id } });
+      },
+    }));
+
+    // Action Surge button (free action — not a bonus action, styled distinctly)
+    const surgeButtons: { label: string; key: string; group: string; enabled: boolean; isBonusAction: boolean; onClick: () => void }[] = [];
+    if (actions.actionSurgeAvailable) {
+      surgeButtons.push({
+        label: 'Action Surge', key: 'x', group: 'surge', enabled: true, isBonusAction: false, onClick: () => {
+          engine.events.emit({ type: 'input:combat_action_surge', category: 'ui', data: {} });
+        },
+      });
+    }
+
+    // End turn always last
+    const endButton = {
+      label: 'End Turn', key: 'e', group: 'end', enabled: true, isBonusAction: false, onClick: () => {
         engine.events.emit({ type: 'input:combat_end_turn', category: 'ui', data: {} });
-      }},
-    ]);
+      },
+    };
+
+    activeGameScreen.setCombatActions([...standardButtons, ...surgeButtons, ...bonusButtons, endButton]);
 
     // Update HUD turn state
     const hud = activeGameScreen.getCombatHUD();
@@ -2152,7 +2463,7 @@ async function main(): Promise<void> {
   // ── Rest Menu ──
   engine.events.on('input:rest', () => {
     if (!activeGameScreen || !activeGameState || !activeDice) return;
-    openRestMenu(engine, activeGameState, activeGameScreen, activeDice, saveManager, keyboardInput, explorationController);
+    openRestMenu(engine, activeGameState, activeGameScreen, activeDice, saveManager, keyboardInput, explorationController, levelUpRules);
   });
 
   // ── Torch depletion — tick down equipped torch charges as time passes ──
@@ -2796,12 +3107,8 @@ async function main(): Promise<void> {
           });
 
           if (!combatResult.victory) {
-            // Player died — break out of travel
-            // TODO: transition to DeathScreen
-            activeGameScreen.addNarrative({
-              text: 'Darkness takes you...',
-              category: 'action',
-            });
+            // Player died — break out of travel.
+            // Death screen transition is handled by the combat:encounter_ended modal.
             fastTravelCancelled = true;
             break;
           }
@@ -3057,6 +3364,45 @@ async function main(): Promise<void> {
   // 12c. Wire up Load Game from main menu
   engine.events.on('ui:modal:load', () => {
     openLoadModal(engine, saveManager);
+  });
+
+  // 12c-2. Wire up "Load Last Save" from death screen
+  engine.events.on('ui:action:load-save', () => {
+    saveManager
+      .loadMostRecent()
+      .then((result) => {
+        if (!result) {
+          // No save found — return to menu instead
+          engine.events.emit({
+            type: 'ui:navigate',
+            category: 'ui',
+            data: { screen: 'menu', direction: 'right' },
+          });
+          return;
+        }
+
+        engine.entities.clear();
+        for (const entityData of result.entities) {
+          engine.entities.add(entityData as unknown as Entity);
+        }
+        engine.entities.getAll<Character>('character').forEach(patchCharacterCompat);
+        activeGameState = result.state;
+
+        if (!activeDice) {
+          const rng = new SeededRNG(Date.now());
+          activeRng = rng;
+          activeDice = new DiceRoller(rng);
+        }
+
+        gamePopulated = false;
+
+        engine.events.emit({
+          type: 'ui:navigate',
+          category: 'ui',
+          data: { screen: 'game', direction: 'left' },
+        });
+      })
+      .catch((err) => console.error('Load from death screen failed:', err));
   });
 
   // 12d. Wire up Settings modal
@@ -3359,6 +3705,7 @@ function openRestMenu(
   saveManager: SaveManager,
   keyboardInput: KeyboardInput,
   explorationController: ExplorationController,
+  levelUpRules: LevelUpRules,
 ): void {
   const character = engine.entities.getAll<Character>('character')[0];
   if (!character) return;
@@ -3641,6 +3988,9 @@ function openRestMenu(
       narrativeParts.push('Your stomach growls — you had no proper provisions. The lack of sustenance takes its toll.');
     }
     gameScreen.addNarrative({ text: narrativeParts.join(' '), category: 'system' });
+
+    // Check for any pending level-ups (safety net in case XP was awarded but level-up was missed)
+    checkAndApplyLevelUps(character, gameScreen, levelUpRules);
 
     const transition = TimeNarrator.describeTimeTransition(timeBeforeRest, gameState.world.time);
     if (transition) {

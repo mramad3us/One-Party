@@ -1,7 +1,9 @@
 import type {
   ActionResult,
   AvailableActions,
+  BonusActionOption,
   CombatState,
+  ConditionType,
   Coordinate,
   CreatureStatBlock,
   EntityId,
@@ -14,7 +16,13 @@ import type {
 import { abilityModifier } from '@/utils/math';
 import { DiceRoller } from '@/rules/DiceRoller';
 import { CombatRules } from '@/rules/CombatRules';
-import { ConditionRules } from '@/rules/ConditionRules';
+import {
+  ConditionRules,
+  ATTACK_DISADVANTAGE_CONDITIONS,
+  ADVANTAGE_AGAINST_CONDITIONS,
+  DEX_SAVE_DISADVANTAGE_CONDITIONS,
+  STR_SAVE_DISADVANTAGE_CONDITIONS,
+} from '@/rules/ConditionRules';
 import { EventBus, type GameEvent } from '@/engine/EventBus';
 import { Grid } from '@/grid/Grid';
 import { Pathfinder } from '@/grid/Pathfinder';
@@ -23,6 +31,7 @@ import { TurnManager } from './TurnManager';
 import { TargetingSystem } from './TargetingSystem';
 import { CombatAI } from './CombatAI';
 import { getSpell } from '@/data/spells';
+import { CLASS_BONUS_ACTIONS, getBonusAction, type ClassBonusActionDef } from '@/data/bonusActions';
 
 /** Everything needed to add a participant to combat. */
 export interface CombatParticipant {
@@ -34,6 +43,8 @@ export interface CombatParticipant {
   equipment?: { weapons: Item[]; armor: Item[] };
   /** Optional NPC data for AI-controlled combatants */
   npc?: NPC;
+  /** Saving throw proficiencies (from Character — NPCs typically don't have these) */
+  savingThrowProficiencies?: string[];
 }
 
 /** Targeting info for spell casting. */
@@ -77,6 +88,9 @@ export class CombatManager {
   /** Lookup table: entityId -> participant data */
   private participants: Map<EntityId, CombatParticipant> = new Map();
   private casualties: EntityId[] = [];
+
+  /** Entities that have taken the Dodge action (lasts until the start of their next turn). */
+  private dodgingEntities: Set<EntityId> = new Set();
 
   /** When true, combat events are queued instead of emitted immediately. */
   deferEvents = false;
@@ -136,6 +150,7 @@ export class CombatManager {
     // Store participants
     this.participants.clear();
     this.casualties = [];
+    this.dodgingEntities.clear();
 
     for (const p of participants) {
       this.participants.set(p.entityId, p);
@@ -225,6 +240,7 @@ export class CombatManager {
     this.targeting = null;
     this.combatAI = null;
     this.initiative.reset();
+    this.dodgingEntities.clear();
 
     return result;
   }
@@ -278,6 +294,7 @@ export class CombatManager {
         validAttackTargets: [],
         validSpells: [],
         validMoveCells: new Set(),
+        validBonusActions: [],
       };
     }
 
@@ -302,15 +319,44 @@ export class CombatManager {
     // Calculate valid spells
     const validSpells = this.getValidSpellOptions(entityId, p);
 
+    // Resolve class-feature bonus actions from participant's features
+    const validBonusActions: BonusActionOption[] = [];
+    if (!turnState.bonusActionUsed) {
+      for (const feature of p.stats.features) {
+        const defs = CLASS_BONUS_ACTIONS.filter(ba => ba.featureId === feature.id);
+        for (const def of defs) {
+          const hasUses = def.usesPerRest < 0 || (feature.usesRemaining ?? 0) > 0;
+          validBonusActions.push({
+            id: def.id,
+            name: def.name,
+            description: def.description,
+            enabled: hasUses,
+            disabledReason: hasUses
+              ? undefined
+              : `Used (recharges on ${def.rechargeOn === 'shortRest' ? 'short' : 'long'} rest)`,
+          });
+        }
+      }
+    }
+
+    // canAction is true if action is unused OR if there are Extra Attack strikes remaining
+    const canAction = !turnState.actionUsed || (turnState.attacksUsed > 0 && turnState.attacksUsed < turnState.maxAttacks);
+
+    // Action Surge: available if the entity has the feature with uses remaining and action is already used
+    const actionSurgeFeature = p.stats.features.find(f => f.id === 'feature_action_surge');
+    const actionSurgeAvailable = !!(actionSurgeFeature && (actionSurgeFeature.usesRemaining ?? 0) > 0 && turnState.actionUsed);
+
     return {
       canMove: remaining > 0,
       remainingMovement: remaining,
-      canAction: !turnState.actionUsed,
+      canAction,
       canBonusAction: !turnState.bonusActionUsed,
       canReaction: !turnState.reactionUsed,
       validAttackTargets: attackTargets,
       validSpells,
       validMoveCells: new Set(reachable.keys()),
+      validBonusActions,
+      actionSurgeAvailable,
     };
   }
 
@@ -356,11 +402,14 @@ export class CombatManager {
     const p = this.participants.get(entityId);
     const target = this.participants.get(targetId);
 
-    if (!p || !target || !this.turnManager.canAction()) {
+    // Allow attack if action is available OR if there are Extra Attack strikes remaining
+    const canAttack = this.turnManager.canAction() || this.turnManager.hasAttacksRemaining();
+    if (!p || !target || !canAttack) {
       return this.failResult(entityId, 'attack', 'Cannot attack.');
     }
 
-    this.turnManager.useAction();
+    // Use one attack (only marks action used when all attacks are spent)
+    this.turnManager.useAttack();
 
     // Pick the best attack based on distance to target
     const dist = this.grid ? this.grid.getEntityDistance(entityId, targetId) : 5;
@@ -383,9 +432,18 @@ export class CombatManager {
 
     let result: ActionResult;
 
+    // Compute advantage/disadvantage from conditions (5e rules)
+    const isMelee = !attack?.rangeNormal || attack.rangeNormal === 0;
+    const { advantage: hasAdvantage, disadvantage: hasDisadvantage } =
+      this.computeAttackAdvantage(p, target, isMelee);
+
     if (attack) {
       // Use raw attack data from stat block
-      const rollResult = this.dice.rollD20({ modifier: attack.toHitBonus });
+      const rollResult = this.dice.rollD20({
+        modifier: attack.toHitBonus,
+        advantage: hasAdvantage,
+        disadvantage: hasDisadvantage,
+      });
       const ac = target.stats.armorClass;
       const hit = rollResult.isCritical || (!rollResult.isFumble && rollResult.total >= ac);
 
@@ -396,6 +454,12 @@ export class CombatManager {
         const dmgResult = this.combatRules.rollDamage(attack.damage, rollResult.isCritical);
         rolls.push(dmgResult);
         damage = Math.max(0, dmgResult.total);
+
+        // Sneak Attack: once per turn, finesse/ranged weapon, advantage or ally adjacent
+        const sneakDamage = this.applySneakAttack(entityId, targetId, p, attack, rollResult.isCritical, hasAdvantage);
+        if (sneakDamage > 0) {
+          damage += sneakDamage;
+        }
       }
 
       result = {
@@ -419,7 +483,11 @@ export class CombatManager {
       // Unarmed strike fallback
       const strMod = abilityModifier(p.stats.abilityScores.strength);
       const prof = Math.floor((p.stats.level - 1) / 4) + 2;
-      const rollResult = this.dice.rollD20({ modifier: strMod + prof });
+      const rollResult = this.dice.rollD20({
+        modifier: strMod + prof,
+        advantage: hasAdvantage,
+        disadvantage: hasDisadvantage,
+      });
       const ac = target.stats.armorClass;
       const hit = rollResult.isCritical || (!rollResult.isFumble && rollResult.total >= ac);
       const damage = hit ? Math.max(0, 1 + strMod) : 0;
@@ -480,6 +548,15 @@ export class CombatManager {
         Math.max(0, p.stats.spellcasting.spellSlots[slotLevel].current - 1);
     }
 
+    // Handle concentration: if the new spell requires concentration,
+    // break any existing concentration first, then set the new one
+    if (spell.duration.type === 'concentration' && p.stats.spellcasting) {
+      if (p.stats.spellcasting.concentration) {
+        this.breakConcentration(entityId);
+      }
+      p.stats.spellcasting.concentration = spellId;
+    }
+
     // Determine affected entities
     const affectedEntities: EntityId[] = [];
     if (targets.targetEntities) {
@@ -517,7 +594,15 @@ export class CombatManager {
       const saveEffect = spell.effects.find(e => e.savingThrow)!;
       const saveAbility = saveEffect.savingThrow!.ability;
       const targetMod = abilityModifier(primaryTarget.stats.abilityScores[saveAbility]);
-      const saveRoll = this.dice.rollD20({ modifier: targetMod });
+
+      // Compute advantage/disadvantage on the saving throw from conditions
+      const { advantage: saveAdv, disadvantage: saveDisadv } =
+        this.computeSaveAdvantage(primaryTarget, saveAbility);
+      const saveRoll = this.dice.rollD20({
+        modifier: targetMod,
+        advantage: saveAdv,
+        disadvantage: saveDisadv,
+      });
       rolls.push(saveRoll);
       const saved = saveRoll.total >= spellSaveDC;
 
@@ -552,7 +637,15 @@ export class CombatManager {
       // Spell attack roll (Fire Bolt, Ray of Frost, Scorching Ray)
       const attackBonus = castMod + prof;
       const ac = primaryTarget.stats.armorClass;
-      const attackRoll = this.dice.rollD20({ modifier: attackBonus });
+
+      // Compute advantage/disadvantage for spell attacks (same rules as weapon attacks)
+      const { advantage: spellAdv, disadvantage: spellDisadv } =
+        this.computeAttackAdvantage(p, primaryTarget, /* isMelee */ false);
+      const attackRoll = this.dice.rollD20({
+        modifier: attackBonus,
+        advantage: spellAdv,
+        disadvantage: spellDisadv,
+      });
       rolls.push(attackRoll);
       hit = attackRoll.isCritical || (!attackRoll.isFumble && attackRoll.total >= ac);
 
@@ -664,13 +757,15 @@ export class CombatManager {
 
     this.turnManager.useAction();
 
-    // TODO: Apply dodge status (advantage on Dex saves, attacks against have disadvantage)
+    // Track dodge status: attacks against this entity have disadvantage,
+    // and it has advantage on Dex saves. Lasts until start of its next turn.
+    this.dodgingEntities.add(entityId);
 
     const result: ActionResult = {
       success: true,
       type: 'dodge',
       actorId: entityId,
-      description: 'Takes the Dodge action.',
+      description: 'Takes the Dodge action. Attacks against have disadvantage, advantage on Dex saves.',
       rolls: [],
     };
 
@@ -702,6 +797,241 @@ export class CombatManager {
       type: 'combat:action',
       category: 'combat',
       data: { entityId, action: 'disengage' },
+    });
+
+    return result;
+  }
+
+  // ── Action Surge ────────────────────────────────────────────
+
+  /**
+   * Execute Action Surge: reset the action for this turn (granting an additional action).
+   * This is a free action, not a bonus action.
+   */
+  executeActionSurge(entityId: EntityId): ActionResult {
+    const p = this.participants.get(entityId);
+    if (!p) return this.failResult(entityId, 'class_feature', 'Cannot use Action Surge.');
+
+    const feature = p.stats.features.find(f => f.id === 'feature_action_surge');
+    if (!feature || (feature.usesRemaining ?? 0) <= 0) {
+      return this.failResult(entityId, 'class_feature', 'Action Surge already used.');
+    }
+
+    // Decrement uses on the combat participant's copy
+    feature.usesRemaining = (feature.usesRemaining ?? 0) - 1;
+
+    // Reset the action (and attack counter) — grants another full action
+    this.turnManager.resetAction();
+
+    const result: ActionResult = {
+      success: true,
+      type: 'class_feature',
+      actorId: entityId,
+      description: 'Action Surge! You push beyond your limits, gaining an additional action.',
+      rolls: [],
+    };
+
+    this.emitOrDefer({
+      type: 'combat:action',
+      category: 'combat',
+      data: { entityId, action: 'action_surge', result },
+    });
+
+    return result;
+  }
+
+  // ── Sneak Attack ───────────────────────────────────────────
+
+  /**
+   * Check and apply Sneak Attack damage if conditions are met.
+   * Returns the extra damage dealt (0 if conditions not met).
+   */
+  private applySneakAttack(
+    attackerId: EntityId,
+    targetId: EntityId,
+    attacker: CombatParticipant,
+    attack: { rangeNormal?: number; reach?: number },
+    isCritical: boolean,
+    hadAdvantage = false,
+  ): number {
+    // Must have sneak attack feature and not have used it this turn
+    const sneakFeature = attacker.stats.features.find(f => f.id === 'feature_sneak_attack');
+    if (!sneakFeature || this.turnManager.sneakAttackUsed) return 0;
+
+    // Check weapon: must be finesse or ranged
+    const isRanged = (attack.rangeNormal ?? 0) > 0;
+
+    // For melee attacks, check if the weapon is finesse by looking at participant equipment
+    let isFinesse = false;
+    if (attacker.equipment?.weapons) {
+      for (const weapon of attacker.equipment.weapons) {
+        if (weapon.itemType === 'weapon' && weapon.properties) {
+          const props = weapon.properties as { tags?: string[] };
+          if (props.tags?.includes('finesse')) {
+            isFinesse = true;
+            break;
+          }
+        }
+      }
+    }
+    // Entities with Sneak Attack typically use finesse weapons (rapier, dagger).
+    // When equipment data isn't available on the participant, assume melee attacks
+    // from sneak-attack-capable entities use finesse weapons.
+    if (!isFinesse && !isRanged) {
+      isFinesse = true;
+    }
+
+    if (!isRanged && !isFinesse) return 0;
+
+    // Check condition: advantage OR ally adjacent to target
+    const allies = this.getAlliesOf(attackerId);
+    let hasAdjacentAlly = false;
+    if (this.grid) {
+      for (const allyId of allies) {
+        const dist = this.grid.getEntityDistance(allyId, targetId);
+        if (dist <= 5) {
+          hasAdjacentAlly = true;
+          break;
+        }
+      }
+    }
+
+    // Per 5e: Sneak Attack triggers with advantage OR adjacent ally
+    if (!hasAdjacentAlly && !hadAdvantage) return 0;
+
+    // Calculate sneak attack dice: Math.ceil(level / 2) d6
+    const sneakDice = Math.ceil(attacker.stats.level / 2);
+    let sneakDamage = 0;
+    const diceCount = isCritical ? sneakDice * 2 : sneakDice;
+    for (let i = 0; i < diceCount; i++) {
+      sneakDamage += this.dice.roll(6);
+    }
+
+    this.turnManager.useSneakAttack();
+
+    this.emitOrDefer({
+      type: 'combat:action',
+      category: 'combat',
+      data: { entityId: attackerId, action: 'sneak_attack', sneakDamage, sneakDice },
+    });
+
+    return sneakDamage;
+  }
+
+  // ── Class-Feature Bonus Actions ─────────────────────────────
+
+  executeBonusAction(entityId: EntityId, bonusActionId: string): ActionResult {
+    const p = this.participants.get(entityId);
+    if (!p || !this.turnManager.canBonusAction()) {
+      return this.failResult(entityId, 'class_feature', 'No bonus action available.');
+    }
+
+    const def = getBonusAction(bonusActionId);
+    if (!def) return this.failResult(entityId, 'class_feature', 'Unknown bonus action.');
+
+    // Check limited uses
+    const feature = p.stats.features.find(f => f.id === def.featureId);
+    if (def.usesPerRest > 0) {
+      if (!feature || (feature.usesRemaining ?? 0) <= 0) {
+        return this.failResult(entityId, 'class_feature', `${def.name} already used.`);
+      }
+    }
+
+    // Consume the use (if limited)
+    if (def.usesPerRest > 0 && feature) {
+      feature.usesRemaining = (feature.usesRemaining ?? 0) - 1;
+    }
+
+    // Execute effect
+    switch (def.effect.type) {
+      case 'heal':
+        return this.executeBonusHeal(entityId, def, p);
+      case 'grant_action':
+        return this.executeBonusGrantAction(entityId, def);
+    }
+  }
+
+  private executeBonusHeal(
+    entityId: EntityId,
+    def: ClassBonusActionDef,
+    p: CombatParticipant,
+  ): ActionResult {
+    this.turnManager.useBonusAction();
+
+    const eff = def.effect as import('@/data/bonusActions').HealEffect;
+    const bonus = eff.bonusPerLevel ? p.stats.level : 0;
+    const die = eff.dice.die;
+    const rolls = this.dice.rollMultiple(eff.dice.count, die);
+    const total = rolls.reduce((s, r) => s + r, 0) + bonus;
+    const healing = Math.max(0, total);
+
+    const oldHp = p.stats.currentHp;
+    p.stats.currentHp = Math.min(p.stats.maxHp, p.stats.currentHp + healing);
+    const actualHealing = p.stats.currentHp - oldHp;
+
+    const rollResult: import('@/types').DiceRollResult = {
+      total: healing,
+      rolls,
+      modifier: bonus,
+      isCritical: false,
+      isFumble: false,
+      advantage: false,
+      disadvantage: false,
+      description: `${eff.dice.count}d${die}(${rolls.join('+')})${bonus ? `+${bonus}` : ''} = ${healing} healing`,
+      dieType: die,
+    };
+
+    const result: ActionResult = {
+      success: true,
+      type: 'class_feature',
+      actorId: entityId,
+      healing: actualHealing,
+      description: `${def.name} restores ${actualHealing} hit points!`,
+      rolls: [rollResult],
+    };
+
+    this.emitOrDefer({
+      type: 'combat:bonus_action',
+      category: 'combat',
+      data: { entityId, bonusActionId: def.id, result },
+    });
+
+    return result;
+  }
+
+  private executeBonusGrantAction(
+    entityId: EntityId,
+    def: ClassBonusActionDef,
+  ): ActionResult {
+    const eff = def.effect as { type: 'grant_action'; grantedAction: string };
+
+    switch (eff.grantedAction) {
+      case 'dash':
+        this.turnManager.bonusDash();
+        break;
+      case 'disengage':
+        this.turnManager.bonusDisengage();
+        break;
+      case 'hide':
+        // Consume bonus action; hide condition is a stub for now
+        this.turnManager.useBonusAction();
+        break;
+      default:
+        this.turnManager.useBonusAction();
+    }
+
+    const result: ActionResult = {
+      success: true,
+      type: 'class_feature',
+      actorId: entityId,
+      description: def.description,
+      rolls: [],
+    };
+
+    this.emitOrDefer({
+      type: 'combat:bonus_action',
+      category: 'combat',
+      data: { entityId, bonusActionId: def.id, result },
     });
 
     return result;
@@ -1052,6 +1382,14 @@ export class CombatManager {
     }
 
     this.turnManager.startTurn(current.entityId, speed);
+
+    // Dodge expires at the start of the dodging creature's next turn
+    this.dodgingEntities.delete(current.entityId);
+
+    // Set max attacks based on Extra Attack feature
+    const hasExtraAttack = p.stats.features.some(f => f.id === 'feature_extra_attack');
+    this.turnManager.setMaxAttacks(hasExtraAttack ? 2 : 1);
+
     this.applyStartOfTurnEffects(current.entityId);
 
     this.state.phase = 'turn_active';
@@ -1089,10 +1427,21 @@ export class CombatManager {
       category: 'combat',
       data: { targetId, damage, damageType, remainingHp: newHp },
     });
+
+    // Concentration check: if the damaged entity is concentrating, they must save
+    if (newHp > 0) {
+      this.checkConcentrationOnDamage(targetId, damage);
+    }
   }
 
   private handleDeath(entityId: EntityId): void {
     if (this.casualties.includes(entityId)) return;
+
+    // Break concentration on death
+    this.breakConcentration(entityId);
+    // Clear dodge status on death
+    this.dodgingEntities.delete(entityId);
+
     this.casualties.push(entityId);
 
     // Remove from grid
@@ -1104,6 +1453,86 @@ export class CombatManager {
       category: 'combat',
       data: { entityId },
     });
+  }
+
+  /**
+   * Break concentration for a participant.
+   * Clears the concentration spell, emits an event, and removes any
+   * spell-applied conditions that were sourced from the concentration spell.
+   */
+  private breakConcentration(entityId: EntityId): void {
+    const p = this.participants.get(entityId);
+    if (!p || !p.stats.spellcasting?.concentration) return;
+
+    const spellId = p.stats.spellcasting.concentration;
+    const spell = getSpell(spellId);
+    const spellName = spell?.name ?? spellId;
+
+    p.stats.spellcasting.concentration = null;
+
+    // Remove any conditions applied by this concentration spell
+    // (e.g. Shield of Faith applies an AC buff tracked as a condition)
+    if (spell) {
+      for (const effect of spell.effects) {
+        if (effect.condition) {
+          // Remove the condition from all participants that have it sourced from this caster
+          for (const [, target] of this.participants) {
+            const condIdx = target.stats.conditions.findIndex(
+              c => c.type === effect.condition && c.source === entityId,
+            );
+            if (condIdx !== -1) {
+              target.stats.conditions.splice(condIdx, 1);
+            }
+          }
+        }
+      }
+    }
+
+    this.emitOrDefer({
+      type: 'combat:concentration_broken',
+      category: 'combat',
+      data: { entityId, spellId, spellName, isPlayer: p.isPlayer },
+    });
+  }
+
+  /**
+   * Roll a Constitution saving throw to maintain concentration after taking damage.
+   * DC = max(10, floor(damage / 2)) per 5e rules.
+   */
+  private checkConcentrationOnDamage(entityId: EntityId, damage: number): void {
+    const p = this.participants.get(entityId);
+    if (!p || !p.stats.spellcasting?.concentration) return;
+
+    const dc = Math.max(10, Math.floor(damage / 2));
+    const conMod = abilityModifier(p.stats.abilityScores.constitution);
+
+    // Check if this participant is proficient in CON saves
+    const hasProficiency = p.savingThrowProficiencies?.includes('constitution') ?? false;
+    const prof = hasProficiency ? Math.floor((p.stats.level - 1) / 4) + 2 : 0;
+    const totalMod = conMod + prof;
+
+    const { result, success } = this.dice.rollCheck(totalMod, dc);
+
+    const spellId = p.stats.spellcasting.concentration;
+    const spell = getSpell(spellId);
+    const spellName = spell?.name ?? spellId;
+
+    this.emitOrDefer({
+      type: 'combat:concentration_check',
+      category: 'combat',
+      data: {
+        entityId,
+        spellName,
+        dc,
+        roll: result,
+        success,
+        isPlayer: p.isPlayer,
+      },
+    });
+
+    if (!success) {
+      this.breakConcentration(entityId);
+    }
   }
 
   private getEnemiesOf(entityId: EntityId): EntityId[] {
@@ -1280,6 +1709,112 @@ export class CombatManager {
       16: 15000, 17: 18000, 18: 20000, 19: 22000, 20: 25000,
     };
     return xpTable[level] ?? level * 1000;
+  }
+
+  /**
+   * Check if a participant has a specific condition by inspecting its stat block.
+   */
+  private participantHasCondition(p: CombatParticipant, condition: ConditionType): boolean {
+    return p.stats.conditions.some(c => c.type === condition);
+  }
+
+  /**
+   * Compute whether an attack roll has advantage and/or disadvantage
+   * based on attacker/target conditions and dodge status (5e rules).
+   *
+   * Per 5e: if you have any source of advantage AND any source of disadvantage,
+   * they cancel out completely (straight roll), regardless of how many of each.
+   * The DiceRoller.rollD20() already handles this cancellation.
+   */
+  private computeAttackAdvantage(
+    attacker: CombatParticipant,
+    target: CombatParticipant,
+    isMelee: boolean,
+  ): { advantage: boolean; disadvantage: boolean } {
+    let advantage = false;
+    let disadvantage = false;
+
+    // --- Sources of ADVANTAGE for the attacker ---
+
+    // Target has a condition that grants attackers advantage
+    for (const cond of ADVANTAGE_AGAINST_CONDITIONS) {
+      if (this.participantHasCondition(target, cond)) {
+        advantage = true;
+        break;
+      }
+    }
+
+    // Target is prone and attacker is within melee range (5e: melee attacks
+    // against prone targets have advantage)
+    if (isMelee && this.participantHasCondition(target, 'prone')) {
+      advantage = true;
+    }
+
+    // Attacker is invisible (grants advantage on attacks)
+    if (this.participantHasCondition(attacker, 'invisible')) {
+      advantage = true;
+    }
+
+    // --- Sources of DISADVANTAGE for the attacker ---
+
+    // Attacker has a condition that imposes disadvantage on its own attacks
+    for (const cond of ATTACK_DISADVANTAGE_CONDITIONS) {
+      if (this.participantHasCondition(attacker, cond)) {
+        disadvantage = true;
+        break;
+      }
+    }
+
+    // Target has Dodge action active — attacks against them have disadvantage
+    if (this.dodgingEntities.has(target.entityId)) {
+      disadvantage = true;
+    }
+
+    // Ranged attack against prone target has disadvantage
+    if (!isMelee && this.participantHasCondition(target, 'prone')) {
+      disadvantage = true;
+    }
+
+    return { advantage, disadvantage };
+  }
+
+  /**
+   * Compute whether a saving throw has advantage/disadvantage
+   * based on the entity's conditions and dodge status (5e rules).
+   */
+  private computeSaveAdvantage(
+    participant: CombatParticipant,
+    saveAbility: string,
+  ): { advantage: boolean; disadvantage: boolean } {
+    let advantage = false;
+    let disadvantage = false;
+
+    // Dodge grants advantage on Dex saves
+    if (saveAbility === 'dexterity' && this.dodgingEntities.has(participant.entityId)) {
+      advantage = true;
+    }
+
+    // Conditions that impose disadvantage on Dex saves
+    if (saveAbility === 'dexterity') {
+      for (const cond of DEX_SAVE_DISADVANTAGE_CONDITIONS) {
+        if (this.participantHasCondition(participant, cond)) {
+          disadvantage = true;
+          break;
+        }
+      }
+    }
+
+    // Conditions that impose disadvantage on Str saves
+    if (saveAbility === 'strength') {
+      for (const cond of STR_SAVE_DISADVANTAGE_CONDITIONS) {
+        if (this.participantHasCondition(participant, cond)) {
+          disadvantage = true;
+          break;
+        }
+      }
+    }
+
+    return { advantage, disadvantage };
   }
 
   private failResult(entityId: EntityId, type: ActionResult['type'], description: string): ActionResult {

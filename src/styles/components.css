@@ -558,6 +558,10 @@
   font-size: var(--text-sm);
 }
 
+.help-modal-row--dim {
+  opacity: 0.35;
+}
+
 /* ── Keyboard Focus Indicator ── */
 .kbd-focus {
   outline: 1px solid rgba(255, 255, 255, 0.2) !important;
