@@ -95,6 +95,11 @@ export class GridPanel extends Component {
     this.renderer?.centerOn(position);
   }
 
+  /** Set map dimensions so small maps are centered in the viewport. */
+  setMapSize(width: number, height: number): void {
+    this.renderer?.setMapSize(width, height);
+  }
+
   /** Convert grid coordinate to screen-space center of that cell (relative to canvas). */
   gridToScreenCenter(coord: Coordinate): { x: number; y: number } | null {
     return this.renderer?.gridToScreenCenter(coord) ?? null;

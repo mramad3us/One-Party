@@ -688,9 +688,7 @@ export class CombatManager {
       return this.failResult(entityId, 'disengage', 'No action available.');
     }
 
-    this.turnManager.useAction();
-    // Disengage flag prevents opportunity attacks for this turn
-    // (handled in movement processing)
+    this.turnManager.disengage();
 
     const result: ActionResult = {
       success: true,
@@ -948,7 +946,9 @@ export class CombatManager {
     const results: ActionResult[] = [];
     if (!this.targeting) return results;
 
-    // TODO: Check disengage status
+    // Disengage prevents opportunity attacks for this turn
+    if (this.turnManager.disengaged) return results;
+
     const enemies = this.getEnemiesOf(entityId);
     const triggers = this.targeting.leavesThreatenedArea(entityId, path, enemies);
 

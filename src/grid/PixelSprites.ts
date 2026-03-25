@@ -15,47 +15,47 @@ interface SpriteDefinition {
 
 const FIGHTER: SpriteDefinition = {
   palette: {
-    // Steel armor (4 shades)
-    A: '#d0d8e4', // bright steel highlight
-    a: '#a0aab8', // mid steel
-    B: '#707880', // dark steel
-    b: '#484e56', // deepest steel shadow
+    // Steel armor (4 shades — top-left lit)
+    A: '#dce4f0', // steel highlight (top-left faces)
+    a: '#a8b8cc', // steel mid-light
+    B: '#7888a0', // steel mid-shadow
+    b: '#4c5868', // steel deep shadow (bottom-right faces)
     // Gold trim (3 shades)
-    G: '#f0d060', // bright gold
-    g: '#c4a030', // mid gold
-    Y: '#8a7020', // dark gold
-    // Blue cape/plume
-    C: '#4488dd', // bright blue
-    c: '#2860a8', // mid blue
-    U: '#1a3870', // dark blue
-    // Skin
-    S: '#e8c8a0', // skin light
-    s: '#c0a070', // skin shadow
-    // Sword
-    W: '#e8eef8', // blade highlight
-    w: '#b0b8c8', // blade body
-    // Brown leather
-    L: '#8a6840', // boot/belt
-    l: '#5a4428', // dark leather
+    G: '#f8d868', // gold highlight
+    g: '#c8a838', // gold mid
+    Y: '#907828', // gold shadow
+    // Blue cape (3 shades)
+    C: '#58a0e8', // cape highlight
+    c: '#3070b8', // cape mid
+    U: '#1c4878', // cape deep
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Sword blade (2 shades)
+    W: '#f0f4ff', // blade edge highlight
+    w: '#c0ccdc', // blade flat
+    // Leather (2 shades)
+    L: '#988058', // boot lit
+    l: '#604830', // boot shadow
     // Eyes
-    E: '#182030', // dark eye
+    E: '#1c2838', // dark eye
     // Hair
-    H: '#c8a860', // hair
+    H: '#d0b068', // sandy hair
   },
   pixels: [
-    '......cCCc......',
-    '.....cCCCCc.....',
-    '....bBaAaBb.....',
-    '....BaSESaB.....',
-    '.....sHSHs......',
-    '....YgGaGgY.....',
-    '...bBaAaAaBb....',
-    '..Ww.aAAAAa.Cc..',
-    '..Ww.BaGaBB.cc..',
-    '...w.bBaBBb.Uc..',
-    '.....BaLaBB.....',
-    '....bBa.aBb.....',
-    '....Ba...aB.....',
+    '.....ccCCcc.....',
+    '....cCCCCCCc....',
+    '....bBAAaABb....',
+    '....BAASEsAb....',
+    '.....sHSHSs.....',
+    '....YgGGGGgY....',
+    '...bBAAaAAaBb...',
+    '.WwbBAAAAaaBCc..',
+    '.Ww.BAGGAaBbcc..',
+    '..w.bBaAaBb.Uc..',
+    '.....BAaABb.....',
+    '....bBA.ABb.....',
+    '....bBa..ab.....',
     '....lL...Ll.....',
     '....lL...Ll.....',
     '................',
@@ -64,94 +64,94 @@ const FIGHTER: SpriteDefinition = {
 
 const WIZARD: SpriteDefinition = {
   palette: {
-    // Purple robes (4 shades)
-    P: '#9966ee', // bright purple
-    p: '#6644bb', // mid purple
-    Q: '#442288', // dark purple
-    q: '#2a1460', // deepest purple shadow
-    // Hat
-    H: '#7755cc', // hat mid
-    h: '#5533aa', // hat dark
-    J: '#3a2280', // hat darkest
-    // Gold/arcane trim
-    G: '#f0d060', // gold bright
-    g: '#c4a030', // gold mid
-    // Skin
-    S: '#e8c8a0', // skin
-    s: '#c0a070', // skin shadow
-    // Beard
-    W: '#e8e0e8', // white beard
-    w: '#c0b8c0', // gray beard
-    // Orb glow (3 shades)
-    O: '#88ffff', // bright orb
-    o: '#44ddee', // mid orb
-    V: '#2299aa', // dark orb
-    // Staff wood
-    T: '#a07840', // wood light
-    t: '#6a5030', // wood dark
+    // Purple robes (4 shades — deep, saturated)
+    P: '#aa77ff', // robe highlight
+    p: '#7744cc', // robe mid
+    Q: '#4c2299', // robe shadow
+    q: '#2e1468', // robe deepest
+    // Hat (3 shades)
+    H: '#8866dd', // hat highlight
+    h: '#5544aa', // hat mid
+    J: '#382280', // hat dark
+    // Gold arcane trim (2 shades)
+    G: '#f8d868', // gold bright
+    g: '#c8a838', // gold mid
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // White beard (2 shades)
+    W: '#f0e8f0', // beard bright
+    w: '#c8c0cc', // beard shadow
+    // Arcane orb (3 shades — cyan glow)
+    O: '#88ffff', // orb core
+    o: '#44ddee', // orb mid
+    V: '#2299aa', // orb edge
+    // Staff (2 shades)
+    T: '#a88050', // wood lit
+    t: '#6a5038', // wood shadow
     // Eyes
-    E: '#182030',
+    E: '#1c2838', // dark eye
   },
   pixels: [
-    '.......H........',
-    '......HhH.......',
+    '......HHH.......',
     '.....HhhhH......',
     '....JhHHHhJ.....',
-    '....JhHHHhJ.....',
+    '....JhhHhhJ.....',
+    '...JJhGGhJJ....',
     '.....sSESs......',
-    '.....sWwWs......',
-    '......gPg.......',
-    '..Oo.pPPPp......',
-    '..Vt.QPGPQ......',
-    '..tT.qPPPq......',
-    '....qQPPPQq.....',
-    '....qqPPPqq.....',
-    '.....qp.pq......',
-    '.....qp.pq......',
+    '.....sWWWs......',
+    '.....gPPPg......',
+    '..Oo.PPPPPp.....',
+    '..Vt.pPGPPp.....',
+    '..tT.QPPPPQq....',
+    '...T.qPPPPq.....',
+    '....qQPPPPQq....',
+    '.....qpp.ppq....',
+    '.....qp...pq....',
     '................',
   ],
 };
 
 const ROGUE: SpriteDefinition = {
   palette: {
-    // Dark leather/cloak (4 shades)
-    D: '#686878', // cloak highlight
-    d: '#484858', // cloak mid
-    F: '#303040', // cloak dark
-    f: '#1e1e2a', // cloak deepest
-    // Skin
-    S: '#e0c098', // skin
+    // Dark cloak (4 shades)
+    D: '#707888', // cloak highlight
+    d: '#505868', // cloak mid
+    F: '#343848', // cloak dark
+    f: '#202430', // cloak deepest
+    // Skin (2 shades)
+    S: '#e8c8a0', // skin lit
     s: '#b89868', // skin shadow
-    // Daggers
-    K: '#d0d8e0', // blade bright
-    k: '#a0a8b0', // blade dim
-    // Green accent
-    G: '#55aa66', // green bright
-    g: '#337744', // green dark
-    // Red scarf
-    R: '#cc4444', // red bright
-    r: '#8a2828', // red dark
+    // Dagger blades (2 shades)
+    K: '#d8e0ec', // blade highlight
+    k: '#a0a8b8', // blade shadow
+    // Green poison vials (2 shades)
+    G: '#58c070', // green bright
+    g: '#388848', // green dark
+    // Red scarf (2 shades)
+    R: '#d84848', // red bright
+    r: '#982828', // red dark
     // Belt
-    B: '#3a3030', // belt
-    // Leather boots
-    L: '#6a5038', // boot
-    l: '#443020', // boot dark
+    B: '#3c3030', // dark belt
+    // Leather boots (2 shades)
+    L: '#786048', // boot lit
+    l: '#483828', // boot shadow
     // Eyes
-    E: '#182030',
+    E: '#1c2838', // dark eye
     // Hood shadow
-    H: '#252530',
+    H: '#282830', // deep hood shadow
   },
   pixels: [
     '................',
-    '......fFf.......',
-    '.....FdDdF......',
+    '.....ffFff......',
+    '....FddDddF.....',
     '....FdDDDdF.....',
-    '....HsSESsH.....',
-    '.....sRrRs......',
-    '.....dDDDd......',
-    '..Kk.DDDDD......',
-    '..kK.dDgDd.Kk...',
-    '.....FdBdF......',
+    '...HHsSESsHH....',
+    '.....sRrRRs.....',
+    '....fdDDDDdf....',
+    '.Kk.dDDDDDd.....',
+    '.kK.dDDgDDd.Kk..',
+    '....FdDBDdF.kK..',
     '....fdD.Ddf.....',
     '....fDL.LDf.....',
     '.....dL.Ld......',
@@ -164,48 +164,49 @@ const ROGUE: SpriteDefinition = {
 const CLERIC: SpriteDefinition = {
   palette: {
     // White/cream robes (4 shades)
-    W: '#f0e8d8', // bright white
-    w: '#d0c8b8', // mid cream
-    X: '#b0a898', // dark cream
-    x: '#888078', // deepest shadow
+    W: '#f4ecd8', // robe highlight
+    w: '#d8d0c0', // robe mid-light
+    X: '#b8b0a0', // robe shadow
+    x: '#908878', // robe deepest
     // Red tabard (3 shades)
-    R: '#dd4444', // red bright
-    r: '#aa2828', // red mid
-    Q: '#701818', // red dark
-    // Gold holy symbol
-    G: '#f0d060', // gold bright
-    g: '#c4a030', // gold mid
-    Y: '#8a7020', // gold dark
-    // Skin
-    S: '#e8c8a0', // skin
-    s: '#c0a070', // skin shadow
-    // Mace
-    M: '#c0c0c8', // mace head bright
-    m: '#808088', // mace head dark
-    T: '#8a6a40', // handle
+    R: '#e04848', // red highlight
+    r: '#b82828', // red mid
+    Q: '#781818', // red deep
+    // Gold holy symbol (3 shades)
+    G: '#f8d868', // gold highlight
+    g: '#c8a838', // gold mid
+    Y: '#907828', // gold shadow
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Mace (2 shades + handle)
+    M: '#c8c8d0', // mace head bright
+    m: '#8888a0', // mace head shadow
+    T: '#907048', // handle wood
     // Hair
-    H: '#a07848', // brown hair
+    H: '#a88050', // warm brown hair
     // Eyes
-    E: '#182030',
-    // Armor boots
-    A: '#909098', // gray armor
+    E: '#1c2838', // dark eye
+    // Armor boots (2 shades)
+    A: '#a0a0a8', // boot armor lit
+    a: '#686878', // boot armor shadow
   },
   pixels: [
     '................',
-    '.....GgGgG......',
-    '.....HHHHH......',
+    '.....GgYgG......',
+    '....xHHHHHx.....',
     '....xwWWWwx.....',
     '....xsSESsx.....',
     '.....sSSSs......',
-    '......GWG.......',
-    '..Mm.wRrRw......',
-    '..mT.WRrRW......',
-    '..T..XRgRX......',
-    '....xWRrRWx.....',
-    '....xXWWWXx.....',
-    '.....xw.wx......',
-    '.....AA.AA......',
-    '.....AA.AA......',
+    '.....gGWGg......',
+    '..Mm.wRRrRw.....',
+    '..mT.WRRrRWx....',
+    '..T..XRgRRXx....',
+    '....xWRrRRWx....',
+    '....xXWWWWXx....',
+    '.....xww.wwx....',
+    '.....Aa..aA.....',
+    '.....Aa..aA.....',
     '................',
   ],
 };
@@ -215,43 +216,43 @@ const CLERIC: SpriteDefinition = {
 const GOBLIN: SpriteDefinition = {
   palette: {
     // Green skin (4 shades)
-    G: '#77cc66', // bright green
-    g: '#55aa44', // mid green
-    N: '#338822', // dark green
-    n: '#1a5510', // deepest green
-    // Eyes
-    E: '#ff4444', // red eyes
-    e: '#cc2222', // red dark
+    G: '#80d870', // skin highlight
+    g: '#58b848', // skin mid
+    N: '#389030', // skin shadow
+    n: '#206818', // skin deepest
+    // Eyes (2 shades)
+    E: '#ff4848', // eye bright
+    e: '#cc2828', // eye dark
     // Teeth
-    T: '#ffffcc', // bright teeth
-    // Weapon
-    W: '#b0b0b0', // weapon bright
-    w: '#787878', // weapon dark
-    // Leather armor
-    L: '#8a6a40', // leather bright
-    l: '#5a4428', // leather dark
+    T: '#ffffd0', // teeth
+    // Weapon (2 shades)
+    W: '#b8b8b8', // blade bright
+    w: '#808080', // blade dark
+    // Leather (2 shades)
+    L: '#988858', // leather lit
+    l: '#604830', // leather shadow
     // Ears
-    R: '#66bb55', // ear color
+    R: '#70cc60', // ear inner
     // Nose
-    O: '#449933', // nose
+    O: '#48a838', // nose bridge
     // Loincloth
-    C: '#664422', // cloth
+    C: '#704828', // cloth
   },
   pixels: [
     '................',
     '................',
-    '...R.....R......',
-    '...RnNGNnR......',
-    '....gGEEGg......',
-    '....GGOGG.......',
-    '....NgTgN.......',
-    '.....gGg........',
-    '..Ww.lLl........',
-    '..wW.gGGg.......',
-    '.....NlLN.......',
-    '.....NgCgN......',
-    '.....Ng.gN......',
-    '.....nC.Cn......',
+    '..Rr.....rR.....',
+    '..RrnNGGNnrR....',
+    '....gGEeEGg.....',
+    '....GGOOGGg.....',
+    '....NgTTgNg.....',
+    '.....gGGg.......',
+    '..Ww.lLLLl......',
+    '..wW.gGGGGg.....',
+    '.....NlLLlN.....',
+    '.....NgCCgN.....',
+    '.....Ng..gN.....',
+    '.....nC..Cn.....',
     '................',
     '................',
   ],
@@ -260,37 +261,37 @@ const GOBLIN: SpriteDefinition = {
 const SKELETON: SpriteDefinition = {
   palette: {
     // Bone (4 shades)
-    B: '#f0e8d8', // bright bone
-    b: '#d0c8b0', // mid bone
-    C: '#a09880', // dark bone
-    c: '#706858', // deepest bone shadow
+    B: '#f0e8d8', // bone highlight
+    b: '#d0c8b0', // bone mid
+    C: '#a89880', // bone shadow
+    c: '#786858', // bone deepest
     // Green glow eyes
-    E: '#66ff66', // bright glow
-    e: '#44cc44', // glow edge
-    // Dark void (ribs, mouth)
-    D: '#0a0a0a', // void
-    // Weapon
-    W: '#c0c8d0', // blade bright
-    w: '#8890a0', // blade dark
-    // Shield/armor scraps
-    R: '#887060', // rusted metal
-    // Rib detail
-    V: '#c8c0a8', // rib mid
+    E: '#68ff68', // eye glow bright
+    e: '#48cc48', // eye glow dim
+    // Dark void
+    D: '#101010', // void/gaps
+    // Weapon (2 shades)
+    W: '#c8d0d8', // blade highlight
+    w: '#8890a0', // blade shadow
+    // Rusty scraps
+    R: '#907060', // rust
+    // Rib texture
+    V: '#d0c8b0', // rib detail
   },
   pixels: [
     '................',
+    '....ccBBBcc.....',
+    '....cBBBBBc.....',
+    '....CBEDEBc.....',
+    '....cBBDBBc.....',
     '.....cBBBc......',
-    '....cBBBBBc.....',
-    '....CBEDEBB.....',
-    '....cBBBBBc.....',
-    '.....cbBbc......',
     '....cVBDBVc.....',
-    '..Ww.VBDBV......',
+    '..Ww.VBDBVc....',
     '..wW.cBDBc......',
-    '.....cbBbc......',
+    '.....cBBBc......',
     '......bBb.......',
     '.....cB.Bc......',
-    '.....c...c......',
+    '.....cb.bc......',
     '.....c...c......',
     '.....c...c......',
     '................',
@@ -300,41 +301,41 @@ const SKELETON: SpriteDefinition = {
 const WOLF: SpriteDefinition = {
   palette: {
     // Gray fur (4 shades)
-    F: '#b0b0b0', // bright fur
-    f: '#888888', // mid fur
-    G: '#606060', // dark fur
-    g: '#404040', // deepest fur
-    // White belly/chest
-    W: '#d8d8d8', // white bright
-    w: '#b8b8b8', // white dim
+    F: '#b8b8b8', // fur highlight
+    f: '#909090', // fur mid
+    G: '#686868', // fur shadow
+    g: '#484848', // fur deepest
+    // White belly (2 shades)
+    W: '#e0e0e0', // belly bright
+    w: '#c0c0c0', // belly dim
     // Eyes
-    E: '#ffbb00', // amber eye
+    E: '#ffc800', // amber eye
     // Nose
-    N: '#1a1a1a', // nose
+    N: '#1c1c1c', // nose black
     // Teeth
-    T: '#f0f0f0', // teeth
-    // Tail
-    A: '#909090', // tail mid
-    a: '#707070', // tail dark
+    T: '#f8f8f8', // teeth white
+    // Tail (2 shades)
+    A: '#989898', // tail lit
+    a: '#707070', // tail shadow
     // Paws
-    P: '#787878', // paw
+    P: '#808080', // paw
     // Inner ear
-    R: '#cc8888', // ear pink
+    R: '#d09090', // ear pink
   },
   pixels: [
     '................',
     '................',
     '................',
     '....gR..Rg......',
-    '...gFFf.fFFa....',
-    '...FEFN.FEFAa...',
-    '...FFTTTTFF.a...',
-    '....FFFFFf..A...',
-    '...fWWWWWfA.....',
-    '...GFFFFFfGA....',
-    '...G.Ff.Fg.a....',
-    '...g.Pf.Pg......',
-    '...g.Pg.Pg......',
+    '...gFFfffFFa....',
+    '...FEFNNFEFAa...',
+    '...FFTTTTFF.Aa..',
+    '....FFFFFFf..A..',
+    '...fWWWWWWfA....',
+    '...GFFFFFFFGa...',
+    '...G.Fff.Fg.a...',
+    '...g.Pff.Pg.....',
+    '...g.Pg..Pg.....',
     '................',
     '................',
     '................',
@@ -344,47 +345,48 @@ const WOLF: SpriteDefinition = {
 const BANDIT: SpriteDefinition = {
   palette: {
     // Leather (4 shades)
-    L: '#9a7a50', // leather bright
-    l: '#7a5a38', // leather mid
-    M: '#5a3a20', // leather dark
-    m: '#3a2410', // leather deepest
-    // Skin
-    S: '#e0c098', // skin
-    s: '#b89868', // skin shadow
-    // Red bandana
-    R: '#cc3333', // red bright
-    r: '#882222', // red dark
+    L: '#a88858', // leather highlight
+    l: '#887048', // leather mid
+    M: '#604028', // leather shadow
+    m: '#402818', // leather deepest
+    // Skin (2 shades)
+    S: '#e8c8a0', // skin lit
+    s: '#c0a070', // skin shadow
+    // Red bandana (2 shades)
+    R: '#d83838', // red highlight
+    r: '#982828', // red shadow
     // Mask
-    K: '#2a2a2a', // mask dark
-    // Weapon
-    W: '#b0b0b0', // weapon bright
-    w: '#787878', // weapon dark
-    // Belt/gold
-    G: '#d4aa3c', // gold buckle
-    B: '#3a3030', // belt
+    K: '#303030', // mask dark
+    // Weapon (2 shades)
+    W: '#b8b8b8', // blade highlight
+    w: '#808080', // blade shadow
+    // Gold buckle
+    G: '#d8b040', // gold
+    // Belt
+    B: '#3c3030', // belt
     // Hair
-    H: '#5a4030', // hair
+    H: '#604838', // dark hair
     // Eyes
-    E: '#182030',
+    E: '#1c2838', // dark eye
     // Boots
-    T: '#4a3420', // boot
+    T: '#503828', // boot dark
   },
   pixels: [
     '................',
-    '.....rRRr.......',
-    '....rRHHRr......',
-    '....rHHHHr......',
-    '.....sKESs......',
-    '......sSs.......',
-    '.....lLBLl......',
-    '..Ww.LLLLL......',
-    '..wW.lLGLl......',
-    '.....MLLLM......',
-    '....mLLLLLm.....',
-    '....mLl.lLm.....',
-    '.....Ml.lM......',
-    '.....TT.TT......',
-    '.....TT.TT......',
+    '.....rRRRr......',
+    '....rRHHHRr.....',
+    '....rHHHHHr.....',
+    '.....sKKESs.....',
+    '......sSSs......',
+    '....llLBLll.....',
+    '..Ww.LLLLLL.....',
+    '..wW.lLGLLl.....',
+    '.....MLLLLM.....',
+    '....mLLLLLLm....',
+    '....mLll.lLm....',
+    '.....Mll.lM.....',
+    '.....TT..TT.....',
+    '.....TT..TT.....',
     '................',
   ],
 };
@@ -392,42 +394,42 @@ const BANDIT: SpriteDefinition = {
 const GIANT_SPIDER: SpriteDefinition = {
   palette: {
     // Body (4 shades)
-    B: '#6a5878', // body bright
-    b: '#4a3858', // body mid
-    C: '#2a1838', // body dark
-    c: '#180e28', // body deepest
+    B: '#786890', // body highlight
+    b: '#584870', // body mid
+    C: '#382050', // body shadow
+    c: '#201038', // body deepest
     // Eyes (red cluster)
-    E: '#ff3333', // red eye
-    e: '#cc1111', // dark eye
-    // Legs
-    L: '#3a2848', // leg dark
-    l: '#5a4868', // leg bright
-    // Fang/web
-    W: '#d0c8e0', // fang bright
-    w: '#a098b0', // fang dim
+    E: '#ff3838', // eye bright
+    e: '#cc1818', // eye dim
+    // Legs (2 shades)
+    L: '#403050', // leg shadow
+    l: '#604878', // leg highlight
+    // Fangs (2 shades)
+    W: '#d8d0e8', // fang bright
+    w: '#a898c0', // fang dim
     // Venom
-    V: '#88ff44', // venom glow
-    // Pattern markings
-    P: '#7a6888', // pattern bright
-    p: '#5a4868', // pattern dim
-    // Abdomen
-    A: '#5a4068', // abdomen
-    a: '#3a2848', // abdomen dark
+    V: '#90ff48', // venom glow
+    // Pattern markings (2 shades)
+    P: '#887098', // pattern bright
+    p: '#604878', // pattern dim
+    // Abdomen (2 shades)
+    A: '#604878', // abdomen lit
+    a: '#402858', // abdomen dark
   },
   pixels: [
     '................',
-    '..L.l....l.L....',
+    '.L.ll....ll.L...',
     '..Ll.l..l.lL....',
-    '.L..lBBBBl..L...',
-    '..l.BEeeBB.l....',
-    '..L.bWBBWb.L....',
-    '.L..bBPPBb..L...',
-    '....CBBBBBC.....',
-    '.L..CaAAAAC.L...',
-    '..L.caAPAac.L...',
-    '..l..aAAAA..l...',
-    '.L...cAAc...L...',
-    '..L...cc...L....',
+    '.L..lBBBBBl.L...',
+    '..l.BEeeBBb.l...',
+    '..L.bWBBBWb.L...',
+    '.L..bBPPPBb..L..',
+    '....CBBBBBBc....',
+    '.L..CaAAAAACL...',
+    '..L.caAPPAac.L..',
+    '..l..aAAAAa..l..',
+    '.L...cAAAAc..L..',
+    '..L...cccc..L...',
     '................',
     '................',
     '................',
@@ -437,46 +439,46 @@ const GIANT_SPIDER: SpriteDefinition = {
 const OGRE: SpriteDefinition = {
   palette: {
     // Skin (4 shades)
-    S: '#d0b888', // skin bright
-    s: '#b09868', // skin mid
-    N: '#907850', // skin dark
-    n: '#706038', // skin deepest
+    S: '#d8c090', // skin highlight
+    s: '#b8a070', // skin mid
+    N: '#988058', // skin shadow
+    n: '#786040', // skin deepest
     // Eyes
-    E: '#aa5522', // brown eye
-    // Teeth/tusks
-    T: '#f0f0d0', // tusk bright
-    t: '#d0d0a0', // tusk dim
-    // Leather loincloth
-    L: '#6a5030', // leather
-    l: '#4a3420', // leather dark
-    // Club
-    C: '#a08050', // club bright
-    c: '#706040', // club dark
-    D: '#504030', // club darkest
-    // Hair
-    H: '#5a4430', // hair
-    h: '#3a2a1a', // hair dark
-    // Navel/features
-    O: '#8a7048', // navel shadow
-    // Belly
-    B: '#c0a878', // belly lighter
+    E: '#b85828', // brown eye
+    // Tusks (2 shades)
+    T: '#f0f0d8', // tusk bright
+    t: '#d0d0a8', // tusk dim
+    // Leather (2 shades)
+    L: '#785838', // leather lit
+    l: '#503828', // leather dark
+    // Club (3 shades)
+    C: '#a88858', // club highlight
+    c: '#786848', // club mid
+    D: '#585038', // club dark
+    // Hair (2 shades)
+    H: '#604838', // hair
+    h: '#382818', // hair dark
+    // Belly detail
+    O: '#907850', // navel
+    // Belly highlight
+    B: '#c8b080', // belly lighter
   },
   pixels: [
     '................',
-    '....hHHHHh......',
-    '...nSSSSSn......',
-    '...SSENESS......',
-    '...SSNtNSS......',
-    '....STtTTS......',
+    '...hhHHHHhh.....',
     '...nSSSSSSn.....',
-    '..CnSBBBBSn....',
-    '..cDSSBOBSSn....',
-    '..D.nSLLSn......',
-    '....NSLLSN......',
-    '....NSS.SSN.....',
-    '...nSS..SSn.....',
-    '...nn...nn......',
-    '...nn...nn......',
+    '...SSENNESs.....',
+    '...SSNtTNSSs....',
+    '....STtTTSs.....',
+    '...nSSSSSSSn....',
+    '..CnSBBBBBSn....',
+    '..cDSSBOBBSSn...',
+    '..D.nSLLLSn.....',
+    '....NSLLLSNn....',
+    '....NSS..SSN....',
+    '...nSS...SSn....',
+    '...nn....nn.....',
+    '...nn....nn.....',
     '................',
   ],
 };
@@ -484,42 +486,42 @@ const OGRE: SpriteDefinition = {
 const OWLBEAR: SpriteDefinition = {
   palette: {
     // Brown body (4 shades)
-    B: '#b08855', // body bright
-    b: '#8a6a40', // body mid
-    C: '#6a4a28', // body dark
-    c: '#4a3018', // body deepest
-    // Feathers/face (owl part)
-    F: '#e0d0b0', // feather bright
-    f: '#c0b090', // feather mid
-    G: '#a09070', // feather dark
+    B: '#b89058', // body highlight
+    b: '#907048', // body mid
+    C: '#705030', // body shadow
+    c: '#503820', // body deepest
+    // Feathers (3 shades)
+    F: '#e8d8b8', // feather bright
+    f: '#c8b898', // feather mid
+    G: '#a09878', // feather shadow
     // Eyes
-    E: '#ffbb00', // amber eye
-    // Beak
-    K: '#444444', // beak dark
-    k: '#666666', // beak mid
+    E: '#ffc800', // amber eye
+    // Beak (2 shades)
+    K: '#484848', // beak dark
+    k: '#686868', // beak mid
     // Claws
-    W: '#888888', // claw
-    // White chest
-    X: '#f0e8d0', // white bright
-    x: '#d8d0b8', // white dim
-    // Horns/ear tufts
-    H: '#c8b888', // tuft
+    W: '#909090', // claw
+    // White chest (2 shades)
+    X: '#f4ecd8', // chest highlight
+    x: '#d8d0c0', // chest shadow
+    // Ear tufts
+    H: '#d0c090', // tuft
   },
   pixels: [
     '................',
-    '...H.GfG.H......',
-    '...GfFFFfG......',
-    '...FFFEFEF......',
-    '....fFKKFf......',
-    '....GfFFfG......',
-    '...cBBBBBBc.....',
-    '..c.BXxxXB.c....',
-    '..W.BXxxXB.W....',
-    '....bBBBBBb.....',
-    '...cBBBBBBc.....',
-    '....bBB.BBb.....',
-    '....cBB.BBc.....',
-    '....WW..WW......',
+    '..H..GffG..H....',
+    '...GfFFFFFfG....',
+    '...FFFEFFEFf....',
+    '....fFKKKFf.....',
+    '....GfFFFfG.....',
+    '...cBBBBBBBc....',
+    '..c.BXxxxXB.c...',
+    '..W.BXxxxXB.W...',
+    '....bBBBBBBb....',
+    '...cBBBBBBBc....',
+    '....bBBB.BBb....',
+    '....cBBB.BBc....',
+    '....WW...WW.....',
     '................',
     '................',
   ],
@@ -528,46 +530,46 @@ const OWLBEAR: SpriteDefinition = {
 const TROLL: SpriteDefinition = {
   palette: {
     // Green skin (4 shades)
-    G: '#88bb55', // bright green
-    g: '#668844', // mid green
-    N: '#446633', // dark green
-    n: '#2a4420', // deepest green
-    // Lighter green highlights
-    S: '#aadd77', // highlight
+    G: '#90c858', // skin highlight
+    g: '#70a048', // skin mid
+    N: '#508038', // skin shadow
+    n: '#306028', // skin deepest
+    // Skin highlight
+    S: '#b0e070', // bright highlight
     // Eyes
-    E: '#ffcc00', // yellow eye
+    E: '#ffd000', // yellow eye
     // Teeth
-    T: '#ddeeaa', // teeth
-    // Claws
-    C: '#556633', // claw dark
-    c: '#778855', // claw bright
-    // Moss/hair
-    H: '#557733', // moss hair
-    h: '#335522', // dark moss
-    // Loincloth
-    L: '#5a5030', // cloth
-    l: '#3a3420', // cloth dark
-    // Warts
-    W: '#779955', // wart
+    T: '#e0f0b0', // teeth
+    // Claws (2 shades)
+    C: '#607838', // claw shadow
+    c: '#809858', // claw lit
+    // Moss hair (2 shades)
+    H: '#608838', // hair lit
+    h: '#385828', // hair dark
+    // Loincloth (2 shades)
+    L: '#605838', // cloth lit
+    l: '#403828', // cloth dark
+    // Wart
+    W: '#80a058', // wart
     // Nose
-    O: '#558833', // nose
+    O: '#589838', // nose
   },
   pixels: [
-    '.....hHHh.......',
-    '....hGGGGh......',
-    '...nGGSGGGn.....',
-    '...NGENESS......',
-    '...NGGOGGG......',
-    '....GGTGg.......',
-    '...nGGGGGn......',
-    '..cc.GGGGg.cc...',
-    '..cC.gGLGg.Cc...',
-    '..C..NGGGgN.....',
-    '.....NGWGN......',
-    '.....Ng.gN......',
-    '.....ng.gn......',
-    '.....ng.gn......',
-    '.....CC.CC......',
+    '....hhHHhh......',
+    '....hGGGGGh.....',
+    '...nGGSGGGGn....',
+    '...NGENNESGn....',
+    '...NGGOOOGN.....',
+    '....GGTTGGg.....',
+    '...nGGGGGGn.....',
+    '..cc.GGGGGg.cc..',
+    '..cC.gGLLGg.Cc..',
+    '..C..NGGGGgN....',
+    '.....NGWWGNn....',
+    '.....Ng..gN.....',
+    '.....ng..gn.....',
+    '.....ng..gn.....',
+    '.....CC..CC.....',
     '................',
   ],
 };
@@ -575,29 +577,29 @@ const TROLL: SpriteDefinition = {
 const GIANT_RAT: SpriteDefinition = {
   palette: {
     // Brown fur (4 shades)
-    F: '#aa8868', // fur bright
-    f: '#887050', // fur mid
-    G: '#665838', // fur dark
-    g: '#443820', // fur deepest
+    F: '#b89070', // fur highlight
+    f: '#907858', // fur mid
+    G: '#706048', // fur shadow
+    g: '#504030', // fur deepest
     // Eyes
-    E: '#ff4444', // red eye
+    E: '#ff4848', // red eye
     // Nose
-    N: '#332222', // nose
+    N: '#382828', // nose
     // Teeth
-    T: '#eeddcc', // teeth
+    T: '#f0e0d0', // teeth
     // Whiskers
-    W: '#ccbbaa', // whisker
-    // Belly
-    B: '#ccaa88', // belly bright
-    b: '#aa8868', // belly dim
-    // Tail
-    L: '#887060', // tail bright
-    l: '#665848', // tail mid
-    K: '#444038', // tail dark
+    W: '#d0c0a8', // whisker
+    // Belly (2 shades)
+    B: '#d0b090', // belly bright
+    b: '#b09070', // belly dim
+    // Tail (3 shades)
+    L: '#908070', // tail bright
+    l: '#706858', // tail mid
+    K: '#504840', // tail dark
     // Paws
-    P: '#776858', // paw
+    P: '#807060', // paw
     // Ears
-    R: '#cc9988', // ear pink
+    R: '#d0a090', // ear pink
   },
   pixels: [
     '................',
@@ -605,13 +607,13 @@ const GIANT_RAT: SpriteDefinition = {
     '................',
     '................',
     '....gR..Rg......',
-    '...gFFf.fFFl....',
-    '...FEFN.FEF.l...',
-    '..WFFTTTTFF..l..',
-    '....fBBBBfL.....',
-    '...GFFFFFfGK....',
-    '...G.Pf.PgK.....',
-    '...g.Pf.Pg.K....',
+    '...gFFff.fFFl...',
+    '...FEFNN.FEF.l..',
+    '..WFFTTTTfFF..l.',
+    '....fBBBBBfL....',
+    '...GFFFFFFfGK...',
+    '...G.Pff.PgK....',
+    '...g.Pff.Pg.K...',
     '............K...',
     '................',
     '................',
@@ -622,44 +624,44 @@ const GIANT_RAT: SpriteDefinition = {
 const KOBOLD: SpriteDefinition = {
   palette: {
     // Red-brown scales (4 shades)
-    R: '#cc7744', // scales bright
-    r: '#aa5533', // scales mid
-    N: '#884422', // scales dark
-    n: '#663318', // scales deepest
-    // Yellow eyes
-    E: '#ffdd00', // eye
-    // Lighter scales (belly)
-    S: '#ddaa66', // belly bright
-    s: '#bb8844', // belly dim
-    // Spear
-    W: '#c0c0c0', // spear tip
-    w: '#888888', // spear dark
-    T: '#8a6a40', // shaft
-    t: '#6a5030', // shaft dark
-    // Horn/crest
-    H: '#aa6633', // horn
-    h: '#884422', // horn dark
-    // Tail
-    A: '#996633', // tail
-    a: '#774422', // tail dark
+    R: '#d88048', // scales highlight
+    r: '#b06038', // scales mid
+    N: '#884828', // scales shadow
+    n: '#683818', // scales deepest
+    // Eyes
+    E: '#ffe000', // yellow eye
+    // Belly scales (2 shades)
+    S: '#e0b068', // belly bright
+    s: '#c09048', // belly dim
+    // Spear (3 shades)
+    W: '#c8c8c8', // tip bright
+    w: '#909090', // tip dark
+    T: '#907048', // shaft lit
+    t: '#685038', // shaft dark
+    // Horn (2 shades)
+    H: '#b87040', // horn lit
+    h: '#885028', // horn dark
+    // Tail (2 shades)
+    A: '#a07038', // tail lit
+    a: '#807028', // tail dark
     // Leather
-    L: '#665530', // leather
+    L: '#686030', // leather
   },
   pixels: [
     '................',
     '................',
-    '.....hHh........',
-    '....nRRRn.......',
-    '....rRESRr......',
-    '.....rRRr.......',
-    '......r.........',
-    '.....rRRr.......',
-    '..Ww.rLRr.......',
-    '..tT.NRSRNa.....',
-    '..t..nRRrn.a....',
-    '.....nr.rn..a...',
-    '.....n..n..a....',
-    '.....n..n.a.....',
+    '.....hHHh.......',
+    '....nRRRRn......',
+    '....rRESsRr.....',
+    '.....rRRRr......',
+    '......rr........',
+    '.....rRRRr......',
+    '..Ww.rLLRr......',
+    '..tT.NRSSRNa....',
+    '..t..nRRRrn.a...',
+    '.....nr..rn..a..',
+    '.....n...n..a...',
+    '.....n...n.a....',
     '..........a.....',
     '................',
   ],
@@ -668,43 +670,43 @@ const KOBOLD: SpriteDefinition = {
 const ZOMBIE: SpriteDefinition = {
   palette: {
     // Green-gray skin (4 shades)
-    Z: '#8aaa7a', // skin bright
-    z: '#6a8a5a', // skin mid
-    N: '#4a6a3a', // skin dark
-    n: '#2a4a20', // skin deepest
-    // Red wounds
-    R: '#aa4444', // wound bright
-    r: '#773333', // wound dark
+    Z: '#90b080', // skin highlight
+    z: '#709060', // skin mid
+    N: '#507040', // skin shadow
+    n: '#305028', // skin deepest
+    // Wounds (2 shades)
+    R: '#b04848', // wound bright
+    r: '#803838', // wound dark
     // Tattered clothes (4 shades)
-    C: '#7a7a70', // cloth bright
-    c: '#5a5a50', // cloth mid
-    D: '#3a3a30', // cloth dark
-    d: '#2a2a20', // cloth deepest
+    C: '#808878', // cloth highlight
+    c: '#606860', // cloth mid
+    D: '#404840', // cloth shadow
+    d: '#282828', // cloth deepest
     // Glowing eyes
-    E: '#ccff44', // eye glow
+    E: '#d0ff48', // eye glow
     // Exposed bone
-    B: '#d0c8b0', // bone
+    B: '#d8d0b8', // bone
     // Blood
-    V: '#663030', // dried blood
+    V: '#703030', // dried blood
     // Skin highlight
-    S: '#9aaa8a', // lighter skin
+    S: '#a0b890', // lighter skin
   },
   pixels: [
     '................',
-    '.....nzzn.......',
+    '....nnzznn......',
     '....nZZZZn......',
-    '....ZERZEZ......',
-    '.....ZSRZz......',
-    '.....CzZC.......',
-    '....cCCCCc......',
-    '...ZcCCCCcZ.....',
-    '...z.CRVCc.....',
-    '.....CCBCC......',
-    '....dCCCCCd.....',
-    '....dCc.cCd.....',
-    '.....dc.cd......',
-    '.....nz.zn......',
-    '.....nz.zn......',
+    '....ZERZEZn.....',
+    '.....ZSRZzn.....',
+    '.....CzZZC......',
+    '....cCCCCCc.....',
+    '...ZcCCCCCcZ....',
+    '...z.CRVCCc.....',
+    '.....CCBCCc.....',
+    '....dCCCCCCd....',
+    '....dCc..cCd....',
+    '.....dc..cd.....',
+    '.....nz..zn.....',
+    '.....nz..zn.....',
     '................',
   ],
 };
@@ -712,39 +714,39 @@ const ZOMBIE: SpriteDefinition = {
 const STIRGE: SpriteDefinition = {
   palette: {
     // Body (4 shades)
-    B: '#8a5555', // body bright
-    b: '#6a3838', // body mid
-    C: '#4a2020', // body dark
-    c: '#301010', // body deepest
+    B: '#985858', // body highlight
+    b: '#784040', // body mid
+    C: '#582828', // body shadow
+    c: '#381818', // body deepest
     // Wings (3 shades)
-    W: '#aa7777', // wing bright
-    w: '#886060', // wing mid
-    V: '#664848', // wing dark
+    W: '#b88080', // wing highlight
+    w: '#906868', // wing mid
+    V: '#705050', // wing shadow
     // Eyes
-    E: '#ff4444', // red eye
-    // Proboscis
-    P: '#aa5555', // proboscis bright
-    p: '#884444', // proboscis mid
-    Q: '#663333', // proboscis dark
+    E: '#ff4848', // red eye
+    // Proboscis (3 shades)
+    P: '#b85858', // prob bright
+    p: '#904848', // prob mid
+    Q: '#703838', // prob dark
     // Legs
-    L: '#553333', // leg
-    // Veins on wings
-    R: '#996666', // wing vein
+    L: '#583838', // leg
+    // Wing veins
+    R: '#a07070', // vein
   },
   pixels: [
     '................',
     '................',
     '................',
-    '.wWR....RWw.....',
-    '..WWw.bb.WWw....',
+    '.wWWR...RWWw....',
+    '..WWww.bbwWW....',
     '..VWwBEEBwWV....',
     '...VwBBBBwV.....',
-    '....bBBBBb......',
-    '....cBBBBc......',
-    '...L.cPPc.L.....',
-    '.....pPPp.......',
-    '......Qp........',
-    '......Q.........',
+    '....bBBBBBb.....',
+    '....cBBBBBc.....',
+    '...L.cPPPc.L....',
+    '.....pPPPp......',
+    '......QPp.......',
+    '......QQ........',
     '................',
     '................',
     '................',

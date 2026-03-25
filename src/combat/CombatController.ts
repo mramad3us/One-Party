@@ -57,6 +57,8 @@ export class CombatController implements GameSystem {
   private monsterMap: Map<EntityId, MonsterDefinition> = new Map();
   /** Callback invoked when combat ends so the caller can resume. */
   private onComplete: ((result: CombatResult) => void) | null = null;
+  /** Deferred completion — called by UI after summary modal is dismissed. */
+  private pendingCombatComplete: (() => void) | null = null;
 
   // ── GameSystem lifecycle ──────────────────────────────────────
 
@@ -111,6 +113,16 @@ export class CombatController implements GameSystem {
 
   isActive(): boolean {
     return this.active;
+  }
+
+  /**
+   * Called by UI after the combat summary modal is dismissed.
+   * This triggers the deferred onComplete callback, resuming travel if needed.
+   */
+  dismissCombatSummary(): void {
+    if (this.pendingCombatComplete) {
+      this.pendingCombatComplete();
+    }
   }
 
   /**
@@ -506,15 +518,19 @@ export class CombatController implements GameSystem {
 
     // Roll loot from defeated monsters
     const loot: { itemId: string; quantity: number }[] = [];
+    const enemiesDefeated: string[] = [];
     for (const [npcId, monsterDef] of this.monsterMap) {
-      if (result.casualties.includes(npcId) && monsterDef.lootTable) {
-        const rng = new SeededRNG(npcId.length * 31 + xpEarned);
-        for (const drop of monsterDef.lootTable) {
-          if (rng.next() < drop.chance) {
-            loot.push({
-              itemId: drop.itemId,
-              quantity: drop.quantity ?? 1,
-            });
+      if (result.casualties.includes(npcId)) {
+        enemiesDefeated.push(monsterDef.name);
+        if (monsterDef.lootTable) {
+          const rng = new SeededRNG(npcId.length * 31 + xpEarned);
+          for (const drop of monsterDef.lootTable) {
+            if (rng.next() < drop.chance) {
+              loot.push({
+                itemId: drop.itemId,
+                quantity: drop.quantity ?? 1,
+              });
+            }
           }
         }
       }
@@ -525,6 +541,15 @@ export class CombatController implements GameSystem {
       this.engine.entities.remove(npcId);
     }
 
+    // Store pending completion — will be triggered when UI dismisses the summary modal
+    const pendingResult = result;
+    const pendingCallback = this.onComplete;
+    this.onComplete = null;
+    this.pendingCombatComplete = () => {
+      this.pendingCombatComplete = null;
+      if (pendingCallback) pendingCallback(pendingResult);
+    };
+
     this.engine.events.emit({
       type: 'combat:encounter_ended',
       category: 'combat',
@@ -533,18 +558,13 @@ export class CombatController implements GameSystem {
         encounter: this.currentEncounter,
         xpEarned,
         loot,
+        enemiesDefeated,
       },
     });
 
     this.currentEncounter = null;
     this.monsterMap.clear();
     this.spawnedMonsters = [];
-
-    if (this.onComplete) {
-      const cb = this.onComplete;
-      this.onComplete = null;
-      cb(result);
-    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────

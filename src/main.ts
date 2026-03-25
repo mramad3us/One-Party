@@ -1400,29 +1400,26 @@ async function main(): Promise<void> {
     refreshCombatEntities();
   });
 
-  // Combat ended — show results, clean up
+  // Combat ended — show summary modal, then clean up
   engine.events.on('combat:encounter_ended', (event) => {
     if (!activeGameScreen || !activeGameState) return;
-    const { result, xpEarned, loot } = event.data as {
+    const { result, xpEarned, loot, enemiesDefeated } = event.data as {
       result: CombatResult;
       xpEarned: number;
       loot: { itemId: string; quantity: number }[];
+      enemiesDefeated: string[];
     };
 
     const character = engine.entities.getAll<Character>('character')[0];
     if (!character) return;
 
+    // Award XP and loot immediately (before modal)
+    const lootItems: { name: string; quantity: number }[] = [];
+    let healAmount = 0;
+
     if (result.victory) {
-      // Award XP
       character.xp += xpEarned;
 
-      // Narrative
-      activeGameScreen.addNarrative({
-        text: `Victory! The battle is won. You earn ${xpEarned} experience.`,
-        category: 'action',
-      });
-
-      // Award loot
       for (const drop of loot) {
         const item = getItem(drop.itemId);
         if (item) {
@@ -1432,23 +1429,124 @@ async function main(): Promise<void> {
           } else {
             character.inventory.items.push({ itemId: drop.itemId, quantity: drop.quantity });
           }
-          activeGameScreen.addNarrative({
-            text: `Found: ${item.name}${drop.quantity > 1 ? ` x${drop.quantity}` : ''}`,
-            category: 'system',
-          });
+          lootItems.push({ name: item.name, quantity: drop.quantity });
         }
       }
 
-      // Heal a small amount after combat
-      const healAmount = Math.ceil(character.maxHp * 0.1);
+      healAmount = Math.ceil(character.maxHp * 0.1);
       character.currentHp = Math.min(character.maxHp, character.currentHp + healAmount);
     }
 
-    // Exit combat mode
-    activeGameScreen.exitCombatMode();
-    if (keyboardInput.getContext() === 'combat') {
-      keyboardInput.popContext();
+    // Build summary modal content
+    const content = el('div', { class: 'combat-summary' });
+
+    if (result.victory) {
+      // Flavor text
+      const flavor = el('p', { class: 'combat-summary-flavor' }, [
+        'The dust settles. Silence reclaims the battlefield.',
+      ]);
+      content.appendChild(flavor);
+
+      // Enemies defeated
+      if (enemiesDefeated.length > 0) {
+        const enemySection = el('div', { class: 'combat-summary-section' });
+        enemySection.appendChild(el('h4', { class: 'combat-summary-label' }, ['Enemies Slain']));
+        // Count duplicates
+        const counts = new Map<string, number>();
+        for (const name of enemiesDefeated) {
+          counts.set(name, (counts.get(name) ?? 0) + 1);
+        }
+        const list = el('ul', { class: 'combat-summary-list' });
+        for (const [name, count] of counts) {
+          list.appendChild(el('li', {}, [count > 1 ? `${name} x${count}` : name]));
+        }
+        enemySection.appendChild(list);
+        content.appendChild(enemySection);
+      }
+
+      // Rounds
+      const statsSection = el('div', { class: 'combat-summary-section' });
+      statsSection.appendChild(el('h4', { class: 'combat-summary-label' }, ['Battle Stats']));
+      const statsList = el('ul', { class: 'combat-summary-list' });
+      statsList.appendChild(el('li', {}, [`${result.rounds} round${result.rounds !== 1 ? 's' : ''} of combat`]));
+      if (healAmount > 0) {
+        statsList.appendChild(el('li', {}, [`Recovered ${healAmount} HP`]));
+      }
+      statsSection.appendChild(statsList);
+      content.appendChild(statsSection);
+
+      // XP
+      const xpSection = el('div', { class: 'combat-summary-section combat-summary-xp' });
+      xpSection.appendChild(el('span', { class: 'combat-summary-xp-label' }, ['Experience Gained']));
+      xpSection.appendChild(el('span', { class: 'combat-summary-xp-value' }, [`+${xpEarned} XP`]));
+      content.appendChild(xpSection);
+
+      // Loot
+      if (lootItems.length > 0) {
+        const lootSection = el('div', { class: 'combat-summary-section' });
+        lootSection.appendChild(el('h4', { class: 'combat-summary-label' }, ['Spoils']));
+        const lootList = el('ul', { class: 'combat-summary-list combat-summary-loot' });
+        for (const item of lootItems) {
+          lootList.appendChild(el('li', {}, [
+            item.quantity > 1 ? `${item.name} x${item.quantity}` : item.name,
+          ]));
+        }
+        lootSection.appendChild(lootList);
+        content.appendChild(lootSection);
+      }
+    } else {
+      // Defeat
+      const flavor = el('p', { class: 'combat-summary-flavor combat-summary-defeat' }, [
+        'Darkness closes in. The party has fallen.',
+      ]);
+      content.appendChild(flavor);
+
+      const statsSection = el('div', { class: 'combat-summary-section' });
+      statsSection.appendChild(el('h4', { class: 'combat-summary-label' }, ['Battle Stats']));
+      const statsList = el('ul', { class: 'combat-summary-list' });
+      statsList.appendChild(el('li', {}, [`Lasted ${result.rounds} round${result.rounds !== 1 ? 's' : ''}`]));
+      statsSection.appendChild(statsList);
+      content.appendChild(statsSection);
     }
+
+    // Show summary modal — game pauses until dismissed
+    const modal = new Modal(document.body, engine, {
+      title: result.victory ? 'Victory' : 'Defeat',
+      content,
+      closable: false,
+      width: '420px',
+      actions: [{
+        label: result.victory ? 'Continue' : 'Press On',
+        variant: 'primary',
+        onClick: () => {
+          modal.close();
+
+          // Add narrative after modal dismissed
+          if (result.victory) {
+            activeGameScreen?.addNarrative({
+              text: `Victory! The battle is won. You earn ${xpEarned} experience.`,
+              category: 'action',
+            });
+            for (const item of lootItems) {
+              activeGameScreen?.addNarrative({
+                text: `Found: ${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ''}`,
+                category: 'system',
+              });
+            }
+          }
+
+          // Exit combat mode
+          activeGameScreen?.exitCombatMode();
+          if (keyboardInput.getContext() === 'combat') {
+            keyboardInput.popContext();
+          }
+
+          // Resume travel / trigger deferred onComplete callback
+          combatController.dismissCombatSummary();
+        },
+      }],
+    });
+    modal.mount();
   });
 
   // Combat keyboard: movement
@@ -2662,14 +2760,14 @@ async function main(): Promise<void> {
       const encounterRoll = encounterDice.rollD20();
       const encounterTriggered = encounterRoll.total >= encounterDC;
 
-      // Show the encounter roll
+      // Show the encounter roll — quick toast, doesn't block the map
       const encounterRollDisplay: import('@/types').DiceRollResult = {
         ...encounterRoll,
         description: encounterTriggered
           ? `Encounter! (DC ${encounterDC})`
           : `Safe passage (DC ${encounterDC})`,
       };
-      await DiceDisplay.showRoll(document.body, encounterRollDisplay, engine);
+      await DiceDisplay.showRollQuick(document.body, encounterRollDisplay, engine);
 
       if (encounterTriggered && !fastTravelCancelled) {
         const encounter = encounterResolver.generateEncounter(dest, character.level, 1);

@@ -1,23 +1,84 @@
 import type { CellTerrain, CellFeature } from '@/types';
 import type { Tileset, TilesetRenderContext } from './Tileset';
 import { getWallChar } from './Tileset';
-import { spriteRenderer, getSpriteAnimOffset } from './PixelSprites';
+import { spriteRenderer } from './PixelSprites';
 
-// ── Color Palettes ────────────────────────────────────────────
+// ── Pixel-Art Tileset ─────────────────────────────────────────
+// Every terrain and feature is rendered as an 8×8 pixel pattern
+// scaled to fill the cell. No arcs, strokes, or anti-aliased
+// shapes — pure rectangles for a chunky pixel-art aesthetic.
 
 type RGB = [number, number, number];
 
+// ── Tile Pattern System ──────────────────────────────────────
+
+interface TilePattern {
+  pixels: string[];                // 8 rows of 8 chars, '.' = base color
+  palette: Record<string, RGB>;   // char → RGB color
+}
+
+/** Draw an 8×8 pixel pattern onto a cell, scaling each "pixel" to fill. */
+function drawPattern(
+  ctx: CanvasRenderingContext2D,
+  px: number, py: number, cw: number, ch: number,
+  pattern: TilePattern,
+  dim: number,
+  baseColor?: RGB,
+): void {
+  const pw = cw / 8;
+  const ph = ch / 8;
+  for (let y = 0; y < 8; y++) {
+    const row = pattern.pixels[y];
+    if (!row) continue;
+    for (let x = 0; x < 8; x++) {
+      const ch2 = row[x];
+      if (!ch2) continue;
+      let color: RGB;
+      if (ch2 === '.') {
+        if (!baseColor) continue;
+        color = baseColor;
+      } else {
+        const c = pattern.palette[ch2];
+        if (!c) continue;
+        color = c;
+      }
+      ctx.fillStyle = rgb(color, dim);
+      ctx.fillRect(
+        px + Math.floor(x * pw),
+        py + Math.floor(y * ph),
+        Math.ceil(pw),
+        Math.ceil(ph),
+      );
+    }
+  }
+}
+
+function blend(a: RGB, b: RGB, t: number): RGB {
+  return [
+    Math.floor(a[0] + (b[0] - a[0]) * t),
+    Math.floor(a[1] + (b[1] - a[1]) * t),
+    Math.floor(a[2] + (b[2] - a[2]) * t),
+  ];
+}
+
+function rgb(c: RGB, dim = 1): string {
+  return `rgb(${Math.floor(c[0] * dim)},${Math.floor(c[1] * dim)},${Math.floor(c[2] * dim)})`;
+}
+
+// ── Terrain Palettes ─────────────────────────────────────────
+// Richer, more saturated colors for faux-isometric 3/4 view look
+
 const TERRAIN_COLORS: Record<CellTerrain, { base: RGB; alt: RGB; accent: RGB }> = {
-  floor:  { base: [45, 40, 35],   alt: [50, 44, 38],   accent: [55, 48, 42] },
-  wall:   { base: [70, 65, 58],   alt: [80, 74, 66],   accent: [60, 55, 48] },
-  grass:  { base: [30, 85, 35],   alt: [25, 75, 30],   accent: [40, 100, 45] },
-  water:  { base: [20, 80, 160],  alt: [30, 90, 170],  accent: [15, 70, 140] },
-  lava:   { base: [200, 60, 10],  alt: [220, 80, 20],  accent: [180, 40, 5] },
-  stone:  { base: [90, 85, 80],   alt: [100, 95, 88],  accent: [80, 75, 70] },
-  ice:    { base: [160, 200, 220],alt: [170, 210, 230], accent: [140, 185, 210] },
-  mud:    { base: [90, 60, 30],   alt: [100, 68, 35],  accent: [80, 52, 25] },
-  sand:   { base: [190, 170, 100],alt: [200, 180, 110],accent: [180, 160, 90] },
-  wood:   { base: [120, 80, 40],  alt: [130, 88, 45],  accent: [110, 72, 35] },
+  floor:  { base: [52, 46, 38],   alt: [58, 50, 42],   accent: [65, 56, 46] },
+  wall:   { base: [78, 72, 62],   alt: [88, 80, 70],   accent: [65, 58, 50] },
+  grass:  { base: [48, 110, 42],  alt: [38, 95, 35],   accent: [60, 130, 52] },
+  water:  { base: [25, 90, 175],  alt: [35, 100, 185],  accent: [18, 75, 150] },
+  lava:   { base: [210, 65, 12],  alt: [230, 85, 22],  accent: [190, 45, 8] },
+  stone:  { base: [100, 95, 88],  alt: [112, 106, 96], accent: [88, 82, 76] },
+  ice:    { base: [170, 210, 228],alt: [180, 218, 236], accent: [150, 195, 218] },
+  mud:    { base: [100, 68, 35],  alt: [112, 76, 40],  accent: [88, 58, 28] },
+  sand:   { base: [200, 180, 110],alt: [210, 190, 120],accent: [188, 168, 98] },
+  wood:   { base: [128, 86, 44],  alt: [138, 94, 50],  accent: [118, 78, 38] },
   pit:    { base: [8, 6, 4],      alt: [12, 10, 8],    accent: [5, 4, 3] },
 };
 
@@ -40,21 +101,622 @@ const FEATURE_COLORS: Record<CellFeature, { primary: RGB; secondary: RGB; bg: RG
   brazier:          { primary: [255, 120, 20], secondary: [220, 80, 10],  bg: [80, 30, 5] },
 };
 
-// ── Helper: blend two colors ──────────────────────────────────
+// ── Terrain Patterns (8×8) — Faux-Isometric 3/4 View ────────
+// Bottom rows show a south-facing edge/lip for depth.
+// Top-left lighting: highlights top-left, shadows bottom-right.
+// '.' = base color, letters = palette entries
 
-function blend(a: RGB, b: RGB, t: number): RGB {
+function makeFloorPatterns(base: RGB, accent: RGB): TilePattern[] {
+  const hi: RGB = blend(base, [120, 110, 95], 0.2);
+  const dark: RGB = blend(base, [18, 15, 12], 0.4);
+  const edge: RGB = blend(base, [15, 12, 10], 0.55);
+  const mortar: RGB = blend(base, [25, 22, 18], 0.45);
+  const scuff: RGB = blend(accent, base, 0.4);
   return [
-    Math.floor(a[0] + (b[0] - a[0]) * t),
-    Math.floor(a[1] + (b[1] - a[1]) * t),
-    Math.floor(a[2] + (b[2] - a[2]) * t),
+    // Cobblestone variant A
+    { pixels: [
+      'h..m..h.',
+      '...m....',
+      '...m....',
+      'mmmmmmmm',
+      '.m..h..m',
+      '.m......',
+      '.m......',
+      'eeeeeeee',
+    ], palette: { h: hi, d: dark, e: edge, m: mortar, s: scuff } },
+    // Cobblestone variant B
+    { pixels: [
+      '.m.h..m.',
+      '.m.....m',
+      '.m.....m',
+      'mmmmmmmm',
+      '..m..s.m',
+      '..m....m',
+      '..m....m',
+      'eeeeeeee',
+    ], palette: { h: hi, d: dark, e: edge, m: mortar, s: scuff } },
+    // Cobblestone variant C
+    { pixels: [
+      'h.m...m.',
+      '..m...m.',
+      '..m...m.',
+      'mmmmmmmm',
+      '.m..m..h',
+      '.m..m...',
+      '.m..m...',
+      'eeeeeeee',
+    ], palette: { h: hi, d: dark, e: edge, m: mortar } },
   ];
 }
 
-function rgb(c: RGB, dim = 1): string {
-  return `rgb(${Math.floor(c[0] * dim)},${Math.floor(c[1] * dim)},${Math.floor(c[2] * dim)})`;
+function makeWallPattern(base: RGB, hash: number, wallChar: string): TilePattern {
+  const hi: RGB = blend(base, [190, 185, 175], 0.3);
+  const mid: RGB = blend(base, [140, 135, 125], 0.15);
+  const sh: RGB = blend(base, [25, 22, 18], 0.45);
+  const mortar: RGB = blend(base, [35, 30, 24], 0.5);
+  const face: RGB = blend(base, [40, 36, 30], 0.35);
+  const faceDark: RGB = blend(base, [22, 18, 14], 0.55);
+
+  const hasH = wallChar === '\u2501' || wallChar === '\u254B' || wallChar === '\u2533' || wallChar === '\u253B' || wallChar === '\u2523' || wallChar === '\u252B';
+  const hasV = wallChar === '\u2503' || wallChar === '\u254B' || wallChar === '\u2533' || wallChar === '\u253B' || wallChar === '\u2523' || wallChar === '\u252B';
+
+  // Top 5 rows = top face of wall, bottom 3 = south-facing front face
+  const rows = hash % 2 === 0 ? [
+    'hhhhhhhh',
+    'hm.b.mbh',
+    'h....m.h',
+    'mmmmmmmm',
+    'hb.m...h',
+    'FFFFFFFF',
+    'FFffFFff',
+    'DDDDDDDD',
+  ] : [
+    'hhhhhhhh',
+    'hm...bmh',
+    'h..m...h',
+    'mmmmmmmm',
+    'h.bm..bh',
+    'FFFFFFFF',
+    'FffFFFff',
+    'DDDDDDDD',
+  ];
+
+  if (hasH) {
+    rows[3] = 'mmmmmmmm';
+  }
+  if (hasV) {
+    for (let i = 0; i < 5; i++) {
+      const r = rows[i].split('');
+      r[3] = 'm';
+      rows[i] = r.join('');
+    }
+  }
+
+  return {
+    pixels: rows,
+    palette: { h: hi, s: sh, m: mortar, b: mid, F: face, f: faceDark, D: faceDark },
+  };
 }
 
-// ── Fantasy Tileset ───────────────────────────────────────────
+function makeGrassPatterns(base: RGB, accent: RGB): TilePattern[] {
+  const dark: RGB = blend(base, [20, 60, 22], 0.4);
+  const light: RGB = blend(accent, [75, 155, 65], 0.35);
+  const dirt: RGB = blend(base, [90, 65, 35], 0.3);
+  const flower: RGB = [195, 155, 55];
+  const blade: RGB = blend(accent, [55, 135, 48], 0.25);
+  const edge: RGB = blend(base, [28, 65, 25], 0.45);
+  return [
+    { pixels: [
+      '..l..b..',
+      '.l..d..l',
+      '....b...',
+      '.b.l...b',
+      '..d...l.',
+      '.....b..',
+      '.b..d...',
+      'eeeeeeee',
+    ], palette: { l: light, d: dark, b: blade, e: edge } },
+    { pixels: [
+      '.b....l.',
+      '...b....',
+      '.l...b..',
+      '...d..l.',
+      'b....d..',
+      '..l....b',
+      '....b...',
+      'eeeeeeee',
+    ], palette: { l: light, d: dark, b: blade, e: edge } },
+    { pixels: [
+      '....b...',
+      '.b..l.b.',
+      '..f...l.',
+      '.l...b..',
+      '...d..r.',
+      '.b....l.',
+      '..l..b..',
+      'eeeeeeee',
+    ], palette: { l: light, d: dark, b: blade, f: flower, r: dirt, e: edge } },
+    { pixels: [
+      '.l...b..',
+      '..b....l',
+      '...l.r..',
+      '.b...b..',
+      '..d..l..',
+      'l....b..',
+      '..b...d.',
+      'eeeeeeee',
+    ], palette: { l: light, d: dark, b: blade, r: dirt, e: edge } },
+  ];
+}
+
+function makeWaterPatterns(base: RGB, accent: RGB): TilePattern[] {
+  const light: RGB = blend(base, [80, 165, 245], 0.3);
+  const foam: RGB = [110, 190, 235];
+  const deep: RGB = blend(accent, [12, 55, 125], 0.3);
+  const sparkle: RGB = [190, 228, 255];
+  const dark: RGB = blend(base, [10, 50, 120], 0.4);
+  return [
+    { pixels: [
+      'd.......',
+      '.ff..ff.',
+      '........',
+      '...l....',
+      '..ff..ff',
+      '........',
+      'd.......',
+      'dddddddd',
+    ], palette: { f: foam, l: light, d: dark } },
+    { pixels: [
+      '...ll...',
+      '........',
+      'ff....ff',
+      '........',
+      '...s....',
+      '..ff..ff',
+      '........',
+      'dddddddd',
+    ], palette: { f: foam, l: light, s: sparkle, d: dark } },
+    { pixels: [
+      '........',
+      'dff..dff',
+      '........',
+      '....l...',
+      '........',
+      '.dff..df',
+      '........',
+      'dddddddd',
+    ], palette: { f: foam, d: deep, l: light } },
+  ];
+}
+
+function makeLavaPatterns(_base: RGB, accent: RGB): TilePattern[] {
+  const hot: RGB = [255, 185, 45];
+  const glow: RGB = [255, 225, 85];
+  const crust: RGB = blend(accent, [85, 22, 6], 0.5);
+  const dark: RGB = [120, 30, 5];
+  return [
+    { pixels: [
+      '........',
+      '..hh....',
+      '.hgg.c..',
+      '..hh....',
+      '........',
+      '....hh..',
+      'c..hggh.',
+      'dddddddd',
+    ], palette: { h: hot, g: glow, c: crust, d: dark } },
+    { pixels: [
+      '..c.....',
+      '........',
+      '...hgh..',
+      '...hhh..',
+      '........',
+      '.hh..c..',
+      '.hgh....',
+      'dddddddd',
+    ], palette: { h: hot, g: glow, c: crust, d: dark } },
+  ];
+}
+
+function makeIcePatterns(base: RGB): TilePattern[] {
+  const crack: RGB = blend(base, [225, 242, 255], 0.3);
+  const shine: RGB = [235, 248, 255];
+  const dark: RGB = blend(base, [125, 165, 195], 0.3);
+  const edge: RGB = blend(base, [110, 150, 180], 0.4);
+  return [
+    { pixels: [
+      's.......',
+      '..c.....',
+      '...c....',
+      '....c..s',
+      '...c....',
+      '........',
+      '.s......',
+      'eeeeeeee',
+    ], palette: { c: crack, s: shine, d: dark, e: edge } },
+    { pixels: [
+      '........',
+      '.....c..',
+      '....c...',
+      '...c....',
+      '........',
+      '..s.....',
+      '......s.',
+      'eeeeeeee',
+    ], palette: { c: crack, s: shine, d: dark, e: edge } },
+  ];
+}
+
+function makeSandPatterns(base: RGB, accent: RGB): TilePattern[] {
+  const grain: RGB = blend(accent, [215, 195, 125], 0.3);
+  const dark: RGB = blend(base, [165, 145, 85], 0.3);
+  const edge: RGB = blend(base, [155, 135, 75], 0.4);
+  const pebble: RGB = blend(base, [140, 120, 70], 0.35);
+  return [
+    { pixels: [
+      '........',
+      '...g....',
+      '.p......',
+      '.g....g.',
+      '........',
+      '......d.',
+      '........',
+      'eeeeeeee',
+    ], palette: { g: grain, d: dark, e: edge, p: pebble } },
+    { pixels: [
+      '.....g..',
+      '........',
+      '.d......',
+      '........',
+      '....g...',
+      '........',
+      '.g...p..',
+      'eeeeeeee',
+    ], palette: { g: grain, d: dark, e: edge, p: pebble } },
+  ];
+}
+
+function makeMudPatterns(base: RGB): TilePattern[] {
+  const wet: RGB = blend(base, [65, 45, 22], 0.3);
+  const puddle: RGB = blend(base, [45, 32, 16], 0.45);
+  const edge: RGB = blend(base, [55, 38, 18], 0.5);
+  return [
+    { pixels: [
+      '........',
+      '..ww....',
+      '..ww....',
+      '........',
+      '.....pp.',
+      '.....pp.',
+      '........',
+      'eeeeeeee',
+    ], palette: { w: wet, p: puddle, e: edge } },
+    { pixels: [
+      '........',
+      '........',
+      '....ww..',
+      '........',
+      '........',
+      '.pp.....',
+      '.pp.....',
+      'eeeeeeee',
+    ], palette: { w: wet, p: puddle, e: edge } },
+  ];
+}
+
+function makeStonePatterns(base: RGB, accent: RGB): TilePattern[] {
+  const crack: RGB = blend(base, [55, 52, 48], 0.4);
+  const pebble: RGB = blend(accent, base, 0.5);
+  const hi: RGB = blend(base, [150, 145, 138], 0.15);
+  const edge: RGB = blend(base, [60, 56, 50], 0.45);
+  return [
+    { pixels: [
+      'h.......',
+      '...c....',
+      '...c....',
+      '...c....',
+      '........',
+      '.p......',
+      '........',
+      'eeeeeeee',
+    ], palette: { c: crack, p: pebble, h: hi, e: edge } },
+    { pixels: [
+      '........',
+      '......h.',
+      '......c.',
+      '......c.',
+      '........',
+      '........',
+      '..p.....',
+      'eeeeeeee',
+    ], palette: { c: crack, p: pebble, h: hi, e: edge } },
+  ];
+}
+
+function makeWoodPatterns(base: RGB, accent: RGB): TilePattern[] {
+  const grain: RGB = blend(base, accent, 0.3);
+  const knot: RGB = blend(base, [85, 54, 28], 0.5);
+  const hi: RGB = blend(base, [165, 120, 70], 0.2);
+  const edge: RGB = blend(base, [70, 48, 22], 0.45);
+  return [
+    { pixels: [
+      'h.......',
+      'gggggggg',
+      '........',
+      '........',
+      '........',
+      'gggggggg',
+      '........',
+      'eeekeeee',
+    ], palette: { g: grain, k: knot, h: hi, e: edge } },
+    { pixels: [
+      '........',
+      '..h.....',
+      'gggggggg',
+      '........',
+      '.k......',
+      '........',
+      'gggggggg',
+      'eeeeeeee',
+    ], palette: { g: grain, k: knot, h: hi, e: edge } },
+  ];
+}
+
+function makePitPattern(): TilePattern {
+  const edge: RGB = [28, 24, 18];
+  const lip: RGB = [42, 36, 28];
+  const void_: RGB = [3, 2, 1];
+  return { pixels: [
+    'llllllll',
+    'le....el',
+    'e......e',
+    '........',
+    '........',
+    'e......e',
+    'ev....ve',
+    'eeeeeeee',
+  ], palette: { e: edge, v: void_, l: lip } };
+}
+
+// ── Feature Patterns (8×8) — Faux-Isometric 3/4 View ────────
+// Features show a south-facing front face for depth.
+
+function makeDoorPattern(primary: RGB, secondary: RGB, locked: boolean, isOpen: boolean): TilePattern {
+  const frame: RGB = secondary;
+  const panel: RGB = primary;
+  const handle: RGB = locked ? [255, 60, 60] : [240, 220, 100];
+  const dark: RGB = blend(secondary, [20, 16, 10], 0.5);
+  const face: RGB = blend(secondary, [30, 25, 18], 0.45);
+
+  if (isOpen) {
+    return { pixels: [
+      '.ff.....',
+      '.fp.....',
+      '.fH.....',
+      '.fp.....',
+      '.fp.....',
+      '.ff.....',
+      '.dd.....',
+      '........',
+    ], palette: { f: frame, p: panel, H: handle, d: dark } };
+  }
+  return { pixels: [
+    '.ffffff.',
+    '.fpppf.',
+    '.fppHf.',
+    '.fpppf.',
+    '.fpppf.',
+    '.ffffff.',
+    '.FFFFFF.',
+    '.dddddd.',
+  ], palette: { f: frame, p: panel, H: handle, F: face, d: dark } };
+}
+
+function makeChestPattern(primary: RGB, secondary: RGB): TilePattern {
+  const latch: RGB = [255, 255, 200];
+  const hi: RGB = blend(primary, [255, 240, 180], 0.25);
+  const face: RGB = blend(secondary, [30, 22, 8], 0.35);
+  const dark: RGB = blend(secondary, [20, 15, 5], 0.5);
+  return { pixels: [
+    '........',
+    '..hppp..',
+    '..pppp..',
+    '..sLss..',
+    '..FFFF..',
+    '..FFFF..',
+    '..dddd..',
+    '........',
+  ], palette: { p: primary, s: secondary, L: latch, h: hi, F: face, d: dark } };
+}
+
+function makeTrapPattern(primary: RGB, secondary: RGB): TilePattern {
+  const warn: RGB = [255, 200, 60];
+  return { pixels: [
+    '........',
+    '........',
+    '..pssp..',
+    '.ppwwpp.',
+    '.pswwsp.',
+    '..pssp..',
+    '........',
+    '........',
+  ], palette: { p: primary, s: secondary, w: warn } };
+}
+
+function makeStairsPattern(primary: RGB, secondary: RGB, up: boolean): TilePattern {
+  const s1 = secondary;
+  const s2 = blend(secondary, primary, 0.33);
+  const s3 = blend(secondary, primary, 0.66);
+  const s4 = primary;
+  const face: RGB = blend(secondary, [20, 18, 14], 0.5);
+  if (up) {
+    return { pixels: [
+      '........',
+      '.....444',
+      '...33344',
+      '...33F44',
+      '.2223F44',
+      '.222FF44',
+      '111FF.44',
+      '111F....',
+    ], palette: { '1': s1, '2': s2, '3': s3, '4': s4, F: face } };
+  }
+  return { pixels: [
+    '111F....',
+    '111FF.44',
+    '.222FF44',
+    '.2223F44',
+    '...33F44',
+    '...33344',
+    '.....444',
+    '........',
+  ], palette: { '1': s4, '2': s3, '3': s2, '4': s1, F: face } };
+}
+
+function makeFountainPattern(primary: RGB, secondary: RGB): TilePattern {
+  const sparkle: RGB = [190, 228, 255];
+  const rim: RGB = blend(secondary, [160, 155, 145], 0.3);
+  const face: RGB = blend(secondary, [20, 35, 60], 0.45);
+  return { pixels: [
+    '...sk...',
+    '..spps..',
+    '.spppps.',
+    '.spppps.',
+    '.srrrrs.',
+    '..FFFF..',
+    '..FFFF..',
+    '..ffff..',
+  ], palette: { s: secondary, p: primary, k: sparkle, r: rim, F: face, f: blend(face, [10, 10, 10], 0.3) } };
+}
+
+function makeFirePattern(primary: RGB, secondary: RGB): TilePattern {
+  const core: RGB = [255, 245, 130];
+  const tip: RGB = [255, 200, 60];
+  return { pixels: [
+    '...tt...',
+    '...sp...',
+    '..spps..',
+    '..spps..',
+    '.ssppss.',
+    '.ssccss.',
+    '..ssss..',
+    '........',
+  ], palette: { s: secondary, p: primary, c: core, t: tip } };
+}
+
+function makeAltarPattern(primary: RGB, secondary: RGB): TilePattern {
+  const glow: RGB = [225, 165, 255];
+  const face: RGB = blend(secondary, [30, 14, 50], 0.45);
+  const dark: RGB = blend(secondary, [18, 8, 35], 0.55);
+  return { pixels: [
+    '...gg...',
+    '..gpgp..',
+    '...gg...',
+    '.pppppp.',
+    '.pppppp.',
+    '.FFFFFF.',
+    '.FFFFFF.',
+    '.dddddd.',
+  ], palette: { p: primary, s: secondary, g: glow, F: face, d: dark } };
+}
+
+function makePillarPattern(primary: RGB, secondary: RGB): TilePattern {
+  const cap: RGB = blend(primary, [205, 200, 190], 0.3);
+  const hi: RGB = blend(primary, [180, 175, 165], 0.2);
+  const face: RGB = blend(secondary, [40, 38, 34], 0.4);
+  const dark: RGB = blend(secondary, [22, 20, 16], 0.55);
+  return { pixels: [
+    '..cccc..',
+    '..hpps..',
+    '..hpps..',
+    '..hpps..',
+    '..hpps..',
+    '..FFFF..',
+    '..FFFF..',
+    '..dddd..',
+  ], palette: { p: primary, s: secondary, c: cap, h: hi, F: face, d: dark } };
+}
+
+function makeTreePattern(primary: RGB, secondary: RGB): TilePattern {
+  const light: RGB = blend(primary, [85, 170, 65], 0.4);
+  const dark: RGB = blend(primary, [22, 55, 18], 0.4);
+  const trunk: RGB = blend(secondary, [60, 40, 20], 0.3);
+  return { pixels: [
+    '..llpp..',
+    '.llpppp.',
+    '.lpppdd.',
+    '.ppppdd.',
+    '..ppdd..',
+    '...tt...',
+    '...tt...',
+    '..tttt..',
+  ], palette: { p: primary, l: light, d: dark, t: trunk } };
+}
+
+function makeRockPattern(primary: RGB): TilePattern {
+  const hi: RGB = blend(primary, [190, 185, 175], 0.3);
+  const sh: RGB = blend(primary, [45, 42, 38], 0.3);
+  const face: RGB = blend(primary, [55, 52, 46], 0.35);
+  return { pixels: [
+    '........',
+    '..hhpp..',
+    '.hhppps.',
+    '.hpppps.',
+    '.ppppss.',
+    '.FFFFFF.',
+    '..FFFs..',
+    '........',
+  ], palette: { p: primary, h: hi, s: sh, F: face } };
+}
+
+function makeRunningWaterPattern(primary: RGB, secondary: RGB): TilePattern {
+  const sparkle: RGB = [190, 235, 255];
+  const dark: RGB = blend(secondary, [10, 40, 70], 0.4);
+  return { pixels: [
+    'ss.ss.ss',
+    '........',
+    '.pp..pp.',
+    '........',
+    's..ss..s',
+    '........',
+    '..pp..pp',
+    'dddddddd',
+  ], palette: { p: primary, s: secondary, k: sparkle, d: dark } };
+}
+
+function makeTorchPattern(primary: RGB, secondary: RGB): TilePattern {
+  const glow: RGB = [255, 245, 130];
+  const tip: RGB = [255, 200, 60];
+  return { pixels: [
+    '...tg...',
+    '...pp...',
+    '...pp...',
+    '...ss...',
+    '...ss...',
+    '...ss...',
+    '...ss...',
+    '........',
+  ], palette: { p: primary, s: secondary, g: glow, t: tip } };
+}
+
+function makeBrazierPattern(primary: RGB, secondary: RGB): TilePattern {
+  const glow: RGB = [255, 245, 130];
+  const tip: RGB = [255, 200, 60];
+  const face: RGB = blend(secondary, [50, 25, 5], 0.4);
+  const dark: RGB = blend(secondary, [28, 14, 3], 0.55);
+  return { pixels: [
+    '...tg...',
+    '..pppp..',
+    '..pppp..',
+    '..ssss..',
+    '.ssssss.',
+    '.FFFFFF.',
+    '.FFFFFF.',
+    '.dddddd.',
+  ], palette: { p: primary, s: secondary, g: glow, t: tip, F: face, d: dark } };
+}
+
+// ── Fantasy Tileset ──────────────────────────────────────────
 
 export class FantasyTileset implements Tileset {
   readonly name = 'Fantasy';
@@ -70,45 +732,68 @@ export class FantasyTileset implements Tileset {
     const variation = (hash % 7) / 7;
     const baseColor = blend(colors.base, colors.alt, variation);
 
-    // Fill base
+    // Fill base color first
     ctx.fillStyle = rgb(baseColor, dim);
     ctx.fillRect(px, py, cw, ch);
 
-    // Terrain-specific decorations
+    // Terrain-specific pixel patterns
     switch (terrain) {
-      case 'wall':
-        this.drawWall(rc, grid, gx, gy, baseColor);
+      case 'wall': {
+        const wallChar = getWallChar(grid, gx, gy);
+        const pattern = makeWallPattern(baseColor, hash, wallChar);
+        drawPattern(ctx, px, py, cw, ch, pattern, dim);
         break;
-      case 'grass':
-        this.drawGrass(rc, baseColor, colors.accent, hash);
+      }
+      case 'grass': {
+        const patterns = makeGrassPatterns(baseColor, colors.accent);
+        drawPattern(ctx, px, py, cw, ch, patterns[hash % patterns.length], dim, baseColor);
         break;
-      case 'water':
-        this.drawWater(rc, baseColor, colors.accent, hash);
+      }
+      case 'water': {
+        const patterns = makeWaterPatterns(baseColor, colors.accent);
+        drawPattern(ctx, px, py, cw, ch, patterns[hash % patterns.length], dim, baseColor);
         break;
-      case 'lava':
-        this.drawLava(rc, baseColor, colors.accent, hash);
+      }
+      case 'lava': {
+        const patterns = makeLavaPatterns(baseColor, colors.accent);
+        drawPattern(ctx, px, py, cw, ch, patterns[hash % patterns.length], dim, baseColor);
         break;
-      case 'ice':
-        this.drawIce(rc, baseColor, colors.accent, hash);
+      }
+      case 'ice': {
+        const patterns = makeIcePatterns(baseColor);
+        drawPattern(ctx, px, py, cw, ch, patterns[hash % patterns.length], dim, baseColor);
         break;
-      case 'sand':
-        this.drawSand(rc, baseColor, colors.accent, hash);
+      }
+      case 'sand': {
+        const patterns = makeSandPatterns(baseColor, colors.accent);
+        drawPattern(ctx, px, py, cw, ch, patterns[hash % patterns.length], dim, baseColor);
         break;
-      case 'mud':
-        this.drawMud(rc, baseColor, colors.accent, hash);
+      }
+      case 'mud': {
+        const patterns = makeMudPatterns(baseColor);
+        drawPattern(ctx, px, py, cw, ch, patterns[hash % patterns.length], dim, baseColor);
         break;
-      case 'stone':
-        this.drawStone(rc, baseColor, colors.accent, hash);
+      }
+      case 'stone': {
+        const patterns = makeStonePatterns(baseColor, colors.accent);
+        drawPattern(ctx, px, py, cw, ch, patterns[hash % patterns.length], dim, baseColor);
         break;
-      case 'wood':
-        this.drawWood(rc, baseColor, colors.accent, hash);
+      }
+      case 'wood': {
+        const patterns = makeWoodPatterns(baseColor, colors.accent);
+        drawPattern(ctx, px, py, cw, ch, patterns[hash % patterns.length], dim, baseColor);
         break;
-      case 'floor':
-        this.drawFloor(rc, baseColor, colors.accent, hash);
+      }
+      case 'floor': {
+        const patterns = makeFloorPatterns(baseColor, colors.accent);
+        drawPattern(ctx, px, py, cw, ch, patterns[hash % patterns.length], dim, baseColor);
         break;
-      case 'pit':
-        this.drawPit(rc, baseColor);
+      }
+      case 'pit': {
+        const pattern = makePitPattern();
+        drawPattern(ctx, px, py, cw, ch, pattern, dim, baseColor);
         break;
+      }
     }
   }
 
@@ -117,51 +802,62 @@ export class FantasyTileset implements Tileset {
     const colors = FEATURE_COLORS[feature];
     if (!colors) return;
 
-    // Feature background
-    ctx.fillStyle = rgb(colors.bg, dim);
-    ctx.fillRect(px, py, cw, ch);
+    let pattern: TilePattern | null = null;
 
     switch (feature) {
       case 'door':
       case 'door_locked': {
         const doorCell = rc.grid.getCell(rc.gx, rc.gy);
         const isOpen = doorCell ? doorCell.movementCost < Infinity : false;
-        this.drawDoor(rc, colors.primary, colors.secondary, feature === 'door_locked', isOpen);
+        pattern = makeDoorPattern(colors.primary, colors.secondary, feature === 'door_locked', isOpen);
         break;
       }
       case 'chest':
-        this.drawChest(rc, colors.primary, colors.secondary);
+        pattern = makeChestPattern(colors.primary, colors.secondary);
         break;
       case 'trap':
-        this.drawTrap(rc, colors.primary, colors.secondary);
+        pattern = makeTrapPattern(colors.primary, colors.secondary);
         break;
       case 'stairs_up':
-        this.drawStairs(rc, colors.primary, colors.secondary, true);
+        pattern = makeStairsPattern(colors.primary, colors.secondary, true);
         break;
       case 'stairs_down':
-        this.drawStairs(rc, colors.primary, colors.secondary, false);
+        pattern = makeStairsPattern(colors.primary, colors.secondary, false);
         break;
       case 'fountain':
-        this.drawFountain(rc, colors.primary, colors.secondary);
+        pattern = makeFountainPattern(colors.primary, colors.secondary);
         break;
       case 'fire':
-        this.drawFire(rc, colors.primary, colors.secondary);
+        pattern = makeFirePattern(colors.primary, colors.secondary);
         break;
       case 'altar':
-        this.drawAltar(rc, colors.primary, colors.secondary);
+        pattern = makeAltarPattern(colors.primary, colors.secondary);
         break;
       case 'pillar':
-        this.drawPillar(rc, colors.primary, colors.secondary);
+        pattern = makePillarPattern(colors.primary, colors.secondary);
         break;
       case 'tree':
-        this.drawTree(rc, colors.primary, colors.secondary);
+        pattern = makeTreePattern(colors.primary, colors.secondary);
         break;
       case 'rock':
-        this.drawRock(rc, colors.primary, colors.secondary);
+        pattern = makeRockPattern(colors.primary);
         break;
       case 'running_water':
-        this.drawRunningWater(rc, colors.primary, colors.secondary);
+        pattern = makeRunningWaterPattern(colors.primary, colors.secondary);
         break;
+      case 'torch_wall':
+        pattern = makeTorchPattern(colors.primary, colors.secondary);
+        break;
+      case 'torch_wall_spent':
+        pattern = makeTorchPattern(colors.primary, colors.secondary);
+        break;
+      case 'brazier':
+        pattern = makeBrazierPattern(colors.primary, colors.secondary);
+        break;
+    }
+
+    if (pattern) {
+      drawPattern(ctx, px, py, cw, ch, pattern, dim);
     }
   }
 
@@ -175,543 +871,52 @@ export class FantasyTileset implements Tileset {
   ): void {
     const { ctx, px, py, cw, ch } = rc;
 
-    // Dark background
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(px, py, cw, ch);
-
-    // Try pixel sprite first
+    // Try pixel sprite first — rendered directly on terrain, no background box
     if (spriteId && spriteRenderer.has(spriteId)) {
       // Render shadow beneath entity
       spriteRenderer.renderShadow(ctx, px, py, cw, ch);
 
-      // Idle breathing animation — subtle 1px vertical bob
-      const bob = Math.round(getSpriteAnimOffset());
-      const rendered = spriteRenderer.renderSprite(ctx, spriteId, px, py + bob, cw, ch);
-      if (rendered) {
-        // Player glow outline
-        if (isPlayer) {
-          ctx.strokeStyle = 'rgba(212, 170, 60, 0.5)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(px + 0.5, py + 0.5, cw - 1, ch - 1);
-        }
-        // Ally tint
-        else if (isAlly) {
-          ctx.fillStyle = 'rgba(68, 170, 255, 0.12)';
-          ctx.fillRect(px, py, cw, ch);
-        }
-        // Enemy subtle red tint
-        else {
-          ctx.fillStyle = 'rgba(180, 40, 40, 0.08)';
-          ctx.fillRect(px, py, cw, ch);
-        }
-        return;
-      }
+      const rendered = spriteRenderer.renderSprite(ctx, spriteId, px, py, cw, ch);
+      if (rendered) return;
     }
 
-    // Fallback: colored circle + symbol
-    const cx = px + cw / 2;
-    const cy = py + ch / 2;
-    const r = Math.min(cw, ch) * 0.38;
-
+    // Fallback: pixel-art style colored block + symbol
+    const pw = cw / 8;
+    const ph = ch / 8;
     let c = color;
     if (isPlayer) c = '#ffffff';
     else if (isAlly) c = '#44aaff';
 
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    // Draw a blocky diamond/circle shape
+    const shape = [
+      '...CC...',
+      '..CCCC..',
+      '.CCCCCC.',
+      '.CCCCCC.',
+      '.CCCCCC.',
+      '.CCCCCC.',
+      '..CCCC..',
+      '...CC...',
+    ];
     ctx.fillStyle = c;
-    ctx.fill();
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        if (shape[y][x] === 'C') {
+          ctx.fillRect(
+            px + Math.floor(x * pw),
+            py + Math.floor(y * ph),
+            Math.ceil(pw),
+            Math.ceil(ph),
+          );
+        }
+      }
+    }
 
+    // Symbol text on top
     ctx.fillStyle = '#0a0a0a';
-    ctx.font = `bold ${Math.floor(Math.min(cw, ch) * 0.55)}px monospace`;
+    ctx.font = `bold ${Math.floor(Math.min(cw, ch) * 0.45)}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(symbol, cx, cy);
-  }
-
-  // ── Terrain Renderers ─────────────────────────────────────
-
-  private drawWall(rc: TilesetRenderContext, grid: import('./Grid').Grid, gx: number, gy: number, base: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const wallChar = getWallChar(grid, gx, gy);
-
-    // Raised stone look
-    const highlight = blend(base, [180, 175, 165], 0.3);
-    const shadow = blend(base, [20, 18, 15], 0.4);
-
-    // Top/left highlight edge
-    ctx.fillStyle = rgb(highlight, dim);
-    ctx.fillRect(px, py, cw, 2);
-    ctx.fillRect(px, py, 2, ch);
-
-    // Bottom/right shadow edge
-    ctx.fillStyle = rgb(shadow, dim);
-    ctx.fillRect(px, py + ch - 2, cw, 2);
-    ctx.fillRect(px + cw - 2, py, 2, ch);
-
-    // Mortar lines based on connectivity
-    ctx.fillStyle = rgb(shadow, dim * 0.7);
-    if (wallChar === '\u2501' || wallChar === '\u254B' || wallChar === '\u2533' || wallChar === '\u253B' || wallChar === '\u2523' || wallChar === '\u252B') {
-      // Horizontal connection — draw horizontal mortar
-      ctx.fillRect(px, py + Math.floor(ch * 0.5), cw, 1);
-    }
-    if (wallChar === '\u2503' || wallChar === '\u254B' || wallChar === '\u2533' || wallChar === '\u253B' || wallChar === '\u2523' || wallChar === '\u252B') {
-      // Vertical connection — draw vertical mortar
-      ctx.fillRect(px + Math.floor(cw * 0.5), py, 1, ch);
-    }
-  }
-
-  private drawGrass(rc: TilesetRenderContext, _base: RGB, accent: RGB, hash: number): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Grass blades — 3-5 small line marks
-    const count = 2 + (hash % 4);
-    ctx.strokeStyle = rgb(accent, dim);
-    ctx.lineWidth = 1;
-    for (let i = 0; i < count; i++) {
-      const bx = px + ((hash * (i + 3) * 7) % cw);
-      const by = py + ((hash * (i + 5) * 11) % ch);
-      const h = 2 + ((hash * (i + 1)) % 4);
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.lineTo(bx + ((i % 2) ? 1 : -1), by - h);
-      ctx.stroke();
-    }
-
-    // Small dot variation
-    if (hash % 5 === 0) {
-      ctx.fillStyle = rgb(blend(accent, [60, 130, 50], 0.5), dim);
-      ctx.fillRect(px + (hash % (cw - 2)), py + ((hash * 3) % (ch - 2)), 2, 2);
-    }
-  }
-
-  private drawWater(rc: TilesetRenderContext, _base: RGB, accent: RGB, hash: number): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Wavelet pattern — horizontal streaks
-    const waveY = py + (hash % Math.max(1, ch - 4)) + 2;
-    ctx.fillStyle = rgb(accent, dim * 0.6);
-    ctx.fillRect(px + 2, waveY, cw - 4, 1);
-
-    // Light reflection dot
-    if (hash % 4 === 0) {
-      ctx.fillStyle = rgb([120, 180, 240], dim * 0.5);
-      ctx.fillRect(
-        px + (hash % Math.max(1, cw - 3)),
-        py + ((hash * 7) % Math.max(1, ch - 3)),
-        2, 1,
-      );
-    }
-  }
-
-  private drawLava(rc: TilesetRenderContext, _base: RGB, _accent: RGB, hash: number): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Bright hot spots
-    const spotX = px + (hash % Math.max(1, cw - 4)) + 1;
-    const spotY = py + ((hash * 3) % Math.max(1, ch - 4)) + 1;
-    ctx.fillStyle = rgb([255, 160, 30], dim * 0.7);
-    ctx.fillRect(spotX, spotY, 3, 2);
-
-    // Dark crust cracks
-    if (hash % 3 === 0) {
-      ctx.fillStyle = rgb([100, 25, 5], dim);
-      ctx.fillRect(px + ((hash * 7) % cw), py, 1, ch);
-    }
-  }
-
-  private drawIce(rc: TilesetRenderContext, _base: RGB, _accent: RGB, hash: number): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Crack lines
-    if (hash % 3 === 0) {
-      ctx.strokeStyle = rgb([200, 230, 250], dim * 0.3);
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      const sx = px + (hash % cw);
-      ctx.moveTo(sx, py);
-      ctx.lineTo(sx + ((hash % 5) - 2), py + ch);
-      ctx.stroke();
-    }
-
-    // Shine spot
-    if (hash % 5 === 0) {
-      ctx.fillStyle = rgb([220, 240, 255], dim * 0.4);
-      ctx.fillRect(
-        px + (hash % Math.max(1, cw - 2)),
-        py + ((hash * 3) % Math.max(1, ch - 2)),
-        2, 2,
-      );
-    }
-  }
-
-  private drawSand(rc: TilesetRenderContext, _base: RGB, accent: RGB, hash: number): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Small grain dots
-    const count = 1 + (hash % 3);
-    for (let i = 0; i < count; i++) {
-      const dx = (hash * (i + 2) * 13) % cw;
-      const dy = (hash * (i + 3) * 17) % ch;
-      ctx.fillStyle = rgb(accent, dim * 0.6);
-      ctx.fillRect(px + dx, py + dy, 1, 1);
-    }
-  }
-
-  private drawMud(rc: TilesetRenderContext, base: RGB, _accent: RGB, hash: number): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Wet patches
-    if (hash % 3 === 0) {
-      ctx.fillStyle = rgb(blend(base, [60, 40, 20], 0.3), dim);
-      const sz = 2 + (hash % 3);
-      ctx.fillRect(
-        px + (hash % Math.max(1, cw - sz)),
-        py + ((hash * 7) % Math.max(1, ch - sz)),
-        sz, sz,
-      );
-    }
-  }
-
-  private drawStone(rc: TilesetRenderContext, base: RGB, accent: RGB, hash: number): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Subtle crack
-    if (hash % 4 === 0) {
-      ctx.fillStyle = rgb(blend(base, [50, 48, 44], 0.4), dim);
-      ctx.fillRect(px + (hash % cw), py + 1, 1, ch - 2);
-    }
-
-    // Pebble dot
-    if (hash % 3 === 0) {
-      ctx.fillStyle = rgb(accent, dim * 0.7);
-      ctx.fillRect(
-        px + ((hash * 3) % Math.max(1, cw - 2)),
-        py + ((hash * 5) % Math.max(1, ch - 2)),
-        2, 1,
-      );
-    }
-  }
-
-  private drawWood(rc: TilesetRenderContext, base: RGB, accent: RGB, hash: number): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Wood grain — horizontal lines
-    const lineY = py + (hash % Math.max(1, ch - 2)) + 1;
-    ctx.fillStyle = rgb(blend(base, accent, 0.3), dim * 0.7);
-    ctx.fillRect(px, lineY, cw, 1);
-
-    // Knot
-    if (hash % 7 === 0) {
-      ctx.fillStyle = rgb(blend(base, [80, 50, 25], 0.5), dim);
-      ctx.fillRect(
-        px + (hash % Math.max(1, cw - 3)) + 1,
-        py + ((hash * 3) % Math.max(1, ch - 3)) + 1,
-        2, 2,
-      );
-    }
-  }
-
-  private drawFloor(rc: TilesetRenderContext, base: RGB, accent: RGB, hash: number): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Stone tile grid lines
-    ctx.fillStyle = rgb(blend(base, [30, 28, 24], 0.3), dim);
-    ctx.fillRect(px + cw - 1, py, 1, ch);
-    ctx.fillRect(px, py + ch - 1, cw, 1);
-
-    // Occasional scuff mark
-    if (hash % 8 === 0) {
-      ctx.fillStyle = rgb(accent, dim * 0.4);
-      ctx.fillRect(
-        px + ((hash * 3) % Math.max(1, cw - 3)) + 1,
-        py + ((hash * 5) % Math.max(1, ch - 2)) + 1,
-        2, 1,
-      );
-    }
-  }
-
-  private drawPit(rc: TilesetRenderContext, _base: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-
-    // Dark gradient edge
-    ctx.fillStyle = rgb([20, 18, 15], dim * 0.3);
-    ctx.fillRect(px, py, cw, 2);
-    ctx.fillRect(px, py, 2, ch);
-    ctx.fillRect(px + cw - 2, py, 2, ch);
-    ctx.fillRect(px, py + ch - 2, cw, 2);
-  }
-
-  // ── Feature Renderers ─────────────────────────────────────
-
-  private drawDoor(rc: TilesetRenderContext, primary: RGB, secondary: RGB, locked: boolean, isOpen: boolean): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const inset = Math.max(2, Math.floor(cw * 0.15));
-
-    if (isOpen) {
-      // Open door: frame with door swung against left wall, center passable
-      // Doorway opening (dark gap)
-      ctx.fillStyle = rgb([30, 25, 18], dim);
-      ctx.fillRect(px + inset, py + 1, cw - inset * 2, ch - 2);
-
-      // Door panel swung to left side (thin vertical strip)
-      ctx.fillStyle = rgb(primary, dim);
-      ctx.fillRect(px + inset, py + 1, 3, ch - 2);
-
-      // Hinges on swung panel
-      ctx.fillStyle = rgb(secondary, dim);
-      ctx.fillRect(px + inset, py + 3, 2, 2);
-      ctx.fillRect(px + inset, py + ch - 5, 2, 2);
-    } else {
-      // Closed door: full panel with frame and handle
-      // Door frame
-      ctx.fillStyle = rgb(secondary, dim);
-      ctx.fillRect(px + inset, py + 1, cw - inset * 2, ch - 2);
-
-      // Door panel
-      ctx.fillStyle = rgb(primary, dim);
-      ctx.fillRect(px + inset + 2, py + 3, cw - inset * 2 - 4, ch - 6);
-
-      // Handle/lock indicator
-      const handleX = px + cw / 2 + 2;
-      const handleY = py + ch / 2;
-      ctx.fillStyle = locked ? rgb([255, 60, 60], dim) : rgb([240, 220, 100], dim);
-      ctx.fillRect(handleX, handleY - 1, 2, 2);
-    }
-  }
-
-  private drawChest(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const cx = px + cw / 2;
-    const cy = py + ch / 2;
-    const w = Math.floor(cw * 0.6);
-    const h = Math.floor(ch * 0.5);
-
-    // Chest body
-    ctx.fillStyle = rgb(secondary, dim);
-    ctx.fillRect(cx - w / 2, cy - h / 2 + 1, w, h);
-
-    // Lid
-    ctx.fillStyle = rgb(primary, dim);
-    ctx.fillRect(cx - w / 2, cy - h / 2, w, Math.floor(h * 0.4));
-
-    // Latch
-    ctx.fillStyle = rgb([255, 255, 200], dim);
-    ctx.fillRect(cx - 1, cy - 1, 2, 2);
-  }
-
-  private drawTrap(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const cx = px + cw / 2;
-    const cy = py + ch / 2;
-    const s = Math.floor(Math.min(cw, ch) * 0.35);
-
-    // Triangle warning
-    ctx.fillStyle = rgb(primary, dim);
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - s);
-    ctx.lineTo(cx + s, cy + s * 0.6);
-    ctx.lineTo(cx - s, cy + s * 0.6);
-    ctx.closePath();
-    ctx.fill();
-
-    // Exclamation dot
-    ctx.fillStyle = rgb(secondary, dim);
-    ctx.fillRect(cx - 1, cy - s * 0.3, 2, s * 0.4);
-    ctx.fillRect(cx - 1, cy + s * 0.2, 2, 2);
-  }
-
-  private drawStairs(rc: TilesetRenderContext, primary: RGB, secondary: RGB, up: boolean): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const steps = 4;
-    const stepW = Math.floor((cw - 4) / steps);
-    const stepH = Math.floor((ch - 4) / steps);
-
-    for (let i = 0; i < steps; i++) {
-      const shade = up ? i / steps : 1 - i / steps;
-      ctx.fillStyle = rgb(blend(secondary, primary, shade), dim);
-      const sx = px + 2 + i * stepW;
-      const sy = up ? py + ch - 2 - (i + 1) * stepH : py + 2 + i * stepH;
-      ctx.fillRect(sx, sy, stepW, stepH);
-    }
-
-    // Arrow indicator
-    ctx.fillStyle = rgb([255, 255, 255], dim * 0.6);
-    const arrowX = px + cw / 2;
-    const arrowY = up ? py + 3 : py + ch - 4;
-    ctx.beginPath();
-    if (up) {
-      ctx.moveTo(arrowX, arrowY);
-      ctx.lineTo(arrowX + 3, arrowY + 3);
-      ctx.lineTo(arrowX - 3, arrowY + 3);
-    } else {
-      ctx.moveTo(arrowX, arrowY);
-      ctx.lineTo(arrowX + 3, arrowY - 3);
-      ctx.lineTo(arrowX - 3, arrowY - 3);
-    }
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  private drawFountain(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const cx = px + cw / 2;
-    const cy = py + ch / 2;
-    const r = Math.floor(Math.min(cw, ch) * 0.3);
-
-    // Basin
-    ctx.fillStyle = rgb(secondary, dim);
-    ctx.beginPath();
-    ctx.arc(cx, cy + 2, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Water surface
-    ctx.fillStyle = rgb(primary, dim * 0.8);
-    ctx.beginPath();
-    ctx.arc(cx, cy + 2, r - 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Spout
-    ctx.fillStyle = rgb([180, 220, 255], dim * 0.6);
-    ctx.fillRect(cx - 1, cy - r, 2, r);
-  }
-
-  private drawFire(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const cx = px + cw / 2;
-    const baseY = py + ch * 0.7;
-
-    // Flame body — stacked triangles
-    ctx.fillStyle = rgb(secondary, dim);
-    ctx.beginPath();
-    ctx.moveTo(cx, py + ch * 0.15);
-    ctx.lineTo(cx + cw * 0.3, baseY);
-    ctx.lineTo(cx - cw * 0.3, baseY);
-    ctx.closePath();
-    ctx.fill();
-
-    // Inner flame
-    ctx.fillStyle = rgb(primary, dim);
-    ctx.beginPath();
-    ctx.moveTo(cx, py + ch * 0.3);
-    ctx.lineTo(cx + cw * 0.18, baseY - 2);
-    ctx.lineTo(cx - cw * 0.18, baseY - 2);
-    ctx.closePath();
-    ctx.fill();
-
-    // Core glow
-    ctx.fillStyle = rgb([255, 240, 120], dim * 0.8);
-    ctx.fillRect(cx - 1, py + ch * 0.45, 2, Math.floor(ch * 0.15));
-  }
-
-  private drawAltar(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const cx = px + cw / 2;
-
-    // Pedestal
-    ctx.fillStyle = rgb(secondary, dim);
-    ctx.fillRect(px + 3, py + ch * 0.6, cw - 6, ch * 0.35);
-
-    // Top slab
-    ctx.fillStyle = rgb(primary, dim);
-    ctx.fillRect(px + 2, py + ch * 0.55, cw - 4, Math.floor(ch * 0.12));
-
-    // Glow symbol
-    ctx.fillStyle = rgb([220, 160, 255], dim * 0.6);
-    ctx.fillRect(cx - 1, py + ch * 0.3, 2, Math.floor(ch * 0.2));
-    ctx.fillRect(cx - 3, py + ch * 0.38, 6, 1);
-  }
-
-  private drawPillar(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const cx = px + cw / 2;
-    const pillarW = Math.floor(cw * 0.35);
-
-    // Shaft
-    ctx.fillStyle = rgb(primary, dim);
-    ctx.fillRect(cx - pillarW / 2, py + 3, pillarW, ch - 6);
-
-    // Capital (top)
-    ctx.fillStyle = rgb(blend(primary, [200, 195, 185], 0.3), dim);
-    ctx.fillRect(cx - pillarW / 2 - 1, py + 2, pillarW + 2, 3);
-
-    // Base
-    ctx.fillStyle = rgb(secondary, dim);
-    ctx.fillRect(cx - pillarW / 2 - 1, py + ch - 5, pillarW + 2, 3);
-  }
-
-  private drawTree(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const cx = px + cw / 2;
-
-    // Trunk
-    const trunkW = Math.max(2, Math.floor(cw * 0.2));
-    ctx.fillStyle = rgb(secondary, dim);
-    ctx.fillRect(cx - trunkW / 2, py + ch * 0.5, trunkW, ch * 0.45);
-
-    // Canopy — layered circles
-    const r = Math.floor(Math.min(cw, ch) * 0.35);
-    ctx.fillStyle = rgb(primary, dim);
-    ctx.beginPath();
-    ctx.arc(cx, py + ch * 0.35, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Canopy highlight
-    ctx.fillStyle = rgb(blend(primary, [80, 160, 60], 0.4), dim * 0.7);
-    ctx.beginPath();
-    ctx.arc(cx - 1, py + ch * 0.3, r * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  private drawRock(rc: TilesetRenderContext, primary: RGB, _secondary: RGB): void {
-    const { ctx, px, py, cw, ch, dim } = rc;
-    const cx = px + cw / 2;
-    const cy = py + ch / 2;
-    const rw = Math.floor(cw * 0.35);
-    const rh = Math.floor(ch * 0.3);
-
-    // Rock body
-    ctx.fillStyle = rgb(primary, dim);
-    ctx.beginPath();
-    ctx.ellipse(cx, cy + 1, rw, rh, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Highlight edge
-    ctx.fillStyle = rgb(blend(primary, [180, 175, 165], 0.3), dim);
-    ctx.beginPath();
-    ctx.ellipse(cx - 1, cy - 1, rw * 0.6, rh * 0.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  private drawRunningWater(rc: TilesetRenderContext, primary: RGB, secondary: RGB): void {
-    const { ctx, px, py, cw, ch, dim, hash } = rc;
-
-    // Water background
-    ctx.fillStyle = rgb(secondary, dim * 0.6);
-    ctx.fillRect(px, py, cw, ch);
-
-    // Animated-look wavy lines across the cell
-    const cy = py + ch / 2;
-    const waveOffset = (hash % 5) * 2;
-    ctx.strokeStyle = rgb(primary, dim * 0.9);
-    ctx.lineWidth = 2;
-
-    for (let row = -1; row <= 1; row++) {
-      const wy = cy + row * Math.floor(ch * 0.28);
-      ctx.beginPath();
-      for (let i = 0; i <= 4; i++) {
-        const wx = px + (i / 4) * cw;
-        const dy = Math.sin((i + waveOffset) * 1.5) * (ch * 0.08);
-        if (i === 0) ctx.moveTo(wx, wy + dy);
-        else ctx.lineTo(wx, wy + dy);
-      }
-      ctx.stroke();
-    }
-
-    // Sparkle highlights
-    ctx.fillStyle = rgb([180, 230, 255], dim * 0.5);
-    const sx = px + (hash % 3 + 1) * cw * 0.25;
-    const sy = py + ((hash >> 4) % 3 + 1) * ch * 0.25;
-    ctx.fillRect(sx, sy, 2, 2);
+    ctx.fillText(symbol, px + cw / 2, py + ch / 2);
   }
 }

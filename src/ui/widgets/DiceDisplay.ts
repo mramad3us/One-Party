@@ -231,4 +231,66 @@ export class DiceDisplay extends Component {
     display.destroy();
     display.el.remove();
   }
+
+  /**
+   * Quick, non-blocking encounter roll — small toast in the bottom-left corner.
+   * Much faster than showRoll, doesn't block the map view.
+   */
+  static async showRollQuick(parent: HTMLElement, result: DiceRollResult, _engine: GameEngine): Promise<void> {
+    const wrapper = el('div', { class: 'dice-quick-roll' });
+
+    // Die icon
+    const dieType = result.dieType ?? 20;
+    const dieIcon = IconSystem.icon(`dice-d${dieType}`);
+    dieIcon.classList.add('dice-quick-die');
+    wrapper.appendChild(dieIcon);
+
+    // Result number
+    const totalClasses = ['dice-quick-total'];
+    if (result.isCritical) totalClasses.push('dice-quick-total--crit');
+    if (result.isFumble) totalClasses.push('dice-quick-total--fumble');
+    const totalEl = el('span', { class: totalClasses.join(' ') }, [String(result.total)]);
+    wrapper.appendChild(totalEl);
+
+    // Description
+    if (result.description) {
+      const desc = el('span', { class: 'dice-quick-desc' }, [result.description]);
+      wrapper.appendChild(desc);
+    }
+
+    parent.appendChild(wrapper);
+
+    // Phase 1: Slide in + quick tumble
+    wrapper.animate([
+      { opacity: '0', transform: 'translateY(12px) scale(0.9)' },
+      { opacity: '1', transform: 'translateY(0) scale(1)' },
+    ], { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+
+    dieIcon.animate([
+      { transform: 'rotate(0deg) scale(0.6)', opacity: '0.3' },
+      { transform: 'rotate(360deg) scale(1)', opacity: '1' },
+    ], { duration: 250, easing: 'ease-out', fill: 'forwards' });
+
+    // Brief hold
+    totalEl.style.opacity = '0';
+    await new Promise<void>((r) => setTimeout(r, 250));
+
+    // Phase 2: Reveal total
+    totalEl.animate([
+      { opacity: '0', transform: 'scale(0.7)' },
+      { opacity: '1', transform: 'scale(1)' },
+    ], { duration: 120, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+
+    // Hold to read
+    await new Promise<void>((r) => setTimeout(r, result.isCritical || result.isFumble ? 800 : 500));
+
+    // Phase 3: Fade out
+    wrapper.animate([
+      { opacity: '1', transform: 'translateY(0)' },
+      { opacity: '0', transform: 'translateY(-8px)' },
+    ], { duration: 200, easing: 'ease-in', fill: 'forwards' });
+    await new Promise<void>((r) => setTimeout(r, 200));
+
+    wrapper.remove();
+  }
 }

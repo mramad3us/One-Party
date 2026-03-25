@@ -235,6 +235,10 @@ export class GameScreen extends Component {
 
     this.gridPanel.initGrid(grid, fog);
 
+    // Tell renderer the map size so it centers small maps in the viewport
+    this.gridPanel.setMapSize(gridDef.width, gridDef.height);
+    this.gridPanel.centerOn({ x: Math.floor(gridDef.width / 2), y: Math.floor(gridDef.height / 2) });
+
     // Mount CombatHUD on the grid wrapper
     if (this.combatHUD) {
       this.combatHUD.destroy();
@@ -255,6 +259,9 @@ export class GameScreen extends Component {
 
   exitCombatMode(): void {
     this.currentMode = 'exploration';
+
+    // Clear small-map centering offset
+    this.gridPanel.setMapSize(0, 0);
 
     // Remove CombatHUD
     if (this.combatHUD) {

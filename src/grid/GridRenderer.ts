@@ -74,6 +74,13 @@ export class GridRenderer {
   // Camera center in grid coords
   private cameraCenter: Coordinate = { x: 0, y: 0 };
 
+  // Map bounds — used to center small maps in the viewport
+  private mapWidth = 0;
+  private mapHeight = 0;
+  // Pixel offset to center a small map within the viewport
+  private offsetX = 0;
+  private offsetY = 0;
+
   // Event hooks
   onCellHover: ((coord: Coordinate | null) => void) | null = null;
   onCellClick: ((coord: Coordinate) => void) | null = null;
@@ -88,10 +95,12 @@ export class GridRenderer {
     this.canvas.style.width = '100%';
     this.canvas.style.height = '100%';
     this.canvas.style.background = '#000';
+    this.canvas.style.imageRendering = 'pixelated';
     container.appendChild(this.canvas);
 
     const ctx = this.canvas.getContext('2d');
     if (!ctx) throw new Error('Failed to get canvas 2D context');
+    ctx.imageSmoothingEnabled = false;
     this.ctx = ctx;
 
     this.overlay = document.createElement('div');
@@ -143,22 +152,32 @@ export class GridRenderer {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
 
-    // Calculate viewport bounds
-    const startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
-    const startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    // Calculate viewport bounds — for small maps, use map origin directly
+    let startX: number, startY: number;
+    if (this.offsetX > 0 || this.offsetY > 0) {
+      // Map is smaller than viewport — start at grid origin
+      startX = 0;
+      startY = 0;
+    } else {
+      startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
+      startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    }
 
     // Set up font for ASCII tileset (graphical tilesets ignore this)
     ctx.font = `${this.fontSize}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    for (let vy = 0; vy < this.viewRows; vy++) {
-      for (let vx = 0; vx < this.viewCols; vx++) {
+    const renderCols = this.offsetX > 0 ? this.mapWidth : this.viewCols;
+    const renderRows = this.offsetY > 0 ? this.mapHeight : this.viewRows;
+
+    for (let vy = 0; vy < renderRows; vy++) {
+      for (let vx = 0; vx < renderCols; vx++) {
         const gx = startX + vx;
         const gy = startY + vy;
 
-        const px = vx * this.cellW;
-        const py = vy * this.cellH;
+        const px = vx * this.cellW + this.offsetX;
+        const py = vy * this.cellH + this.offsetY;
 
         const cell = grid.getCell(gx, gy);
 
@@ -208,9 +227,9 @@ export class GridRenderer {
         const parts = key.split(',');
         const hx = parseInt(parts[0], 10) - startX;
         const hy = parseInt(parts[1], 10) - startY;
-        if (hx < 0 || hx >= this.viewCols || hy < 0 || hy >= this.viewRows) continue;
+        if (hx < 0 || hx >= renderCols || hy < 0 || hy >= renderRows) continue;
         ctx.fillStyle = layer.color;
-        ctx.fillRect(hx * this.cellW, hy * this.cellH, this.cellW, this.cellH);
+        ctx.fillRect(hx * this.cellW + this.offsetX, hy * this.cellH + this.offsetY, this.cellW, this.cellH);
       }
       ctx.globalAlpha = 1;
     }
@@ -222,14 +241,14 @@ export class GridRenderer {
       ctx.setLineDash([2, 2]);
       ctx.beginPath();
       const first = this.pathPreview[0];
-      const sx = (first.x - startX) * this.cellW + this.cellW / 2;
-      const sy = (first.y - startY) * this.cellH + this.cellH / 2;
+      const sx = (first.x - startX) * this.cellW + this.cellW / 2 + this.offsetX;
+      const sy = (first.y - startY) * this.cellH + this.cellH / 2 + this.offsetY;
       ctx.moveTo(sx, sy);
       for (let i = 1; i < this.pathPreview.length; i++) {
         const p = this.pathPreview[i];
         ctx.lineTo(
-          (p.x - startX) * this.cellW + this.cellW / 2,
-          (p.y - startY) * this.cellH + this.cellH / 2,
+          (p.x - startX) * this.cellW + this.cellW / 2 + this.offsetX,
+          (p.y - startY) * this.cellH + this.cellH / 2 + this.offsetY,
         );
       }
       ctx.stroke();
@@ -240,9 +259,9 @@ export class GridRenderer {
     if (this.hoveredCell) {
       const hx = this.hoveredCell.x - startX;
       const hy = this.hoveredCell.y - startY;
-      if (hx >= 0 && hx < this.viewCols && hy >= 0 && hy < this.viewRows) {
+      if (hx >= 0 && hx < renderCols && hy >= 0 && hy < renderRows) {
         ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        ctx.fillRect(hx * this.cellW, hy * this.cellH, this.cellW, this.cellH);
+        ctx.fillRect(hx * this.cellW + this.offsetX, hy * this.cellH + this.offsetY, this.cellW, this.cellH);
       }
     }
 
@@ -250,12 +269,12 @@ export class GridRenderer {
     if (this.lookCursor) {
       const lx = this.lookCursor.x - startX;
       const ly = this.lookCursor.y - startY;
-      if (lx >= 0 && lx < this.viewCols && ly >= 0 && ly < this.viewRows) {
+      if (lx >= 0 && lx < renderCols && ly >= 0 && ly < renderRows) {
         ctx.strokeStyle = '#c8a84e';
         ctx.lineWidth = 2;
-        ctx.strokeRect(lx * this.cellW + 1, ly * this.cellH + 1, this.cellW - 2, this.cellH - 2);
+        ctx.strokeRect(lx * this.cellW + this.offsetX + 1, ly * this.cellH + this.offsetY + 1, this.cellW - 2, this.cellH - 2);
         ctx.fillStyle = 'rgba(200, 168, 78, 0.12)';
-        ctx.fillRect(lx * this.cellW, ly * this.cellH, this.cellW, this.cellH);
+        ctx.fillRect(lx * this.cellW + this.offsetX, ly * this.cellH + this.offsetY, this.cellW, this.cellH);
       }
     }
 
@@ -269,8 +288,14 @@ export class GridRenderer {
   ): void {
     const { ctx } = this;
     const dpr = window.devicePixelRatio;
-    const startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
-    const startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    let startX: number, startY: number;
+    if (this.offsetX > 0 || this.offsetY > 0) {
+      startX = 0;
+      startY = 0;
+    } else {
+      startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
+      startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    }
 
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -288,8 +313,8 @@ export class GridRenderer {
       // Skip if off-viewport
       if (vx < 0 || vx >= this.viewCols || vy < 0 || vy >= this.viewRows) continue;
 
-      const px = vx * this.cellW;
-      const py = vy * this.cellH;
+      const px = vx * this.cellW + this.offsetX;
+      const py = vy * this.cellH + this.offsetY;
 
       const rc: TilesetRenderContext = {
         ctx, px, py, cw: this.cellW, ch: this.cellH,
@@ -325,8 +350,10 @@ export class GridRenderer {
     const { ctx } = this;
 
     // Scan visible viewport cells for light sources
-    for (let vy = 0; vy < this.viewRows; vy++) {
-      for (let vx = 0; vx < this.viewCols; vx++) {
+    const renderCols = this.offsetX > 0 ? this.mapWidth : this.viewCols;
+    const renderRows = this.offsetY > 0 ? this.mapHeight : this.viewRows;
+    for (let vy = 0; vy < renderRows; vy++) {
+      for (let vx = 0; vx < renderCols; vx++) {
         const gx = startX + vx;
         const gy = startY + vy;
 
@@ -340,8 +367,8 @@ export class GridRenderer {
           if (radiusCells === undefined) continue;
 
           const dim = fog.isVisible(gx, gy) ? 1 : 0.3;
-          const cx = vx * this.cellW + this.cellW / 2;
-          const cy = vy * this.cellH + this.cellH / 2;
+          const cx = vx * this.cellW + this.cellW / 2 + this.offsetX;
+          const cy = vy * this.cellH + this.cellH / 2 + this.offsetY;
           const radiusPx = radiusCells * Math.max(this.cellW, this.cellH);
 
           // Pick glow color by feature type
@@ -425,33 +452,63 @@ export class GridRenderer {
     this.cameraCenter = { x: position.x, y: position.y };
   }
 
+  /** Tell the renderer the map dimensions so small maps can be centered in the viewport. */
+  setMapSize(width: number, height: number): void {
+    this.mapWidth = width;
+    this.mapHeight = height;
+    this.updateOffset();
+  }
+
+  private updateOffset(): void {
+    if (this.mapWidth > 0 && this.mapHeight > 0) {
+      const mapPxW = this.mapWidth * this.cellW;
+      const mapPxH = this.mapHeight * this.cellH;
+      const vpW = this.lastContainerW;
+      const vpH = this.lastContainerH;
+      this.offsetX = mapPxW < vpW ? Math.floor((vpW - mapPxW) / 2) : 0;
+      this.offsetY = mapPxH < vpH ? Math.floor((vpH - mapPxH) / 2) : 0;
+    } else {
+      this.offsetX = 0;
+      this.offsetY = 0;
+    }
+  }
+
   // ── Coordinate conversion ─────────────────────────────────
 
   gridToScreen(coord: Coordinate): { x: number; y: number } {
-    const startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
-    const startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    let startX: number, startY: number;
+    if (this.offsetX > 0 || this.offsetY > 0) {
+      startX = 0; startY = 0;
+    } else {
+      startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
+      startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    }
     return {
-      x: (coord.x - startX) * this.cellW,
-      y: (coord.y - startY) * this.cellH,
+      x: (coord.x - startX) * this.cellW + this.offsetX,
+      y: (coord.y - startY) * this.cellH + this.offsetY,
     };
   }
 
   /** Convert grid coordinate to the screen-space center of that cell. */
   gridToScreenCenter(coord: Coordinate): { x: number; y: number } {
-    const startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
-    const startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    const pos = this.gridToScreen(coord);
     return {
-      x: (coord.x - startX) * this.cellW + this.cellW / 2,
-      y: (coord.y - startY) * this.cellH + this.cellH / 2,
+      x: pos.x + this.cellW / 2,
+      y: pos.y + this.cellH / 2,
     };
   }
 
   screenToGrid(screenX: number, screenY: number): Coordinate {
-    const startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
-    const startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    let startX: number, startY: number;
+    if (this.offsetX > 0 || this.offsetY > 0) {
+      startX = 0; startY = 0;
+    } else {
+      startX = this.cameraCenter.x - Math.floor(this.viewCols / 2);
+      startY = this.cameraCenter.y - Math.floor(this.viewRows / 2);
+    }
     return {
-      x: Math.floor(screenX / this.cellW) + startX,
-      y: Math.floor(screenY / this.cellH) + startY,
+      x: Math.floor((screenX - this.offsetX) / this.cellW) + startX,
+      y: Math.floor((screenY - this.offsetY) / this.cellH) + startY,
     };
   }
 
@@ -509,6 +566,8 @@ export class GridRenderer {
     const dpr = window.devicePixelRatio;
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
+    // Re-disable smoothing — setting canvas dimensions resets context state
+    this.ctx.imageSmoothingEnabled = false;
 
     const zoom = this.camera.zoom;
     if (this.tileset.squareCells) {
@@ -527,5 +586,7 @@ export class GridRenderer {
     // How many cells fit in the viewport
     this.viewCols = Math.ceil(rect.width / this.cellW);
     this.viewRows = Math.ceil(rect.height / this.cellH);
+
+    this.updateOffset();
   }
 }

@@ -11,6 +11,7 @@ export class TurnManager {
   private reactionUsed = false;
   private movementUsed = 0;
   private maxMovement = 0;
+  private _disengaged = false;
 
   constructor() {}
 
@@ -24,6 +25,7 @@ export class TurnManager {
     this.bonusActionUsed = false;
     this.movementUsed = 0;
     this.maxMovement = speed;
+    this._disengaged = false;
     // Reaction resets at the start of your turn
     this.reactionUsed = false;
   }
@@ -74,6 +76,19 @@ export class TurnManager {
 
   resetReaction(): void {
     this.reactionUsed = false;
+  }
+
+  // ── Disengage ──────────────────────────────────────────────
+
+  /** Mark that this entity has taken the Disengage action this turn. */
+  disengage(): void {
+    this.actionUsed = true;
+    this._disengaged = true;
+  }
+
+  /** Whether the current entity has Disengaged this turn (immune to opportunity attacks). */
+  get disengaged(): boolean {
+    return this._disengaged;
   }
 
   // ── Dash (doubles movement) ──────────────────────────────────
