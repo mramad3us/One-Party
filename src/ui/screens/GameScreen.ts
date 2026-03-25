@@ -567,10 +567,6 @@ export class GameScreen extends Component {
     }
   }
 
-  /** Whether we're in combat mode (used by help system to show modal instead). */
-  isInCombat(): boolean {
-    return this.currentMode === 'combat';
-  }
 
   // ── World Map Overlay ──
 
