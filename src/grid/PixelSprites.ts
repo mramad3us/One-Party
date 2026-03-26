@@ -753,6 +753,778 @@ const STIRGE: SpriteDefinition = {
   ],
 };
 
+// ── NPC Sprites ────────────────────────────────────────────
+
+const NPC_INNKEEPER: SpriteDefinition = {
+  palette: {
+    // Hair (2 shades)
+    H: '#a07050', // hair highlight
+    h: '#704830', // hair shadow
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Apron (3 shades)
+    W: '#f0e8d8', // apron highlight
+    w: '#d8cbb8', // apron mid
+    X: '#b8a898', // apron shadow
+    // Shirt (3 shades)
+    R: '#c86838', // shirt highlight (warm rust)
+    r: '#a04828', // shirt mid
+    Q: '#783018', // shirt shadow
+    // Tankard (3 shades)
+    T: '#d0b878', // tankard bright
+    t: '#a89058', // tankard mid
+    K: '#786838', // tankard dark
+    // Belt
+    B: '#403028', // belt dark
+    // Pants (2 shades)
+    P: '#786050', // pants lit
+    p: '#584038', // pants shadow
+    // Boots (2 shades)
+    L: '#685040', // boot lit
+    l: '#483028', // boot shadow
+    // Mustache
+    M: '#906838', // mustache
+  },
+  pixels: [
+    '................',
+    '.....hHHHh......',
+    '....hHHHHHh.....',
+    '....sSSSSSs.....',
+    '....sSEsESs.....',
+    '.....sMMMs......',
+    '....QrRBRrQ.....',
+    '..Tt.rRBRrQ.....',
+    '..tK.QWWWrQ.....',
+    '.....XWWWX......',
+    '....pPWWWPp.....',
+    '....pPP.PPp.....',
+    '....pP...Pp.....',
+    '....lL...Ll.....',
+    '....lL...Ll.....',
+    '................',
+  ],
+};
+
+const NPC_MERCHANT: SpriteDefinition = {
+  palette: {
+    // Hat (3 shades)
+    H: '#508040', // hat highlight (green)
+    h: '#386830', // hat mid
+    J: '#285020', // hat dark
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Tunic (4 shades — rich green)
+    G: '#60a850', // tunic highlight
+    g: '#488838', // tunic mid
+    N: '#306828', // tunic shadow
+    n: '#205018', // tunic deepest
+    // Gold trim / coin (3 shades)
+    Y: '#f8d868', // gold highlight
+    y: '#c8a838', // gold mid
+    Z: '#907828', // gold shadow
+    // Belt (2 shades)
+    B: '#503828', // belt dark
+    b: '#785838', // belt mid
+    // Pants (2 shades)
+    P: '#706048', // pants lit
+    p: '#504030', // pants shadow
+    // Boots (2 shades)
+    L: '#685040', // boot lit
+    l: '#483028', // boot shadow
+    // Hair
+    K: '#383030', // dark hair
+  },
+  pixels: [
+    '....JhHHHhJ.....',
+    '...JhHHHHHhJ....',
+    '...JJJJJJJJJ....',
+    '....sSSSSSSs....',
+    '....sSEsSESs....',
+    '......sSs.......',
+    '....NgGBGgN.....',
+    '...s.GGBGGg.....',
+    '...s.GGyGGg.....',
+    '.....gGYGgN.....',
+    '....nGGGGGn.....',
+    '....pPG.GPp.....',
+    '....pP...Pp.....',
+    '....lL...Ll.....',
+    '....lL...Ll.....',
+    '................',
+  ],
+};
+
+const NPC_BLACKSMITH: SpriteDefinition = {
+  palette: {
+    // Hair (2 shades)
+    H: '#383030', // dark hair
+    h: '#282020', // hair shadow
+    // Skin (3 shades — tanned/sooty)
+    S: '#d8b080', // skin lit
+    s: '#b89060', // skin mid
+    N: '#987048', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Leather apron (3 shades)
+    A: '#906838', // apron highlight
+    a: '#704828', // apron mid
+    D: '#503018', // apron shadow
+    // Forge glow accents (2 shades)
+    F: '#e87830', // forge orange
+    f: '#c85818', // forge dark orange
+    // Hammer (3 shades)
+    W: '#c0c8d0', // hammer head bright
+    w: '#8890a0', // hammer head shadow
+    T: '#806040', // handle
+    // Pants (2 shades)
+    P: '#584838', // pants lit
+    p: '#403028', // pants shadow
+    // Boots (2 shades)
+    L: '#504030', // boot lit
+    l: '#382818', // boot shadow
+    // Belt
+    B: '#382820', // belt
+    // Soot marks
+    K: '#484040', // soot
+  },
+  pixels: [
+    '................',
+    '.....hHHHh......',
+    '....hHHHHHh.....',
+    '....KSSSSSKN....',
+    '....sSEsESs.....',
+    '.....sSSss......',
+    '....DaABAaD.....',
+    '..Ww.SAAAS......',
+    '..wT.SAKAS......',
+    '..T..NaFaaN.....',
+    '.....DAfAD......',
+    '....pPA.APp.....',
+    '....pP...Pp.....',
+    '....lL...Ll.....',
+    '....lL...Ll.....',
+    '................',
+  ],
+};
+
+const NPC_PRIEST: SpriteDefinition = {
+  palette: {
+    // Robes (4 shades — white/cream)
+    W: '#f4ecd8', // robe highlight
+    w: '#dcd4c0', // robe mid-light
+    X: '#c0b8a8', // robe shadow
+    x: '#a09888', // robe deepest
+    // Gold trim / holy symbol (3 shades)
+    G: '#f8d868', // gold highlight
+    g: '#c8a838', // gold mid
+    Y: '#907828', // gold shadow
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Hair (2 shades — tonsured)
+    H: '#b09060', // hair lit
+    h: '#806838', // hair shadow
+    // Hood (2 shades)
+    C: '#e0d8c8', // hood highlight
+    c: '#c8c0b0', // hood shadow
+    // Holy glow (2 shades)
+    O: '#fff0a0', // glow bright
+    o: '#e8d080', // glow dim
+  },
+  pixels: [
+    '................',
+    '.....cCCCc......',
+    '....cCHHHCc.....',
+    '....cSSSSScx....',
+    '....sSEsESsx....',
+    '.....sSSss......',
+    '....xWGOGWx.....',
+    '...s.WGgGWx.....',
+    '...s.wWWWwx.....',
+    '.....xWWWx......',
+    '....xWWWWWx.....',
+    '....xwWW.Wwx....',
+    '....xwW..Wwx....',
+    '.....xw..wx.....',
+    '.....xw..wx.....',
+    '................',
+  ],
+};
+
+const NPC_GUARD: SpriteDefinition = {
+  palette: {
+    // Armor (4 shades — steel)
+    A: '#c8d0e0', // armor highlight
+    a: '#98a0b8', // armor mid
+    B: '#687898', // armor shadow
+    b: '#485068', // armor deepest
+    // Helmet (3 shades)
+    H: '#b0b8c8', // helm highlight
+    h: '#808898', // helm mid
+    J: '#586070', // helm dark
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Tabard (3 shades — blue)
+    T: '#4878c8', // tabard highlight
+    t: '#305898', // tabard mid
+    U: '#203868', // tabard dark
+    // Spear (3 shades)
+    W: '#d0d0d8', // spear tip bright
+    w: '#a0a0a8', // spear tip shadow
+    P: '#806040', // shaft
+    // Boots (2 shades)
+    L: '#606068', // boot lit
+    l: '#404048', // boot shadow
+    // Gold accent
+    G: '#d8b040', // gold buckle
+  },
+  pixels: [
+    '..W.............',
+    '..w.JhHHHhJ.....',
+    '..P.hHHHHHh.....',
+    '..P.JJHHHJJb....',
+    '..P..sSESs......',
+    '..P...sSs.......',
+    '..P.baTGTaB.....',
+    '..P.AATTTAAb....',
+    '..P.aATTTaab....',
+    '.....BaTaBb.....',
+    '....bBaAaBb.....',
+    '....bBa.aBb.....',
+    '....bB...Bb.....',
+    '....lL...Ll.....',
+    '....lL...Ll.....',
+    '................',
+  ],
+};
+
+const NPC_COMMONER: SpriteDefinition = {
+  palette: {
+    // Hair (2 shades)
+    H: '#907050', // hair highlight
+    h: '#604830', // hair shadow
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Tunic (3 shades — plain brown)
+    T: '#a89070', // tunic highlight
+    t: '#887050', // tunic mid
+    U: '#685038', // tunic shadow
+    // Pants (2 shades)
+    P: '#786850', // pants lit
+    p: '#584838', // pants shadow
+    // Belt
+    B: '#504030', // belt
+    // Boots (2 shades)
+    L: '#685040', // boot lit
+    l: '#483028', // boot shadow
+    // Pitchfork (3 shades)
+    W: '#a0a0a0', // tines
+    w: '#787878', // tines shadow
+    K: '#806040', // handle
+    // Patch
+    R: '#907848', // patch on tunic
+  },
+  pixels: [
+    '................',
+    '.....hHHHh......',
+    '....hHHHHHh.....',
+    '....sSSSSSs.....',
+    '....sSEsESs.....',
+    '......sSs.......',
+    '....UtTBTtU.....',
+    '..Ww.TTBTTt.....',
+    '..wK.tTRTtu.....',
+    '..K..UtTtU......',
+    '.....UTTTUu.....',
+    '....pPT.TPp.....',
+    '....pP...Pp.....',
+    '....lL...Ll.....',
+    '....lL...Ll.....',
+    '................',
+  ],
+};
+
+const NPC_NOBLE: SpriteDefinition = {
+  palette: {
+    // Hair (2 shades)
+    H: '#383040', // dark noble hair
+    h: '#201828', // hair shadow
+    // Circlet (2 shades)
+    C: '#f8d868', // circlet gold
+    c: '#c8a838', // circlet shadow
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Robes (4 shades — rich purple)
+    P: '#a060c8', // robe highlight
+    p: '#7840a0', // robe mid
+    Q: '#582878', // robe shadow
+    q: '#381858', // robe deepest
+    // Gold trim (3 shades)
+    G: '#f8d868', // gold highlight
+    g: '#c8a838', // gold mid
+    Y: '#907828', // gold shadow
+    // Cape (3 shades — deep red)
+    R: '#c83838', // cape highlight
+    r: '#982020', // cape mid
+    V: '#681818', // cape deep
+    // Boots (2 shades)
+    L: '#503040', // boot lit
+    l: '#382028', // boot shadow
+    // Gem
+    J: '#48c8f0', // jewel blue
+  },
+  pixels: [
+    '................',
+    '.....hHHHh......',
+    '....hCcCcCh.....',
+    '....sSSSSss.....',
+    '....sSEsESs.....',
+    '......sSs.......',
+    '...RGpPGPpGr....',
+    '...R.PPJPPp.r...',
+    '...r.pPGPPp.V...',
+    '...V.QPPPQq.V...',
+    '....qPPPPPq.....',
+    '....qPpq.pPq....',
+    '....qPq..pPq....',
+    '....lL....Ll....',
+    '....lL....Ll....',
+    '................',
+  ],
+};
+
+// ── Additional Player Class Sprites ────────────────────────
+
+const BARBARIAN: SpriteDefinition = {
+  palette: {
+    // Hair (2 shades — wild)
+    H: '#c87830', // hair highlight
+    h: '#905020', // hair shadow
+    // Skin (3 shades — tanned)
+    S: '#e0b878', // skin lit
+    s: '#c09858', // skin mid
+    N: '#987040', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Fur (3 shades)
+    F: '#c0a878', // fur highlight
+    f: '#988060', // fur mid
+    D: '#706048', // fur dark
+    // Leather (2 shades)
+    L: '#785838', // leather lit
+    l: '#503018', // leather dark
+    // Greataxe blade (3 shades)
+    A: '#d0d0d8', // axe highlight
+    a: '#a0a0a8', // axe mid
+    B: '#707078', // axe shadow
+    // Axe handle
+    T: '#806040', // handle wood
+    // Belt
+    K: '#403020', // belt
+    // Pants (2 shades)
+    P: '#706048', // pants lit
+    p: '#504030', // pants shadow
+    // Boots
+    W: '#584030', // boot
+    // War paint
+    R: '#c83838', // red war paint
+  },
+  pixels: [
+    '..A..hHHHh......',
+    '..aA.HhHhHH.....',
+    '..Ba.NSSSSN.....',
+    '..T..sRESERs....',
+    '..T...sSSs......',
+    '..T..DfFKFfD....',
+    '..T.s.SSKSS.s...',
+    '..T.S.SSKSS.N...',
+    '..T..NlKKlN.....',
+    '.....NSSSSN.....',
+    '....pPSSSPp.....',
+    '....pPP.PPp.....',
+    '....pP...Pp.....',
+    '....WW...WW.....',
+    '....WW...WW.....',
+    '................',
+  ],
+};
+
+const BARD: SpriteDefinition = {
+  palette: {
+    // Feathered hat (3 shades)
+    H: '#c84848', // hat highlight (red)
+    h: '#982838', // hat mid
+    J: '#681828', // hat dark
+    // Feather (2 shades)
+    F: '#f0d848', // feather bright
+    f: '#c8a828', // feather shadow
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Tunic (4 shades — colorful teal)
+    T: '#48b8a8', // tunic highlight
+    t: '#389888', // tunic mid
+    U: '#287868', // tunic shadow
+    u: '#185848', // tunic deepest
+    // Gold trim (2 shades)
+    G: '#f8d868', // gold highlight
+    g: '#c8a838', // gold mid
+    // Lute body (3 shades)
+    L: '#c8a050', // lute highlight
+    l: '#a08038', // lute mid
+    K: '#786028', // lute dark
+    // Pants (2 shades)
+    P: '#706050', // pants lit
+    p: '#504038', // pants shadow
+    // Boots (2 shades)
+    B: '#685040', // boot lit
+    b: '#483028', // boot shadow
+    // Cape (2 shades)
+    C: '#d85050', // cape bright
+    c: '#a83838', // cape shadow
+  },
+  pixels: [
+    '....F...........',
+    '...fJhHHHhC.....',
+    '....JhHHHhCc....',
+    '....sSSSSSsc....',
+    '....sSEsESs.....',
+    '......sSs.......',
+    '....uTGGGTu.....',
+    '...Ll.TTTTtc....',
+    '...lK.tTGTtUc...',
+    '...K..UtTtU.....',
+    '.....UTTTTu.....',
+    '....pPT.TPp.....',
+    '....pP...Pp.....',
+    '....bB...Bb.....',
+    '....bB...Bb.....',
+    '................',
+  ],
+};
+
+const DRUID: SpriteDefinition = {
+  palette: {
+    // Hair (2 shades — earthy)
+    H: '#908060', // hair highlight
+    h: '#605040', // hair shadow
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Robe (4 shades — forest green)
+    G: '#68a050', // robe highlight
+    g: '#488838', // robe mid
+    N: '#306828', // robe shadow
+    n: '#205018', // robe deepest
+    // Leaf accents (2 shades)
+    L: '#90d060', // leaf bright
+    l: '#60a838', // leaf mid
+    // Staff (3 shades)
+    T: '#a88050', // wood lit
+    t: '#786038', // wood mid
+    K: '#584028', // wood dark
+    // Vine (2 shades)
+    V: '#58a040', // vine bright
+    v: '#388028', // vine shadow
+    // Belt
+    B: '#504030', // belt
+    // Boots (2 shades)
+    W: '#685840', // boot lit
+    w: '#484030', // boot shadow
+  },
+  pixels: [
+    '....L.lL........',
+    '..V.ThHHHh......',
+    '..v.ThHHHHh.....',
+    '..T..sSSSSSs....',
+    '..T..sSEsESs....',
+    '..T...sSSs......',
+    '..T.nGgBgGn.....',
+    '..T.s.GBGGg.....',
+    '..T.s.gGLGgN....',
+    '.....NgGGgN.....',
+    '....nGGLGGn.....',
+    '....nGg..gGn....',
+    '....nGg..gGn....',
+    '....wW....Ww....',
+    '....wW....Ww....',
+    '................',
+  ],
+};
+
+const MONK: SpriteDefinition = {
+  palette: {
+    // Bald head — just skin shading
+    // Skin (3 shades)
+    S: '#e8c8a0', // skin lit
+    s: '#c0a070', // skin mid
+    N: '#988058', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Robe (4 shades — saffron/orange)
+    R: '#e8a848', // robe highlight
+    r: '#c88838', // robe mid
+    Q: '#a06828', // robe shadow
+    q: '#785018', // robe deepest
+    // Sash/belt (2 shades)
+    B: '#c87838', // sash lit
+    b: '#985828', // sash dark
+    // Hand wraps (2 shades)
+    W: '#d8d0c0', // wrap bright
+    w: '#b0a890', // wrap shadow
+    // Pants (2 shades)
+    P: '#a08040', // pants lit
+    p: '#786030', // pants shadow
+    // Sandals
+    L: '#806040', // sandal
+    l: '#604028', // sandal shadow
+  },
+  pixels: [
+    '................',
+    '.....NSSN.......',
+    '....NSSSSSN.....',
+    '....NSSSSsN.....',
+    '....sSEsESs.....',
+    '......sSs.......',
+    '....qRrBrRq.....',
+    '..Ww.RrBrRq.....',
+    '..wW.QRrRRQ.....',
+    '.....qRRRq......',
+    '....qRRRRRq.....',
+    '....pPR.RPp.....',
+    '....pP...Pp.....',
+    '....lL...Ll.....',
+    '....l.....l.....',
+    '................',
+  ],
+};
+
+const PALADIN: SpriteDefinition = {
+  palette: {
+    // Armor (4 shades — bright silver)
+    A: '#e0e8f0', // armor highlight
+    a: '#b0b8c8', // armor mid
+    B: '#8090a8', // armor shadow
+    b: '#586878', // armor deepest
+    // Gold trim / holy symbol (3 shades)
+    G: '#f8d868', // gold highlight
+    g: '#c8a838', // gold mid
+    Y: '#907828', // gold shadow
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Hair
+    H: '#d0b068', // sandy hair
+    // Cape (3 shades — holy white/blue)
+    C: '#a0c0e8', // cape highlight
+    c: '#7098c8', // cape mid
+    U: '#4870a0', // cape deep
+    // Sword (2 shades)
+    W: '#f0f4ff', // blade highlight
+    w: '#c0ccdc', // blade shadow
+    // Shield (2 shades)
+    D: '#b8c0d0', // shield lit
+    d: '#8890a0', // shield shadow
+    // Boots (2 shades)
+    L: '#707888', // boot lit
+    l: '#505060', // boot shadow
+  },
+  pixels: [
+    '................',
+    '.....bBAABb.....',
+    '....bAHHHAb.....',
+    '....bASSSAb.....',
+    '....bSEsESb.....',
+    '.......Ss.......',
+    '...CGaAGAaBCc...',
+    '..Ww.AAGAAa.cc..',
+    '..Ww.aAGAaB.Uc..',
+    '..w..BaGaBb.....',
+    '.....BAaABb.....',
+    '....bBA.ABb.....',
+    '....bB...Bb.....',
+    '....lL...Ll.....',
+    '....lL...Ll.....',
+    '................',
+  ],
+};
+
+const RANGER: SpriteDefinition = {
+  palette: {
+    // Hood/cloak (4 shades — forest green)
+    G: '#68a058', // cloak highlight
+    g: '#488838', // cloak mid
+    N: '#306828', // cloak shadow
+    n: '#205018', // cloak deepest
+    // Skin (2 shades)
+    S: '#e8c8a0', // skin lit
+    s: '#b89868', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Leather armor (3 shades)
+    L: '#a08050', // leather highlight
+    l: '#786038', // leather mid
+    K: '#584028', // leather dark
+    // Bow (2 shades)
+    B: '#906838', // bow wood lit
+    b: '#685028', // bow wood dark
+    // Arrow
+    W: '#c8c8c8', // arrowhead
+    // Quiver (2 shades)
+    Q: '#785838', // quiver lit
+    q: '#583828', // quiver shadow
+    // Belt
+    T: '#403020', // belt
+    // Pants (2 shades)
+    P: '#606848', // pants lit
+    p: '#404830', // pants shadow
+    // Boots (2 shades)
+    D: '#605040', // boot lit
+    d: '#403028', // boot shadow
+  },
+  pixels: [
+    '................',
+    '.....nNGGNn.....',
+    '....ngGGGGgn....',
+    '....ngGGGGgn....',
+    '....nsSESsn.....',
+    '......sSs.......',
+    '....KlLTLlKQ....',
+    '..B..LLTLLlQq...',
+    '..bB.lLTLlKQq...',
+    '..b..KlLlK......',
+    '....KlLLLlK.....',
+    '....pPL.LPp.....',
+    '....pP...Pp.....',
+    '....dD...Dd.....',
+    '....dD...Dd.....',
+    '................',
+  ],
+};
+
+const SORCERER: SpriteDefinition = {
+  palette: {
+    // Wild hair (3 shades)
+    H: '#d84040', // hair bright red
+    h: '#a82828', // hair mid
+    J: '#781818', // hair dark
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes
+    E: '#1c2838', // dark eye
+    // Robe (4 shades — deep crimson/dark)
+    R: '#b83848', // robe highlight
+    r: '#902838', // robe mid
+    Q: '#681828', // robe shadow
+    q: '#481018', // robe deepest
+    // Arcane energy (3 shades — blue glow)
+    O: '#80d0ff', // energy bright
+    o: '#4898d8', // energy mid
+    V: '#2868a8', // energy dim
+    // Gold trim (2 shades)
+    G: '#f8d868', // gold bright
+    g: '#c8a838', // gold shadow
+    // Belt
+    B: '#403030', // belt
+    // Boots (2 shades)
+    L: '#604038', // boot lit
+    l: '#402828', // boot shadow
+  },
+  pixels: [
+    '.....JHhHJ......',
+    '....JHHhHHHJ....',
+    '....HhHHHhH.....',
+    '....sSSSSSs.....',
+    '....sSEsESs.....',
+    '......sSs.......',
+    '....qRrGrRq.....',
+    '..Oo.RrGrRq.....',
+    '..oV.QRBRRQq....',
+    '.....qRrRq......',
+    '....qRRRRRq.....',
+    '....qRr..rRq....',
+    '....qRr..rRq....',
+    '....lL....Ll....',
+    '....lL....Ll....',
+    '................',
+  ],
+};
+
+const WARLOCK: SpriteDefinition = {
+  palette: {
+    // Hood (3 shades — deep purple/black)
+    H: '#483868', // hood highlight
+    h: '#302050', // hood mid
+    J: '#201038', // hood dark
+    // Skin (2 shades — pale)
+    S: '#e0d0c0', // skin lit (pale)
+    s: '#b8a898', // skin shadow
+    // Eyes (eldritch glow)
+    E: '#a848d8', // purple eye glow
+    // Robe (4 shades — dark purple)
+    P: '#584078', // robe highlight
+    p: '#402858', // robe mid
+    Q: '#281840', // robe shadow
+    q: '#180c28', // robe deepest
+    // Eldritch symbols (2 shades — green glow)
+    G: '#48d868', // symbol bright
+    g: '#28a848', // symbol dim
+    // Dark energy (2 shades)
+    O: '#8838c8', // energy bright
+    o: '#5828a0', // energy dim
+    // Belt (2 shades)
+    B: '#302030', // belt dark
+    b: '#483050', // belt lit
+    // Boots (2 shades)
+    L: '#383048', // boot lit
+    l: '#282038', // boot shadow
+    // Tome
+    T: '#582838', // tome cover
+  },
+  pixels: [
+    '................',
+    '.....JhHhJ......',
+    '....JhHHHhJ.....',
+    '....JhHHHhJ.....',
+    '....JsSESsJ.....',
+    '......sSs.......',
+    '....qPpBpPq.....',
+    '..Oo.PPBPPp.....',
+    '..oT.pPGPpQ.....',
+    '.....QPgPQ......',
+    '....qPPPPPq.....',
+    '....qPp..pPq....',
+    '....qPp..pPq....',
+    '....lL....Ll....',
+    '....lL....Ll....',
+    '................',
+  ],
+};
+
 // ── Sprite Registry ──────────────────────────────────────────
 
 const SPRITE_REGISTRY: Record<string, SpriteDefinition> = {
@@ -761,6 +1533,22 @@ const SPRITE_REGISTRY: Record<string, SpriteDefinition> = {
   wizard:           WIZARD,
   rogue:            ROGUE,
   cleric:           CLERIC,
+  barbarian:        BARBARIAN,
+  bard:             BARD,
+  druid:            DRUID,
+  monk:             MONK,
+  paladin:          PALADIN,
+  ranger:           RANGER,
+  sorcerer:         SORCERER,
+  warlock:          WARLOCK,
+  // NPCs
+  npc_innkeeper:    NPC_INNKEEPER,
+  npc_merchant:     NPC_MERCHANT,
+  npc_blacksmith:   NPC_BLACKSMITH,
+  npc_priest:       NPC_PRIEST,
+  npc_guard:        NPC_GUARD,
+  npc_commoner:     NPC_COMMONER,
+  npc_noble:        NPC_NOBLE,
   // Monsters
   monster_goblin:       GOBLIN,
   monster_skeleton:     SKELETON,

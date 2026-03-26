@@ -120,6 +120,76 @@ const FEATURE_NARRATIVES: Record<CellFeature, string[]> = {
     'A large brazier crackles with burning coals, its warmth radiating outward in waves. The fire pit lights the chamber with a deep orange glow.',
     'An iron brazier stands here, its bed of embers painting the surrounding stone in shades of amber and crimson.',
   ],
+  table: [
+    'A sturdy wooden table stands here, its surface scarred by years of use.',
+    'A well-crafted table occupies this space, its planks worn smooth by countless meals and meetings.',
+  ],
+  chair: [
+    'A simple wooden chair sits here, waiting for someone to rest their weary bones.',
+  ],
+  bed: [
+    'A bed with rumpled linens offers the promise of rest in this unforgiving place.',
+    'A sleeping pallet lies here, its blankets still bearing the impression of whoever last sought respite.',
+  ],
+  shelf: [
+    'A tall wooden shelf looms here, its boards sagging under the weight of accumulated goods.',
+    'Shelves line the wall, cluttered with dusty odds and ends.',
+  ],
+  counter: [
+    'A polished wooden counter stretches across the space, its surface worn by years of commerce.',
+  ],
+  anvil: [
+    'A heavy iron anvil squats on a thick stump, its face pitted from a thousand hammer blows.',
+    'An anvil stands here, dark and massive. The ring of steel on iron still seems to hang in the air.',
+  ],
+  barrel: [
+    'A stout wooden barrel stands here, its staves bound with iron bands.',
+    'A barrel rests against the wall. Something sloshes faintly within.',
+  ],
+  crate: [
+    'A wooden crate sits here, its planks nailed shut. Whatever is inside was meant to stay there.',
+    'A sturdy shipping crate occupies this corner, its contents a mystery.',
+  ],
+  bookshelf: [
+    'A towering bookshelf reaches toward the ceiling, its shelves crammed with leather-bound volumes.',
+    'Books of every size and color crowd these shelves. The scent of old parchment fills the air.',
+  ],
+  rug: [
+    'A richly woven rug covers the floor, its patterns faded but still beautiful.',
+    'A decorative rug lies underfoot, its crimson and gold threads speaking of distant lands.',
+  ],
+  banner: [
+    'A fabric banner hangs from the wall, its colors faded but its heraldry still legible.',
+    'A tattered banner sways in a draft you cannot feel, bearing symbols of an age gone by.',
+  ],
+  well: [
+    'A stone well rises from the ground, its rope and bucket still intact. Dark water gleams far below.',
+    'You peer into a deep well. The water at the bottom reflects a perfect circle of light.',
+  ],
+  market_stall: [
+    'A vendor\'s stall stands here, its colorful awning shading a counter of wares.',
+    'A market stall displays its goods beneath a bright canopy, awaiting customers.',
+  ],
+  sign: [
+    'A wooden signpost juts from the ground, its painted letters pointing the way.',
+    'A weathered sign hangs here, its message still readable despite the elements.',
+  ],
+  candle: [
+    'A lone candle flickers in a holder, its small flame casting a warm circle of light.',
+    'A candle gutters here, its wax pooling in a brass dish. The flame dances with each breath of air.',
+  ],
+  chandelier: [
+    'An ornate chandelier hangs overhead, its many candles bathing the room in warm, golden light.',
+    'A brass chandelier sways gently above, its flames casting shifting shadows across the walls.',
+  ],
+  weapon_rack: [
+    'A wooden rack displays an array of weapons — blades, hafts, and points gleaming in the dim light.',
+    'Weapons of various make hang from a sturdy rack, ready to be claimed by willing hands.',
+  ],
+  hearth: [
+    'A stone hearth crackles with a welcoming fire, its warmth seeping into your bones.',
+    'A fireplace dominates the wall, its flames licking at blackened stones. The scent of woodsmoke fills the air.',
+  ],
 };
 
 function pick<T>(arr: T[]): T {
@@ -1257,6 +1327,24 @@ export class ExplorationController implements GameSystem {
       torch_wall: 'a wall torch',
       torch_wall_spent: 'a spent torch',
       brazier: 'a brazier',
+      table: 'a wooden table',
+      chair: 'a chair',
+      bed: 'a bed',
+      shelf: 'a shelf',
+      counter: 'a counter',
+      anvil: 'an anvil',
+      barrel: 'a barrel',
+      crate: 'a crate',
+      bookshelf: 'a bookshelf',
+      rug: 'a decorative rug',
+      banner: 'a hanging banner',
+      well: 'a stone well',
+      market_stall: 'a market stall',
+      sign: 'a signpost',
+      candle: 'a candle',
+      chandelier: 'a chandelier',
+      weapon_rack: 'a weapon rack',
+      hearth: 'a hearth',
     };
     return descriptions[feature] ?? 'something';
   }

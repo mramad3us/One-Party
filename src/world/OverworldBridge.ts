@@ -2,6 +2,7 @@ import type {
   EntityId,
   Location,
   LocationType,
+  NPC,
   Region,
   World,
 } from '@/types';
@@ -42,12 +43,12 @@ const BIOME_DESCRIPTIONS: Record<BiomeType, string> = {
  * that GameState expects. Each overworld region becomes a game Region,
  * and each settlement becomes a Location with sub-locations.
  *
- * Returns { world, startLocationId } — the starting location for the player.
+ * Returns { world, startLocationId, npcs } — the starting location and all generated NPCs.
  */
 export function overworldToWorld(
   overworld: OverworldData,
   rng: SeededRNG,
-): { world: World; startLocationId: EntityId } {
+): { world: World; startLocationId: EntityId; npcs: NPC[] } {
   const worldGen = new WorldGenerator(rng);
 
   const world: World = {
@@ -167,7 +168,7 @@ export function overworldToWorld(
     throw new Error('World has no locations — generation failed');
   }
 
-  return { world, startLocationId };
+  return { world, startLocationId, npcs: worldGen.getGeneratedNPCs() };
 }
 
 /** Connect locations within a region based on geographic proximity. */
@@ -320,7 +321,7 @@ export function getOrCreateTileLocation(
   y: number,
   world: World,
   rng: SeededRNG,
-): { location: Location; region: Region; created: boolean } {
+): { location: Location; region: Region; created: boolean; npcs: NPC[] } {
   const tile = overworld.tiles[y][x];
   const regionId = tile.regionId;
   const region = world.regions.get(regionId);
@@ -333,7 +334,7 @@ export function getOrCreateTileLocation(
   if (tile.settlement) {
     for (const [, loc] of region.locations) {
       if (loc.coordinates.x === x && loc.coordinates.y === y) {
-        return { location: loc, region, created: false };
+        return { location: loc, region, created: false, npcs: [] };
       }
     }
   }
@@ -344,7 +345,7 @@ export function getOrCreateTileLocation(
   if (cachedId) {
     const existing = region.locations.get(cachedId);
     if (existing) {
-      return { location: existing, region, created: false };
+      return { location: existing, region, created: false, npcs: [] };
     }
   }
 
@@ -359,9 +360,12 @@ export function getOrCreateTileLocation(
   location.discovered = true;
   location.description = BIOME_DESCRIPTIONS[TERRAIN_TO_BIOME[tile.terrain]] ?? BIOME_DESCRIPTIONS.plains;
 
+  // Collect any NPCs created for this location
+  const npcs = worldGen.getGeneratedNPCs();
+
   // Add to region
   region.locations.set(location.id, location);
   tileLocationCache.set(cacheKey, location.id);
 
-  return { location, region, created: true };
+  return { location, region, created: true, npcs };
 }

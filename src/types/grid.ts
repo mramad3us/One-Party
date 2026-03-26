@@ -31,7 +31,25 @@ export type CellFeature =
   | 'running_water'
   | 'torch_wall'
   | 'torch_wall_spent'
-  | 'brazier';
+  | 'brazier'
+  | 'table'
+  | 'chair'
+  | 'bed'
+  | 'shelf'
+  | 'counter'
+  | 'anvil'
+  | 'barrel'
+  | 'crate'
+  | 'bookshelf'
+  | 'rug'
+  | 'banner'
+  | 'well'
+  | 'market_stall'
+  | 'sign'
+  | 'candle'
+  | 'chandelier'
+  | 'weapon_rack'
+  | 'hearth';
 
 /** Features that emit light and their radius in grid cells (1 cell = 5ft) */
 export const LIGHT_SOURCE_RADIUS: Partial<Record<CellFeature, number>> = {
@@ -39,6 +57,9 @@ export const LIGHT_SOURCE_RADIUS: Partial<Record<CellFeature, number>> = {
   brazier: 6,      // 30ft — large fire pit
   fire: 5,         // 25ft — campfire
   fountain: 3,     // 15ft — faint magical glow
+  candle: 2,       // 10ft — small flame
+  chandelier: 5,   // 25ft — overhead light
+  hearth: 4,       // 20ft — fireplace glow
 };
 
 /** A single cell in the tactical grid */

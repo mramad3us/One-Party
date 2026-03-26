@@ -1,6 +1,7 @@
 import type {
   EntityId,
   Location,
+  NPC,
   Region,
   SerializedGameState,
   World,
@@ -15,6 +16,8 @@ export class GameState {
   currentSpaceId: EntityId | null;
   timeContext: TimeContext;
   overworldPosition: { x: number; y: number } | null;
+  /** All NPCs in the world, keyed by their entity ID */
+  npcs: Map<EntityId, NPC>;
 
   constructor(world: World, playerId: EntityId, startLocationId: EntityId) {
     this.world = world;
@@ -23,6 +26,7 @@ export class GameState {
     this.currentSubLocationId = null;
     this.currentSpaceId = null;
     this.overworldPosition = null;
+    this.npcs = new Map();
     this.timeContext = {
       scale: 'exploration',
       roundsPerTurn: 100,
@@ -52,7 +56,30 @@ export class GameState {
     };
   }
 
+  /** Register an NPC in the global NPC registry */
+  registerNPC(npc: NPC): void {
+    this.npcs.set(npc.id, npc);
+  }
+
+  /** Register multiple NPCs at once */
+  registerNPCs(npcs: NPC[]): void {
+    for (const npc of npcs) {
+      this.npcs.set(npc.id, npc);
+    }
+  }
+
+  /** Look up an NPC by ID */
+  getNPC(id: EntityId): NPC | undefined {
+    return this.npcs.get(id);
+  }
+
   serialize(): SerializedGameState {
+    // Serialize NPCs map to array of entries
+    const npcEntries: [string, NPC][] = [];
+    for (const [id, npc] of this.npcs) {
+      npcEntries.push([id, npc]);
+    }
+
     return {
       world: this.serializeWorld(this.world),
       playerCharacterId: this.playerCharacterId,
@@ -61,6 +88,7 @@ export class GameState {
       currentSpaceId: this.currentSpaceId,
       timeContext: this.timeContext,
       overworldPosition: this.overworldPosition,
+      npcs: npcEntries,
     };
   }
 
@@ -77,6 +105,14 @@ export class GameState {
     state.currentSpaceId = (data['currentSpaceId'] as EntityId | null) ?? null;
     state.timeContext = data['timeContext'] as TimeContext;
     state.overworldPosition = (data['overworldPosition'] as { x: number; y: number } | null) ?? null;
+
+    // Deserialize NPCs
+    const npcEntries = (data as Record<string, unknown>)['npcs'] as [string, NPC][] | undefined;
+    if (npcEntries) {
+      for (const [id, npc] of npcEntries) {
+        state.npcs.set(id, npc);
+      }
+    }
 
     return state;
   }

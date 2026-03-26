@@ -418,8 +418,8 @@ export class CreationScreen extends Component {
 
   /** Dev mode: randomize a character and skip to game. */
   private quickCreateCharacter(filter: 'any' | 'melee' | 'caster' = 'any'): void {
-    const MELEE_IDS = ['fighter', 'rogue'];
-    const CASTER_IDS = ['wizard', 'cleric'];
+    const MELEE_IDS = ['fighter', 'rogue', 'barbarian', 'monk', 'paladin', 'ranger'];
+    const CASTER_IDS = ['wizard', 'cleric', 'bard', 'druid', 'sorcerer', 'warlock'];
     const classPool = filter === 'melee'
       ? SRD_CLASSES.filter(c => MELEE_IDS.includes(c.id))
       : filter === 'caster'
@@ -712,7 +712,13 @@ export class CreationScreen extends Component {
 
   private getMaxPreparedSpells(): number {
     if (!this.selectedClass?.spellcasting || !this.selectedRace) return 0;
-    const castingAbility = this.selectedClass.spellcasting.ability;
+    const sc = this.selectedClass.spellcasting;
+    // Known-spells casters use a fixed table
+    if (sc.spellsKnown) {
+      return sc.spellsKnown[0] ?? 0; // level 1 value
+    }
+    // Prepared casters use ability mod + level
+    const castingAbility = sc.ability;
     const baseScore = this.abilityScores[castingAbility];
     const raceBonus = this.selectedRace.abilityBonuses[castingAbility] ?? 0;
     const mod = abilityModifier(baseScore + raceBonus);

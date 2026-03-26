@@ -23,6 +23,7 @@
 @import './screens/inventory.css';
 @import './screens/death.css';
 @import './screens/worldcreation.css';
+@import './screens/shop.css';
 
 /* ============================================================
    CSS Reset & Global Base

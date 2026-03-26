@@ -745,6 +745,7 @@ export class CombatController implements GameSystem {
         attacks: monsterDef.stats.attacks.map((a) => ({ ...a, damage: { ...a.damage } })),
       },
       companion: null,
+      merchantInventory: null,
       position: null,
       initiative: null,
     };

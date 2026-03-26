@@ -88,6 +88,27 @@ export type CompanionData = {
   levelUpStrategy: LevelUpStrategy;
 };
 
+/** A single item listing in a merchant's stock */
+export type MerchantItem = {
+  itemId: string;
+  quantity: number;
+  /** Override the item's base value for this merchant (in copper) */
+  priceOverride?: number;
+  /** If true, the merchant never runs out of this item */
+  infinite?: boolean;
+};
+
+/** A merchant's full inventory and trade state */
+export type MerchantInventory = {
+  items: MerchantItem[];
+  /** The merchant's available gold (in gp) for buying from the player */
+  gold: number;
+  /** Game-time ticks between restocks */
+  restockInterval: number;
+  /** The last game-time tick when the merchant restocked */
+  lastRestock?: number;
+};
+
 /** A single attack a creature can make */
 export type AttackDefinition = {
   name: string;
@@ -128,6 +149,7 @@ export interface NPC extends Entity {
   isAwakened: boolean;
   stats: CreatureStatBlock;
   companion: CompanionData | null;
+  merchantInventory: MerchantInventory | null;
   position: Coordinate | null;
   initiative: number | null;
 }

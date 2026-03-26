@@ -1,11 +1,20 @@
 import type { Coordinate, GridCell, GridDefinition, CellTerrain, CellFeature } from '@/types';
-import type { LocationType, BiomeType } from '@/types/world';
+import type { LocationType, BiomeType, SubLocationType } from '@/types/world';
 import type { OverworldTerrain } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
+
+/** Metadata for a placed building in a settlement map */
+export interface BuildingInfo {
+  subType: string;  // 'tavern', 'shop', 'blacksmith', 'temple', 'house', 'market', 'barracks'
+  bounds: { x: number; y: number; w: number; h: number };
+  doorPosition: Coordinate;
+  npcPosition: Coordinate;  // Where the NPC should stand (behind counter, near anvil, etc.)
+}
 
 export interface MapResult {
   grid: GridDefinition;
   playerStart: Coordinate;
+  buildings?: BuildingInfo[];
 }
 
 // ── Cell Helpers ──────────────────────────────────────────────
@@ -82,13 +91,14 @@ export class LocalMapGenerator {
     worldSeed?: number,
     tileX?: number,
     tileY?: number,
+    subLocations?: SubLocationType[],
   ): MapResult {
     const doGenerate = () => {
       switch (locationType) {
         case 'village':
         case 'town':
         case 'city':
-          return this.generateTown(biome, locationType);
+          return this.generateTown(biome, locationType, subLocations);
         case 'dungeon':
           return this.generateDungeon();
         case 'cave':
@@ -833,7 +843,28 @@ export class LocalMapGenerator {
 
   // ── Town (40x40) ──────────────────────────────────────────
 
-  private generateTown(biome: BiomeType = 'forest', size: LocationType = 'village'): MapResult {
+  /** Building type specs: width range, height range */
+  private static readonly BUILDING_SPECS: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
+    tavern:     { wMin: 7, wMax: 9, hMin: 7, hMax: 9 },
+    shop:       { wMin: 6, wMax: 8, hMin: 6, hMax: 7 },
+    blacksmith: { wMin: 6, wMax: 8, hMin: 6, hMax: 7 },
+    temple:     { wMin: 7, wMax: 9, hMin: 7, hMax: 9 },
+    house:      { wMin: 5, wMax: 7, hMin: 5, hMax: 6 },
+    barracks:   { wMin: 7, wMax: 8, hMin: 6, hMax: 7 },
+  };
+
+  /** Default sub-location mix per settlement size */
+  private static readonly DEFAULT_SUBLOCS: Record<string, SubLocationType[]> = {
+    village: ['tavern', 'shop', 'house', 'house'],
+    town:    ['tavern', 'shop', 'blacksmith', 'temple', 'house', 'house', 'barracks'],
+    city:    ['tavern', 'tavern', 'shop', 'shop', 'blacksmith', 'temple', 'house', 'house', 'house', 'barracks', 'market'],
+  };
+
+  private generateTown(
+    biome: BiomeType = 'forest',
+    size: LocationType = 'village',
+    subLocations?: SubLocationType[],
+  ): MapResult {
     const w = 40, h = 40;
 
     const groundTerrain: CellTerrain = biome === 'desert' ? 'sand'
@@ -860,7 +891,7 @@ export class LocalMapGenerator {
       }
     }
 
-    // Road layout
+    // Road layout (keep existing system — it works fine)
     const layoutRoll = this.rng.next();
     const midX = Math.floor(w / 2) + Math.floor(this.rng.next() * 5) - 2;
     const midY = Math.floor(h / 2) + Math.floor(this.rng.next() * 5) - 2;
@@ -869,13 +900,20 @@ export class LocalMapGenerator {
     const hasNSRoad = layoutRoll > 0.2;
     const roadDiagonal = layoutRoll > 0.85;
 
+    // Track all road cells for walkway connections
+    const roadCells = new Set<string>();
+
     if (hasEWRoad) {
       const curve = Math.floor(this.rng.next() * 3) - 1;
       for (let x = 2; x < w - 2; x++) {
         const yOff = x > w / 3 && x < 2 * w / 3 ? 0 : curve;
         const ry = Math.max(1, Math.min(h - 2, midY + yOff));
         cells[ry][x] = floorCell(roadTerrain);
-        if (ry - 1 >= 0) cells[ry - 1][x] = floorCell(roadTerrain);
+        roadCells.add(`${x},${ry}`);
+        if (ry - 1 >= 0) {
+          cells[ry - 1][x] = floorCell(roadTerrain);
+          roadCells.add(`${x},${ry - 1}`);
+        }
       }
     }
 
@@ -885,65 +923,139 @@ export class LocalMapGenerator {
         const xOff = y > h / 3 && y < 2 * h / 3 ? 0 : curve;
         const rx = Math.max(1, Math.min(w - 2, midX + xOff));
         cells[y][rx] = floorCell(roadTerrain);
-        if (rx + 1 < w) cells[y][rx + 1] = floorCell(roadTerrain);
+        roadCells.add(`${rx},${y}`);
+        if (rx + 1 < w) {
+          cells[y][rx + 1] = floorCell(roadTerrain);
+          roadCells.add(`${rx + 1},${y}`);
+        }
       }
     } else if (roadDiagonal) {
       for (let i = 2; i < Math.min(w, h) - 2; i++) {
         const dx = Math.min(w - 2, i);
         const dy = Math.min(h - 2, i);
         cells[dy][dx] = floorCell(roadTerrain);
-        if (dx + 1 < w) cells[dy][dx + 1] = floorCell(roadTerrain);
+        roadCells.add(`${dx},${dy}`);
+        if (dx + 1 < w) {
+          cells[dy][dx + 1] = floorCell(roadTerrain);
+          roadCells.add(`${dx + 1},${dy}`);
+        }
       }
     }
 
-    // Town square
+    // Town square with fountain/well
     const sqSize = size === 'city' ? 5 : size === 'town' ? 4 : 3;
     for (let y = midY - sqSize; y <= midY + sqSize - 1; y++) {
       for (let x = midX - sqSize; x <= midX + sqSize; x++) {
         if (x >= 1 && x < w - 1 && y >= 1 && y < h - 1) {
           cells[y][x] = floorCell(roadTerrain);
+          roadCells.add(`${x},${y}`);
         }
       }
     }
 
-    // Center feature
+    // Center feature — fountain or well
     const featureRoll = this.rng.next();
-    const centerFeature: CellFeature = featureRoll < 0.5 ? 'fountain'
-      : featureRoll < 0.8 ? 'fire' : 'fountain';
+    const centerFeature: CellFeature = featureRoll < 0.6 ? 'fountain' : 'well';
     cells[midY][midX] = makeCell(roadTerrain, 1, false, [centerFeature]);
 
-    // Buildings
-    const buildingCount = size === 'city' ? 10 + Math.floor(this.rng.next() * 4)
-      : size === 'town' ? 7 + Math.floor(this.rng.next() * 3)
-      : 4 + Math.floor(this.rng.next() * 3);
+    // Determine which buildings to place
+    const requestedTypes = subLocations && subLocations.length > 0
+      ? subLocations
+      : LocalMapGenerator.DEFAULT_SUBLOCS[size] ?? LocalMapGenerator.DEFAULT_SUBLOCS.village;
 
+    // Separate market (outdoor, placed in town square area) from buildings
+    const marketCount = requestedTypes.filter(t => t === 'market').length;
+    const buildingTypes = requestedTypes.filter(t => t !== 'market');
+
+    // Place market stalls in the town square if requested
+    if (marketCount > 0) {
+      this.placeMarketArea(cells, w, h, midX, midY, sqSize, roadTerrain);
+    }
+
+    // Place buildings with specific types
     const placed: { x: number; y: number; bw: number; bh: number }[] = [];
+    const buildings: BuildingInfo[] = [];
 
-    for (let attempt = 0; attempt < buildingCount * 8 && placed.length < buildingCount; attempt++) {
-      const bw = 4 + Math.floor(this.rng.next() * 5);
-      const bh = 4 + Math.floor(this.rng.next() * 4);
-      const bx = 3 + Math.floor(this.rng.next() * (w - bw - 6));
-      const by = 3 + Math.floor(this.rng.next() * (h - bh - 6));
+    for (let typeIdx = 0; typeIdx < buildingTypes.length; typeIdx++) {
+      const subType = buildingTypes[typeIdx];
+      const spec = LocalMapGenerator.BUILDING_SPECS[subType] ?? LocalMapGenerator.BUILDING_SPECS.house;
 
-      let overlaps = false;
-      if (bx < midX + sqSize + 2 && bx + bw > midX - sqSize - 1 &&
-          by < midY + sqSize + 1 && by + bh > midY - sqSize - 1) {
-        overlaps = true;
-      }
-      for (const p of placed) {
-        if (bx < p.x + p.bw + 1 && bx + bw + 1 > p.x &&
-            by < p.y + p.bh + 1 && by + bh + 1 > p.y) {
+      let success = false;
+      for (let attempt = 0; attempt < 30 && !success; attempt++) {
+        const bw = spec.wMin + Math.floor(this.rng.next() * (spec.wMax - spec.wMin + 1));
+        const bh = spec.hMin + Math.floor(this.rng.next() * (spec.hMax - spec.hMin + 1));
+        const bx = 3 + Math.floor(this.rng.next() * (w - bw - 6));
+        const by = 3 + Math.floor(this.rng.next() * (h - bh - 6));
+
+        // Check overlap with town square
+        let overlaps = false;
+        if (bx < midX + sqSize + 2 && bx + bw > midX - sqSize - 1 &&
+            by < midY + sqSize + 1 && by + bh > midY - sqSize - 1) {
           overlaps = true;
-          break;
         }
-      }
-      if (!overlaps) {
+        // Check overlap with existing buildings (1-cell gap)
+        for (const p of placed) {
+          if (bx < p.x + p.bw + 1 && bx + bw + 1 > p.x &&
+              by < p.y + p.bh + 1 && by + bh + 1 > p.y) {
+            overlaps = true;
+            break;
+          }
+        }
+        if (overlaps) continue;
+
         placed.push({ x: bx, y: by, bw, bh });
-        this.placeBuilding(cells, w, h, bx, by, bw, bh);
+        const info = this.placeTypedBuilding(cells, w, h, bx, by, bw, bh, subType);
+        buildings.push(info);
+
+        // Connect building door to nearest road via walkway
+        this.connectDoorToRoad(cells, w, h, info.doorPosition, roadCells, roadTerrain);
+        success = true;
       }
     }
 
-    // Perimeter wall
+    // Fill remaining capacity with houses if we have space
+    const extraHouses = size === 'city' ? 3 : size === 'town' ? 2 : 1;
+    for (let i = 0; i < extraHouses; i++) {
+      const spec = LocalMapGenerator.BUILDING_SPECS.house;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const bw = spec.wMin + Math.floor(this.rng.next() * (spec.wMax - spec.wMin + 1));
+        const bh = spec.hMin + Math.floor(this.rng.next() * (spec.hMax - spec.hMin + 1));
+        const bx = 3 + Math.floor(this.rng.next() * (w - bw - 6));
+        const by = 3 + Math.floor(this.rng.next() * (h - bh - 6));
+
+        let overlaps = false;
+        if (bx < midX + sqSize + 2 && bx + bw > midX - sqSize - 1 &&
+            by < midY + sqSize + 1 && by + bh > midY - sqSize - 1) {
+          overlaps = true;
+        }
+        for (const p of placed) {
+          if (bx < p.x + p.bw + 1 && bx + bw + 1 > p.x &&
+              by < p.y + p.bh + 1 && by + bh + 1 > p.y) {
+            overlaps = true;
+            break;
+          }
+        }
+        if (overlaps) continue;
+
+        placed.push({ x: bx, y: by, bw, bh });
+        const info = this.placeTypedBuilding(cells, w, h, bx, by, bw, bh, 'house');
+        buildings.push(info);
+        this.connectDoorToRoad(cells, w, h, info.doorPosition, roadCells, roadTerrain);
+        break;
+      }
+    }
+
+    // Add market building info if placed
+    if (marketCount > 0) {
+      buildings.push({
+        subType: 'market',
+        bounds: { x: midX - sqSize, y: midY - sqSize, w: sqSize * 2 + 1, h: sqSize * 2 },
+        doorPosition: { x: midX, y: midY + sqSize },
+        npcPosition: { x: midX + 1, y: midY - 1 },
+      });
+    }
+
+    // Perimeter wall for towns/cities
     const hasWall = size === 'city' || size === 'town' || this.rng.next() < 0.4;
     const gates: Coordinate[] = [];
 
@@ -966,7 +1078,501 @@ export class LocalMapGenerator {
     return {
       grid: { width: w, height: h, cells },
       playerStart: { x: midX, y: startY },
+      buildings,
     };
+  }
+
+  // ── Typed Building Placement ──────────────────────────────
+
+  /**
+   * Place a building with type-specific interior furniture and return metadata.
+   */
+  private placeTypedBuilding(
+    cells: GridCell[][],
+    gridW: number, gridH: number,
+    bx: number, by: number, bw: number, bh: number,
+    subType: string,
+  ): BuildingInfo {
+    // Build the shell: walls on perimeter, wood floor inside
+    for (let y = by; y < by + bh && y < gridH; y++) {
+      for (let x = bx; x < bx + bw && x < gridW; x++) {
+        if (y === by || y === by + bh - 1 || x === bx || x === bx + bw - 1) {
+          cells[y][x] = wallCell();
+        } else {
+          cells[y][x] = floorCell('wood');
+        }
+      }
+    }
+
+    // Door on south wall, centered
+    const doorX = bx + Math.floor(bw / 2);
+    const doorY = by + bh - 1;
+    if (doorX < gridW && doorY < gridH) {
+      cells[doorY][doorX] = makeCell('wood', 1, false, ['door']);
+    }
+    const doorPos: Coordinate = { x: doorX, y: doorY };
+
+    // Interior boundaries (inside the walls)
+    const ix = bx + 1;
+    const iy = by + 1;
+    const iw = bw - 2;
+    const ih = bh - 2;
+
+    let npcPos: Coordinate;
+
+    switch (subType) {
+      case 'tavern':
+        npcPos = this.furnishTavern(cells, gridW, gridH, ix, iy, iw, ih);
+        break;
+      case 'shop':
+        npcPos = this.furnishShop(cells, gridW, gridH, ix, iy, iw, ih);
+        break;
+      case 'blacksmith':
+        npcPos = this.furnishBlacksmith(cells, gridW, gridH, ix, iy, iw, ih);
+        break;
+      case 'temple':
+        npcPos = this.furnishTemple(cells, gridW, gridH, ix, iy, iw, ih);
+        break;
+      case 'barracks':
+        npcPos = this.furnishBarracks(cells, gridW, gridH, ix, iy, iw, ih);
+        break;
+      case 'house':
+      default:
+        npcPos = this.furnishHouse(cells, gridW, gridH, ix, iy, iw, ih);
+        break;
+    }
+
+    return {
+      subType,
+      bounds: { x: bx, y: by, w: bw, h: bh },
+      doorPosition: doorPos,
+      npcPosition: npcPos,
+    };
+  }
+
+  // ── Interior Furnishing Methods ───────────────────────────
+
+  /**
+   * Tavern/Inn: Main room with tables & chairs, counter/bar, hearth, candles.
+   * NPC stands behind the counter.
+   */
+  private furnishTavern(
+    cells: GridCell[][], gw: number, gh: number,
+    ix: number, iy: number, iw: number, ih: number,
+  ): Coordinate {
+    // Counter/bar along the back wall (top row of interior)
+    const counterY = iy;
+    const counterXStart = ix + 1;
+    const counterXEnd = ix + iw - 2;
+    for (let x = counterXStart; x <= counterXEnd; x++) {
+      if (x < gw) {
+        cells[counterY][x] = makeCell('wood', Infinity, true, ['counter']);
+      }
+    }
+
+    // NPC position: one cell south of counter (accessible side)
+    const npcX = counterXStart + 1;
+    const npcY = counterY + 1;
+    const npcPos: Coordinate = { x: npcX, y: npcY };
+
+    // Hearth/fireplace on left wall
+    const hearthY = iy + Math.floor(ih / 2);
+    if (ix < gw && hearthY < gh) {
+      cells[hearthY][ix] = makeCell('wood', Infinity, true, ['hearth']);
+    }
+
+    // Tables and chairs in the main area (south half)
+    const tableStartY = iy + 2;
+    for (let ty = tableStartY; ty < iy + ih - 1; ty += 2) {
+      for (let tx = ix + 1; tx < ix + iw - 1; tx += 3) {
+        if (tx < gw && ty < gh) {
+          cells[ty][tx] = makeCell('wood', 1, false, ['table']);
+          // Chairs around the table
+          if (tx - 1 >= ix && tx - 1 < gw) cells[ty][tx - 1] = makeCell('wood', 1, false, ['chair']);
+          if (tx + 1 < ix + iw && tx + 1 < gw) cells[ty][tx + 1] = makeCell('wood', 1, false, ['chair']);
+        }
+      }
+    }
+
+    // Candles on tables (every other table)
+    for (let ty = tableStartY; ty < iy + ih - 1; ty += 4) {
+      const cx = ix + 1;
+      if (cx < gw && ty < gh && cells[ty][cx].features.includes('table')) {
+        cells[ty][cx] = makeCell('wood', 1, false, ['table', 'candle']);
+      }
+    }
+
+    // Barrels in back corner (top-right)
+    const barrelX = ix + iw - 1;
+    const barrelY = iy;
+    if (barrelX < gw && barrelY < gh) {
+      cells[barrelY][barrelX] = makeCell('wood', Infinity, true, ['barrel']);
+    }
+    if (barrelX - 1 >= ix && barrelY < gh) {
+      cells[barrelY][barrelX - 1] = makeCell('wood', Infinity, true, ['barrel']);
+    }
+
+    return npcPos;
+  }
+
+  /**
+   * General Shop: Counter near door, shelves along walls, crates/barrels in back.
+   * NPC stands behind the counter.
+   */
+  private furnishShop(
+    cells: GridCell[][], gw: number, gh: number,
+    ix: number, iy: number, iw: number, ih: number,
+  ): Coordinate {
+    // Counter across the middle of the room
+    const counterY = iy + Math.floor(ih / 2);
+    for (let x = ix; x < ix + iw - 1; x++) {
+      if (x < gw && counterY < gh) {
+        cells[counterY][x] = makeCell('wood', Infinity, true, ['counter']);
+      }
+    }
+    // Leave a gap at the right end for NPC to walk behind
+    if (ix + iw - 1 < gw && counterY < gh) {
+      cells[counterY][ix + iw - 1] = floorCell('wood');
+    }
+
+    // NPC position: behind counter (north side, centered)
+    const npcX = ix + Math.floor(iw / 2);
+    const npcY = counterY - 1;
+    const npcPos: Coordinate = { x: npcX, y: npcY };
+
+    // Shelves along the left and right walls (north half, above counter)
+    for (let y = iy; y < counterY; y++) {
+      if (ix < gw && y < gh) {
+        cells[y][ix] = makeCell('wood', Infinity, true, ['shelf']);
+      }
+      if (ix + iw - 1 < gw && y < gh) {
+        cells[y][ix + iw - 1] = makeCell('wood', Infinity, true, ['shelf']);
+      }
+    }
+
+    // Crates and barrels in back corners (north wall)
+    if (ix + 1 < gw && iy < gh) {
+      cells[iy][ix + 1] = makeCell('wood', Infinity, true, ['crate']);
+    }
+    if (ix + iw - 2 >= ix && ix + iw - 2 < gw && iy < gh) {
+      cells[iy][ix + iw - 2] = makeCell('wood', Infinity, true, ['barrel']);
+    }
+
+    // Bookshelf on back wall center
+    const bookX = ix + Math.floor(iw / 2);
+    if (bookX < gw && iy < gh) {
+      cells[iy][bookX] = makeCell('wood', Infinity, true, ['bookshelf']);
+    }
+
+    // Candle on counter
+    if (npcX < gw && counterY < gh) {
+      cells[counterY][npcX] = makeCell('wood', Infinity, true, ['counter', 'candle']);
+    }
+
+    return npcPos;
+  }
+
+  /**
+   * Blacksmith: Anvil area, weapon rack, forge/hearth, barrels.
+   * NPC stands near the anvil.
+   */
+  private furnishBlacksmith(
+    cells: GridCell[][], gw: number, gh: number,
+    ix: number, iy: number, iw: number, ih: number,
+  ): Coordinate {
+    // Forge/hearth on the back wall (north, center)
+    const forgeX = ix + Math.floor(iw / 2);
+    if (forgeX < gw && iy < gh) {
+      cells[iy][forgeX] = makeCell('wood', Infinity, true, ['hearth']);
+    }
+
+    // Anvil in front of forge
+    const anvilX = forgeX;
+    const anvilY = iy + 2;
+    if (anvilX < gw && anvilY < gh) {
+      cells[anvilY][anvilX] = makeCell('wood', 1, false, ['anvil']);
+    }
+
+    // NPC position: next to the anvil
+    const npcX = anvilX - 1 >= ix ? anvilX - 1 : anvilX + 1;
+    const npcPos: Coordinate = { x: npcX, y: anvilY };
+
+    // Weapon rack on left wall
+    if (ix < gw && iy + 1 < gh) {
+      cells[iy + 1][ix] = makeCell('wood', Infinity, true, ['weapon_rack']);
+    }
+
+    // Barrels on right wall
+    const barrelX = ix + iw - 1;
+    if (barrelX < gw && iy < gh) {
+      cells[iy][barrelX] = makeCell('wood', Infinity, true, ['barrel']);
+    }
+    if (barrelX < gw && iy + 1 < gh) {
+      cells[iy + 1][barrelX] = makeCell('wood', Infinity, true, ['barrel']);
+    }
+
+    // Crate near door
+    if (ix < gw && iy + ih - 1 < gh) {
+      cells[iy + ih - 1][ix] = makeCell('wood', Infinity, true, ['crate']);
+    }
+
+    // Table with tools on right side
+    const tableX = ix + iw - 2;
+    const tableY = iy + Math.floor(ih / 2);
+    if (tableX >= ix && tableX < gw && tableY < gh) {
+      cells[tableY][tableX] = makeCell('wood', 1, false, ['table']);
+    }
+
+    return npcPos;
+  }
+
+  /**
+   * Temple/Shrine: Central altar, pillar supports, candles, rug approach, fountain.
+   * NPC stands near the altar.
+   */
+  private furnishTemple(
+    cells: GridCell[][], gw: number, gh: number,
+    ix: number, iy: number, iw: number, ih: number,
+  ): Coordinate {
+    // Central altar
+    const altarX = ix + Math.floor(iw / 2);
+    const altarY = iy + 1;
+    if (altarX < gw && altarY < gh) {
+      cells[altarY][altarX] = makeCell('wood', 1, false, ['altar']);
+    }
+
+    // NPC position: next to the altar (south side)
+    const npcPos: Coordinate = { x: altarX, y: altarY + 1 };
+
+    // Pillar supports (4 corners of the inner area)
+    const pillarOffsets = [
+      { x: ix + 1, y: iy + 1 },
+      { x: ix + iw - 2, y: iy + 1 },
+      { x: ix + 1, y: iy + ih - 2 },
+      { x: ix + iw - 2, y: iy + ih - 2 },
+    ];
+    for (const p of pillarOffsets) {
+      if (p.x < gw && p.y < gh && p.x !== altarX && p.y !== altarY) {
+        cells[p.y][p.x] = makeCell('wood', Infinity, true, ['pillar']);
+      }
+    }
+
+    // Rug/carpet leading from door to altar (center column)
+    for (let y = altarY + 2; y < iy + ih; y++) {
+      if (altarX < gw && y < gh) {
+        cells[y][altarX] = makeCell('wood', 1, false, ['rug']);
+      }
+    }
+
+    // Candles flanking the altar
+    if (altarX - 1 >= ix && altarX - 1 < gw && altarY < gh) {
+      cells[altarY][altarX - 1] = makeCell('wood', 1, false, ['candle']);
+    }
+    if (altarX + 1 < ix + iw && altarX + 1 < gw && altarY < gh) {
+      cells[altarY][altarX + 1] = makeCell('wood', 1, false, ['candle']);
+    }
+
+    // Small fountain near entrance
+    const fountainY = iy + ih - 2;
+    if (altarX < gw && fountainY < gh && fountainY > altarY + 2) {
+      cells[fountainY][altarX] = makeCell('wood', 1, false, ['fountain']);
+    }
+
+    // Candles along walls
+    if (ix < gw && iy + Math.floor(ih / 2) < gh) {
+      cells[iy + Math.floor(ih / 2)][ix] = makeCell('wood', Infinity, true, ['candle']);
+    }
+    if (ix + iw - 1 < gw && iy + Math.floor(ih / 2) < gh) {
+      cells[iy + Math.floor(ih / 2)][ix + iw - 1] = makeCell('wood', Infinity, true, ['candle']);
+    }
+
+    return npcPos;
+  }
+
+  /**
+   * House: Bed area, table with chairs, chest for personal items.
+   * NPC stands near the table.
+   */
+  private furnishHouse(
+    cells: GridCell[][], gw: number, gh: number,
+    ix: number, iy: number, iw: number, ih: number,
+  ): Coordinate {
+    // Bed in top-left corner
+    if (ix < gw && iy < gh) {
+      cells[iy][ix] = makeCell('wood', Infinity, true, ['bed']);
+    }
+    if (ix + 1 < gw && iy < gh) {
+      cells[iy][ix + 1] = makeCell('wood', Infinity, true, ['bed']);
+    }
+
+    // Chest at foot of bed
+    if (ix < gw && iy + 1 < gh) {
+      cells[iy + 1][ix] = makeCell('wood', 1, false, ['chest']);
+    }
+
+    // Table in center-right area
+    const tableX = ix + iw - 2;
+    const tableY = iy + Math.floor(ih / 2);
+    if (tableX >= ix && tableX < gw && tableY < gh) {
+      cells[tableY][tableX] = makeCell('wood', 1, false, ['table']);
+    }
+
+    // NPC position: near the table
+    const npcPos: Coordinate = { x: Math.max(ix, tableX - 1), y: tableY };
+
+    // Chair next to table
+    if (tableX - 1 >= ix && tableX - 1 < gw && tableY < gh) {
+      cells[tableY][tableX - 1] = makeCell('wood', 1, false, ['chair']);
+    }
+
+    // Candle on table
+    if (tableX < gw && tableY < gh) {
+      cells[tableY][tableX] = makeCell('wood', 1, false, ['table', 'candle']);
+    }
+
+    // Shelf on right wall
+    if (ix + iw - 1 < gw && iy < gh) {
+      cells[iy][ix + iw - 1] = makeCell('wood', Infinity, true, ['shelf']);
+    }
+
+    return npcPos;
+  }
+
+  /**
+   * Guard Barracks: Multiple beds, weapon rack, table, chest.
+   * NPC stands near the weapon rack.
+   */
+  private furnishBarracks(
+    cells: GridCell[][], gw: number, gh: number,
+    ix: number, iy: number, iw: number, ih: number,
+  ): Coordinate {
+    // Row of beds along the left wall
+    for (let y = iy; y < iy + ih - 1 && y < gh; y += 2) {
+      if (ix < gw) {
+        cells[y][ix] = makeCell('wood', Infinity, true, ['bed']);
+      }
+    }
+
+    // Row of beds along the right wall
+    for (let y = iy; y < iy + ih - 1 && y < gh; y += 2) {
+      if (ix + iw - 1 < gw) {
+        cells[y][ix + iw - 1] = makeCell('wood', Infinity, true, ['bed']);
+      }
+    }
+
+    // Weapon rack on back wall (center)
+    const rackX = ix + Math.floor(iw / 2);
+    if (rackX < gw && iy < gh) {
+      cells[iy][rackX] = makeCell('wood', Infinity, true, ['weapon_rack']);
+    }
+
+    // NPC position: near the weapon rack
+    const npcPos: Coordinate = { x: rackX, y: iy + 1 };
+
+    // Table in center
+    const tableX = ix + Math.floor(iw / 2);
+    const tableY = iy + Math.floor(ih / 2);
+    if (tableX < gw && tableY < gh) {
+      cells[tableY][tableX] = makeCell('wood', 1, false, ['table']);
+    }
+
+    // Chairs around table
+    if (tableX - 1 >= ix && tableX - 1 < gw && tableY < gh) {
+      cells[tableY][tableX - 1] = makeCell('wood', 1, false, ['chair']);
+    }
+    if (tableX + 1 < ix + iw && tableX + 1 < gw && tableY < gh) {
+      cells[tableY][tableX + 1] = makeCell('wood', 1, false, ['chair']);
+    }
+
+    // Chest near weapon rack
+    if (rackX + 1 < ix + iw && rackX + 1 < gw && iy < gh) {
+      cells[iy][rackX + 1] = makeCell('wood', Infinity, true, ['chest']);
+    }
+
+    // Banner on back wall
+    if (rackX - 1 >= ix && rackX - 1 < gw && iy < gh) {
+      cells[iy][rackX - 1] = makeCell('wood', Infinity, true, ['banner']);
+    }
+
+    return npcPos;
+  }
+
+  /**
+   * Market: Outdoor area with market stalls arranged in rows around the town square.
+   */
+  private placeMarketArea(
+    cells: GridCell[][], gw: number, gh: number,
+    midX: number, midY: number, sqSize: number,
+    roadTerrain: CellTerrain,
+  ): void {
+    // Place market stalls in two rows flanking the center
+    const stallOffsets = [
+      [-3, -2], [0, -2], [3, -2],   // north row
+      [-3, 2],  [0, 2],  [3, 2],    // south row
+    ];
+    for (const [dx, dy] of stallOffsets) {
+      const sx = midX + dx;
+      const sy = midY + dy;
+      if (sx >= 1 && sx < gw - 1 && sy >= 1 && sy < gh - 1) {
+        cells[sy][sx] = makeCell(roadTerrain, 1, false, ['market_stall']);
+      }
+    }
+
+    // Sign posts at market entrances
+    const signX = midX - sqSize + 1;
+    const signY = midY;
+    if (signX >= 0 && signX < gw && signY >= 0 && signY < gh) {
+      cells[signY][signX] = makeCell(roadTerrain, 1, false, ['sign']);
+    }
+  }
+
+  /**
+   * Connect a building door to the nearest road cell via a 1-cell walkway.
+   */
+  private connectDoorToRoad(
+    cells: GridCell[][], gw: number, gh: number,
+    door: Coordinate,
+    roadCells: Set<string>,
+    roadTerrain: CellTerrain,
+  ): void {
+    // Start one cell south of the door (outside the building)
+    let cx = door.x;
+    let cy = door.y + 1;
+
+    // Walk up to 10 cells toward the nearest road
+    for (let step = 0; step < 10; step++) {
+      if (cx < 0 || cx >= gw || cy < 0 || cy >= gh) break;
+      if (roadCells.has(`${cx},${cy}`)) break;
+
+      // Only place walkway on passable non-wall cells
+      const cell = cells[cy][cx];
+      if (cell.terrain !== 'wall' && cell.features.length === 0) {
+        cells[cy][cx] = floorCell(roadTerrain);
+        roadCells.add(`${cx},${cy}`);
+      }
+
+      // Find nearest road cell and step toward it
+      let bestDist = Infinity;
+      let bestDir = { dx: 0, dy: 1 };
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]] as [number, number][]) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (nx < 0 || nx >= gw || ny < 0 || ny >= gh) continue;
+        if (roadCells.has(`${nx},${ny}`)) {
+          bestDist = 0;
+          bestDir = { dx, dy };
+          break;
+        }
+        // Estimate distance to road center (midpoint of grid)
+        const dist = Math.abs(nx - Math.floor(gw / 2)) + Math.abs(ny - Math.floor(gh / 2));
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestDir = { dx, dy };
+        }
+      }
+      cx += bestDir.dx;
+      cy += bestDir.dy;
+    }
   }
 
   // ── Dungeon (30x50) ───────────────────────────────────────
@@ -1610,22 +2216,9 @@ export class LocalMapGenerator {
     by: number,
     bw: number,
     bh: number,
-  ): void {
-    for (let y = by; y < by + bh && y < gridH; y++) {
-      for (let x = bx; x < bx + bw && x < gridW; x++) {
-        if (y === by || y === by + bh - 1 || x === bx || x === bx + bw - 1) {
-          cells[y][x] = wallCell();
-        } else {
-          cells[y][x] = floorCell('wood');
-        }
-      }
-    }
-
-    const doorX = bx + Math.floor(bw / 2);
-    const doorY = by + bh - 1;
-    if (doorX < gridW && doorY < gridH) {
-      cells[doorY][doorX] = makeCell('wood', Infinity, true, ['door']);
-    }
+    subType: string = 'house',
+  ): BuildingInfo {
+    return this.placeTypedBuilding(cells, gridW, gridH, bx, by, bw, bh, subType);
   }
 
   protected placePerimeter(

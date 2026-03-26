@@ -99,6 +99,24 @@ const FEATURE_COLORS: Record<CellFeature, { primary: RGB; secondary: RGB; bg: RG
   torch_wall:       { primary: [255, 170, 50], secondary: [200, 120, 30], bg: [80, 40, 10] },
   torch_wall_spent: { primary: [85, 80, 65],  secondary: [60, 55, 45],  bg: [30, 28, 22] },
   brazier:          { primary: [255, 120, 20], secondary: [220, 80, 10],  bg: [80, 30, 5] },
+  table:            { primary: [160, 110, 50], secondary: [130, 85, 35],  bg: [90, 60, 25] },
+  chair:            { primary: [120, 80, 35],  secondary: [95, 62, 28],   bg: [65, 42, 18] },
+  bed:              { primary: [230, 220, 200], secondary: [130, 85, 40], bg: [80, 55, 25] },
+  shelf:            { primary: [140, 95, 42],  secondary: [110, 72, 32],  bg: [75, 50, 22] },
+  counter:          { primary: [170, 120, 55], secondary: [140, 95, 40],  bg: [95, 65, 28] },
+  anvil:            { primary: [90, 90, 95],   secondary: [60, 60, 65],   bg: [35, 35, 40] },
+  barrel:           { primary: [145, 95, 38],  secondary: [110, 70, 28],  bg: [75, 48, 18] },
+  crate:            { primary: [175, 135, 70], secondary: [140, 105, 50], bg: [95, 72, 32] },
+  bookshelf:        { primary: [130, 85, 38],  secondary: [100, 65, 28],  bg: [68, 44, 18] },
+  rug:              { primary: [165, 40, 40],  secondary: [200, 165, 50], bg: [120, 28, 28] },
+  banner:           { primary: [180, 35, 35],  secondary: [210, 180, 50], bg: [130, 25, 25] },
+  well:             { primary: [130, 130, 135], secondary: [50, 120, 190], bg: [85, 85, 90] },
+  market_stall:     { primary: [145, 100, 45], secondary: [180, 50, 50],  bg: [95, 65, 28] },
+  sign:             { primary: [140, 95, 42],  secondary: [220, 215, 200], bg: [90, 60, 25] },
+  candle:           { primary: [255, 220, 60], secondary: [140, 95, 42],  bg: [80, 55, 22] },
+  chandelier:       { primary: [200, 170, 60], secondary: [255, 220, 80], bg: [140, 115, 40] },
+  weapon_rack:      { primary: [100, 65, 30],  secondary: [170, 170, 180], bg: [65, 42, 18] },
+  hearth:           { primary: [255, 150, 30], secondary: [130, 130, 135], bg: [80, 30, 5] },
 };
 
 // ── Terrain Patterns (8×8) — Faux-Isometric 3/4 View ────────
@@ -716,6 +734,311 @@ function makeBrazierPattern(primary: RGB, secondary: RGB): TilePattern {
   ], palette: { p: primary, s: secondary, g: glow, t: tip, F: face, d: dark } };
 }
 
+// ── Furniture Feature Patterns (8×8) ────────────────────────
+
+function makeTablePattern(primary: RGB, secondary: RGB): TilePattern {
+  const hi: RGB = blend(primary, [200, 170, 100], 0.2);
+  const face: RGB = blend(secondary, [40, 28, 12], 0.4);
+  const dark: RGB = blend(secondary, [22, 15, 6], 0.55);
+  return { pixels: [
+    '........',
+    '.hppppp.',
+    '.pppppp.',
+    '.pppppp.',
+    '.ssssss.',
+    '.s....s.',
+    '.s....s.',
+    '.d....d.',
+  ], palette: { p: primary, s: secondary, h: hi, F: face, d: dark } };
+}
+
+function makeChairPattern(primary: RGB, secondary: RGB): TilePattern {
+  const hi: RGB = blend(primary, [170, 140, 80], 0.2);
+  const face: RGB = blend(secondary, [35, 24, 10], 0.4);
+  return { pixels: [
+    '..pppp..',
+    '..pppp..',
+    '..pppp..',
+    '..hpps..',
+    '..ssss..',
+    '..FFFF..',
+    '..s..s..',
+    '..s..s..',
+  ], palette: { p: primary, s: secondary, h: hi, F: face } };
+}
+
+function makeBedPattern(primary: RGB, secondary: RGB): TilePattern {
+  const sheet: RGB = primary;
+  const pillow: RGB = blend(primary, [255, 255, 255], 0.3);
+  const frame: RGB = secondary;
+  const face: RGB = blend(secondary, [35, 24, 10], 0.45);
+  const dark: RGB = blend(secondary, [20, 14, 6], 0.55);
+  return { pixels: [
+    '.ffffff.',
+    '.fPPPPf.',
+    '.ffffff.',
+    '.fssssf.',
+    '.fssssf.',
+    '.fFFFFf.',
+    '.fFFFFf.',
+    '.dddddd.',
+  ], palette: { f: frame, s: sheet, P: pillow, F: face, d: dark } };
+}
+
+function makeShelfPattern(primary: RGB, secondary: RGB): TilePattern {
+  const book1: RGB = [180, 45, 40];
+  const book2: RGB = [45, 95, 160];
+  const book3: RGB = [55, 140, 55];
+  const face: RGB = blend(secondary, [35, 24, 10], 0.4);
+  const dark: RGB = blend(secondary, [20, 14, 6], 0.55);
+  return { pixels: [
+    'pppppppp',
+    'pABCBABp',
+    'pppppppp',
+    'pBABCABp',
+    'pppppppp',
+    'pABCBACp',
+    'pppppppp',
+    'dddddddd',
+  ], palette: { p: primary, s: secondary, A: book1, B: book2, C: book3, F: face, d: dark } };
+}
+
+function makeCounterPattern(primary: RGB, secondary: RGB): TilePattern {
+  const hi: RGB = blend(primary, [210, 180, 110], 0.2);
+  const face: RGB = blend(secondary, [40, 28, 12], 0.4);
+  const dark: RGB = blend(secondary, [22, 15, 6], 0.55);
+  return { pixels: [
+    'hppppppp',
+    'pppppppp',
+    'ssssssss',
+    'FFFFFFFF',
+    'FffFffFf',
+    'FFFFFFFF',
+    'FffFffFf',
+    'dddddddd',
+  ], palette: { p: primary, s: secondary, h: hi, F: face, f: dark, d: dark } };
+}
+
+function makeAnvilPattern(primary: RGB, secondary: RGB): TilePattern {
+  const hi: RGB = blend(primary, [160, 160, 170], 0.3);
+  const face: RGB = blend(secondary, [25, 25, 30], 0.4);
+  const dark: RGB = blend(secondary, [12, 12, 16], 0.55);
+  return { pixels: [
+    '........',
+    '.hhpppp.',
+    '..hpps..',
+    '...pp...',
+    '...pp...',
+    '..spps..',
+    '.FFFFFF.',
+    '.dddddd.',
+  ], palette: { p: primary, s: secondary, h: hi, F: face, d: dark } };
+}
+
+function makeBarrelPattern(primary: RGB, secondary: RGB): TilePattern {
+  const band: RGB = [140, 140, 145];
+  const hi: RGB = blend(primary, [190, 155, 80], 0.2);
+  const face: RGB = blend(secondary, [35, 22, 8], 0.4);
+  const dark: RGB = blend(secondary, [18, 12, 4], 0.55);
+  return { pixels: [
+    '..hpps..',
+    '.hpppps.',
+    '.BBBBBB.',
+    '.hpppps.',
+    '.hpppps.',
+    '.BBBBBB.',
+    '.FFFFFF.',
+    '..dddd..',
+  ], palette: { p: primary, s: secondary, h: hi, B: band, F: face, d: dark } };
+}
+
+function makeCratePattern(primary: RGB, secondary: RGB): TilePattern {
+  const hi: RGB = blend(primary, [210, 180, 110], 0.2);
+  const nail: RGB = [160, 155, 145];
+  const face: RGB = blend(secondary, [40, 30, 14], 0.4);
+  const dark: RGB = blend(secondary, [22, 16, 6], 0.55);
+  return { pixels: [
+    'hppnppph',
+    'phppppsp',
+    'pphppsp.',
+    'nppnpps.',
+    'ppspppn.',
+    '.FFFFFF.',
+    '.FnnnnF.',
+    '.dddddd.',
+  ], palette: { p: primary, s: secondary, h: hi, n: nail, F: face, d: dark } };
+}
+
+function makeBookshelfPattern(primary: RGB, secondary: RGB): TilePattern {
+  const book1: RGB = [170, 38, 35];
+  const book2: RGB = [38, 85, 150];
+  const book3: RGB = [48, 130, 48];
+  const book4: RGB = [160, 130, 40];
+  const face: RGB = blend(secondary, [30, 20, 8], 0.4);
+  const dark: RGB = blend(secondary, [16, 10, 4], 0.55);
+  return { pixels: [
+    'pppppppp',
+    'pABCDABp',
+    'pppppppp',
+    'pDBACDBp',
+    'pppppppp',
+    'pABDCBAp',
+    'FFFFFFFF',
+    'dddddddd',
+  ], palette: { p: primary, s: secondary, A: book1, B: book2, C: book3, D: book4, F: face, d: dark } };
+}
+
+function makeRugPattern(primary: RGB, secondary: RGB): TilePattern {
+  const border: RGB = blend(primary, [120, 25, 25], 0.3);
+  const gold: RGB = secondary;
+  const center: RGB = blend(primary, [140, 30, 30], 0.2);
+  return { pixels: [
+    'bbbbbbbb',
+    'bgccccgb',
+    'bcgccgcb',
+    'bccggccb',
+    'bccggccb',
+    'bcgccgcb',
+    'bgccccgb',
+    'bbbbbbbb',
+  ], palette: { b: border, g: gold, c: center } };
+}
+
+function makeBannerPattern(primary: RGB, secondary: RGB): TilePattern {
+  const rod: RGB = [140, 105, 45];
+  const gold: RGB = secondary;
+  const hi: RGB = blend(primary, [220, 100, 100], 0.2);
+  return { pixels: [
+    'rrrrrrrr',
+    '.pppppp.',
+    '.hpggph.',
+    '.hpggph.',
+    '.ppggpp.',
+    '..pgpp..',
+    '..pppp..',
+    '...pp...',
+  ], palette: { r: rod, p: primary, h: hi, g: gold } };
+}
+
+function makeWellPattern(primary: RGB, secondary: RGB): TilePattern {
+  const water: RGB = secondary;
+  const hi: RGB = blend(primary, [180, 180, 185], 0.2);
+  const face: RGB = blend(primary, [50, 50, 55], 0.4);
+  const dark: RGB = blend(primary, [30, 30, 35], 0.55);
+  return { pixels: [
+    '..hpps..',
+    '.hpwwps.',
+    '.pwwwwp.',
+    '.pwwwwp.',
+    '.spwwps.',
+    '..FFFF..',
+    '..FFFF..',
+    '..dddd..',
+  ], palette: { p: primary, s: primary, h: hi, w: water, F: face, d: dark } };
+}
+
+function makeMarketStallPattern(primary: RGB, secondary: RGB): TilePattern {
+  const fabric: RGB = secondary;
+  const fabricHi: RGB = blend(secondary, [240, 120, 120], 0.3);
+  const dark: RGB = blend(primary, [22, 15, 6], 0.55);
+  return { pixels: [
+    'fFfFfFfF',
+    'FfFfFfFf',
+    '.p....p.',
+    '.pppppp.',
+    '.pppppp.',
+    '.FFFFFF.',
+    '.FffFff.',
+    '.dddddd.',
+  ], palette: { p: primary, f: fabric, F: fabricHi, d: dark } };
+}
+
+function makeSignPattern(primary: RGB, secondary: RGB): TilePattern {
+  const text: RGB = secondary;
+  const hi: RGB = blend(primary, [180, 145, 80], 0.2);
+  const post: RGB = blend(primary, [90, 60, 25], 0.3);
+  return { pixels: [
+    '........',
+    '.hpppps.',
+    '.ptttts.',
+    '.ptttts.',
+    '.ppppps.',
+    '...PP...',
+    '...PP...',
+    '...PP...',
+  ], palette: { p: primary, s: primary, h: hi, t: text, P: post } };
+}
+
+function makeCandlePattern(primary: RGB, secondary: RGB): TilePattern {
+  const flame: RGB = primary;
+  const glow: RGB = [255, 245, 130];
+  const wax: RGB = [210, 200, 170];
+  const holder: RGB = secondary;
+  return { pixels: [
+    '...gf...',
+    '...ff...',
+    '...ww...',
+    '...ww...',
+    '...ww...',
+    '..hhhh..',
+    '..hhhh..',
+    '........',
+  ], palette: { f: flame, g: glow, w: wax, h: holder } };
+}
+
+function makeChandelierPattern(primary: RGB, secondary: RGB): TilePattern {
+  const brass: RGB = primary;
+  const flame: RGB = secondary;
+  const glow: RGB = [255, 245, 130];
+  const chain: RGB = blend(primary, [100, 85, 30], 0.3);
+  return { pixels: [
+    '...cc...',
+    '...pp...',
+    '.gfpfg..',
+    '.ffpff..',
+    'gfpppfg.',
+    'ffpppff.',
+    '........',
+    '........',
+  ], palette: { p: brass, f: flame, g: glow, c: chain } };
+}
+
+function makeWeaponRackPattern(primary: RGB, secondary: RGB): TilePattern {
+  const wood: RGB = primary;
+  const metal: RGB = secondary;
+  const hi: RGB = blend(secondary, [220, 220, 230], 0.3);
+  const face: RGB = blend(primary, [30, 20, 8], 0.4);
+  const dark: RGB = blend(primary, [16, 10, 4], 0.55);
+  return { pixels: [
+    'pppppppp',
+    'pmhmhmhp',
+    'pmhmhmhp',
+    'pppppppp',
+    'pmhmhmhp',
+    'pmhmhmhp',
+    'FFFFFFFF',
+    'dddddddd',
+  ], palette: { p: wood, m: metal, h: hi, F: face, d: dark } };
+}
+
+function makeHearthPattern(primary: RGB, secondary: RGB): TilePattern {
+  const fire: RGB = primary;
+  const glow: RGB = [255, 245, 130];
+  const tip: RGB = [255, 200, 60];
+  const stone: RGB = secondary;
+  const dark: RGB = blend(secondary, [30, 30, 35], 0.5);
+  return { pixels: [
+    'ssssssss',
+    's..tg..s',
+    's.ffff.s',
+    's.fggf.s',
+    'ssssssss',
+    'SSSSSSSS',
+    'SddSddSd',
+    'SSSSSSSS',
+  ], palette: { s: stone, f: fire, g: glow, t: tip, S: dark, d: blend(dark, [10, 10, 10], 0.3) } };
+}
+
 // ── Fantasy Tileset ──────────────────────────────────────────
 
 export class FantasyTileset implements Tileset {
@@ -853,6 +1176,60 @@ export class FantasyTileset implements Tileset {
         break;
       case 'brazier':
         pattern = makeBrazierPattern(colors.primary, colors.secondary);
+        break;
+      case 'table':
+        pattern = makeTablePattern(colors.primary, colors.secondary);
+        break;
+      case 'chair':
+        pattern = makeChairPattern(colors.primary, colors.secondary);
+        break;
+      case 'bed':
+        pattern = makeBedPattern(colors.primary, colors.secondary);
+        break;
+      case 'shelf':
+        pattern = makeShelfPattern(colors.primary, colors.secondary);
+        break;
+      case 'counter':
+        pattern = makeCounterPattern(colors.primary, colors.secondary);
+        break;
+      case 'anvil':
+        pattern = makeAnvilPattern(colors.primary, colors.secondary);
+        break;
+      case 'barrel':
+        pattern = makeBarrelPattern(colors.primary, colors.secondary);
+        break;
+      case 'crate':
+        pattern = makeCratePattern(colors.primary, colors.secondary);
+        break;
+      case 'bookshelf':
+        pattern = makeBookshelfPattern(colors.primary, colors.secondary);
+        break;
+      case 'rug':
+        pattern = makeRugPattern(colors.primary, colors.secondary);
+        break;
+      case 'banner':
+        pattern = makeBannerPattern(colors.primary, colors.secondary);
+        break;
+      case 'well':
+        pattern = makeWellPattern(colors.primary, colors.secondary);
+        break;
+      case 'market_stall':
+        pattern = makeMarketStallPattern(colors.primary, colors.secondary);
+        break;
+      case 'sign':
+        pattern = makeSignPattern(colors.primary, colors.secondary);
+        break;
+      case 'candle':
+        pattern = makeCandlePattern(colors.primary, colors.secondary);
+        break;
+      case 'chandelier':
+        pattern = makeChandelierPattern(colors.primary, colors.secondary);
+        break;
+      case 'weapon_rack':
+        pattern = makeWeaponRackPattern(colors.primary, colors.secondary);
+        break;
+      case 'hearth':
+        pattern = makeHearthPattern(colors.primary, colors.secondary);
         break;
     }
 

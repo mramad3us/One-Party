@@ -24,6 +24,7 @@ const ITEM_TYPE_SYMBOLS: Record<ItemType, string> = {
   tool: '\u2692',       // hammer and pick
   food: '\u{1F356}',    // meat on bone
   drink: '\u{1F3FA}',   // amphora
+  container: '\u{1F4B0}', // money bag
 };
 
 /**

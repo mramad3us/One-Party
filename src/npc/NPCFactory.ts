@@ -1,13 +1,16 @@
 import type {
   AbilityScores,
+  BiomeType,
   CompanionData,
   EntityId,
+  MerchantInventory,
   NPC,
   NPCRole,
 } from '@/types';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { generateId } from '@/engine/IdGenerator';
 import { proficiencyBonus } from '@/utils/math';
+import { generateMerchantInventory } from './MerchantSystem';
 
 // ── Name tables ──────────────────────────────────────────────────────
 
@@ -183,11 +186,25 @@ const LONG_TERM_GOALS = [
 export class NPCFactory {
   constructor(private rng: SeededRNG) {}
 
-  createFromTemplate(role: NPCRole, level: number, locationId: EntityId): NPC {
+  createFromTemplate(
+    role: NPCRole,
+    level: number,
+    locationId: EntityId,
+    options?: { biome?: BiomeType; difficulty?: number },
+  ): NPC {
     const name = this.generateName();
     const abilityScores = getAbilityScoresForRole(role, level);
     const conMod = Math.floor((abilityScores.constitution - 10) / 2);
     const maxHp = getHpForRole(role, level, conMod);
+
+    // Generate merchant inventory for trade-capable roles
+    const merchantRoles: NPCRole[] = ['merchant', 'blacksmith', 'innkeeper', 'priest'];
+    let merchantInventory: MerchantInventory | null = null;
+    if (merchantRoles.includes(role)) {
+      const biome = options?.biome ?? 'plains';
+      const difficulty = options?.difficulty ?? 1;
+      merchantInventory = generateMerchantInventory(role, biome, difficulty);
+    }
 
     const npc: NPC = {
       id: generateId(),
@@ -222,6 +239,7 @@ export class NPCFactory {
         conditionImmunities: [],
       },
       companion: null,
+      merchantInventory,
       position: null,
       initiative: null,
     };
@@ -318,6 +336,7 @@ export class NPCFactory {
         conditionImmunities: [],
       },
       companion: companionData,
+      merchantInventory: null,
       position: null,
       initiative: null,
     };

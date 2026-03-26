@@ -1675,6 +1675,8 @@ export class CombatManager {
       options.push({
         spellId,
         slotLevel,
+        minSlotLevel: spell.level,
+        maxSlotLevel: Math.max(slotLevel, ...Object.keys(p.stats.spellcasting?.spellSlots ?? {}).map(Number).filter(l => l >= spell.level && (p.stats.spellcasting?.spellSlots?.[l]?.current ?? 0) > 0)),
         validTargets,
         validCells: [],
       });

@@ -13,7 +13,18 @@ export interface MonsterDefinition {
   lootTable?: { itemId: string; chance: number; quantity?: number }[];
 }
 
-export const SRD_MONSTERS: MonsterDefinition[] = [
+// Import CR-grouped monster data files
+import { CR0_MONSTERS } from './monsters-cr0';
+import { CR0125_MONSTERS } from './monsters-cr0125';
+import { CR025_MONSTERS } from './monsters-cr025';
+import { CR05_MONSTERS } from './monsters-cr05';
+import { CR1_MONSTERS } from './monsters-cr1';
+import { CR2_MONSTERS } from './monsters-cr2';
+import { CR3_MONSTERS } from './monsters-cr3';
+import { CR4PLUS_MONSTERS } from './monsters-cr4plus';
+
+/** Original base monsters (kept inline to preserve loot tables and exact original data) */
+const BASE_MONSTERS: MonsterDefinition[] = [
   {
     id: 'monster_goblin',
     name: 'Goblin',
@@ -426,6 +437,19 @@ export const SRD_MONSTERS: MonsterDefinition[] = [
       conditionImmunities: [],
     },
   },
+];
+
+/** Complete SRD monster list — all CRs combined */
+export const SRD_MONSTERS: MonsterDefinition[] = [
+  ...BASE_MONSTERS,
+  ...CR0_MONSTERS,
+  ...CR0125_MONSTERS,
+  ...CR025_MONSTERS,
+  ...CR05_MONSTERS,
+  ...CR1_MONSTERS,
+  ...CR2_MONSTERS,
+  ...CR3_MONSTERS,
+  ...CR4PLUS_MONSTERS,
 ];
 
 export function getMonster(id: string): MonsterDefinition | undefined {

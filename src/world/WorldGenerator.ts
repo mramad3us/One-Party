@@ -3,6 +3,8 @@ import type {
   EntityId,
   Location,
   LocationType,
+  NPC,
+  NPCRole,
   Region,
   SubLocation,
   SubLocationType,
@@ -10,6 +12,7 @@ import type {
 } from '@/types';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { generateId } from '@/engine/IdGenerator';
+import { NPCFactory } from '@/npc/NPCFactory';
 
 // ── Name generation tables ──────────────────────────────────────────
 
@@ -241,6 +244,21 @@ const CAVE_SUBS: SubLocationConfig[] = [
   { subType: 'hall', interiorType: 'interior' },
 ];
 
+// ── Sub-location → NPC role mapping ─────────────────────────────────
+
+/** Maps a sub-location type to the NPC role that should inhabit it, or null if none */
+const SUB_LOCATION_NPC_ROLES: Partial<Record<SubLocationType, NPCRole>> = {
+  tavern: 'innkeeper',
+  shop: 'merchant',
+  blacksmith: 'blacksmith',
+  temple: 'priest',
+  market: 'merchant',
+  barracks: 'guard',
+};
+
+/** Settlement location types that should have NPCs generated */
+const SETTLEMENT_TYPES: LocationType[] = ['village', 'town', 'city'];
+
 function getSubLocationConfigs(locType: LocationType): SubLocationConfig[] {
   switch (locType) {
     case 'village': return VILLAGE_SUBS;
@@ -257,12 +275,28 @@ function getSubLocationConfigs(locType: LocationType): SubLocationConfig[] {
   }
 }
 
-export class WorldGenerator {
-  constructor(private rng: SeededRNG) {}
+/** Result from world generation, including both the world and all generated NPCs */
+export type WorldGenerationResult = {
+  world: World;
+  npcs: NPC[];
+};
 
-  generateWorld(seed: number): World {
+export class WorldGenerator {
+  private npcFactory: NPCFactory;
+  /** NPCs created during generation, collected for external registration */
+  private generatedNPCs: NPC[] = [];
+  /** Biome of the current region being generated (used for merchant inventory) */
+  private currentBiome: BiomeType = 'plains';
+
+  constructor(private rng: SeededRNG) {
+    this.npcFactory = new NPCFactory(rng);
+  }
+
+  generateWorld(seed: number): WorldGenerationResult {
     const worldRng = new SeededRNG(seed);
     this.rng = worldRng;
+    this.npcFactory = new NPCFactory(worldRng);
+    this.generatedNPCs = [];
 
     const worldId = generateId();
     const world: World = {
@@ -278,13 +312,24 @@ export class WorldGenerator {
     const startRegion = this.generateRegion(1, 'forest');
     world.regions.set(startRegion.id, startRegion);
 
-    return world;
+    return { world, npcs: this.generatedNPCs };
+  }
+
+  /** Retrieve all NPCs generated since last reset (useful when calling generateLocation directly) */
+  getGeneratedNPCs(): NPC[] {
+    return [...this.generatedNPCs];
+  }
+
+  /** Clear the list of generated NPCs (call after retrieving them) */
+  clearGeneratedNPCs(): void {
+    this.generatedNPCs = [];
   }
 
   generateRegion(difficulty: number, biome?: BiomeType): Region {
     const selectedBiome = biome ?? this.rng.pick<BiomeType>([
       'forest', 'mountain', 'plains', 'swamp', 'coast',
     ]);
+    this.currentBiome = selectedBiome;
     const regionId = generateId();
     const regionName = this.rng.pick(PREFIXES) + this.rng.pick(LOCATION_SUFFIXES);
 
@@ -386,6 +431,8 @@ export class WorldGenerator {
       ...this.rng.shuffle(optional).slice(0, Math.max(0, subCount - required.length)),
     ];
 
+    const isSettlement = SETTLEMENT_TYPES.includes(locationType);
+
     for (let i = 0; i < selectedConfigs.length; i++) {
       const config = selectedConfigs[i];
       const subLocation = this.generateSubLocation(
@@ -395,6 +442,20 @@ export class WorldGenerator {
       );
       subLocation.coordinates = { x: i, y: 0 };
       location.subLocations.set(subLocation.id, subLocation);
+
+      // Create NPCs for settlement sub-locations
+      if (isSettlement) {
+        const npc = this.createNPCForSubLocation(
+          subLocation,
+          locationId,
+          difficulty,
+        );
+        if (npc) {
+          subLocation.npcs.push(npc.id);
+          location.npcs.push(npc.id);
+          this.generatedNPCs.push(npc);
+        }
+      }
     }
 
     return location;
@@ -426,6 +487,42 @@ export class WorldGenerator {
     void descriptions;
 
     return subLocation;
+  }
+
+  /**
+   * Create an NPC for a settlement sub-location based on its type.
+   * Returns null if the sub-location type doesn't warrant an NPC
+   * (e.g. houses have only a 50% chance of spawning a commoner).
+   */
+  private createNPCForSubLocation(
+    subLocation: SubLocation,
+    locationId: EntityId,
+    difficulty: number,
+  ): NPC | null {
+    const subType = subLocation.subType;
+
+    // Houses have a 50% chance of a commoner NPC
+    if (subType === 'house') {
+      if (this.rng.next() < 0.5) {
+        return this.npcFactory.createFromTemplate('commoner', 1, locationId, {
+          biome: this.currentBiome,
+          difficulty,
+        });
+      }
+      return null;
+    }
+
+    // Look up the NPC role for this sub-location type
+    const role = SUB_LOCATION_NPC_ROLES[subType];
+    if (!role) return null;
+
+    // NPC level scales slightly with difficulty
+    const npcLevel = Math.max(1, difficulty);
+
+    return this.npcFactory.createFromTemplate(role, npcLevel, locationId, {
+      biome: this.currentBiome,
+      difficulty,
+    });
   }
 
   private generateLocationName(locType: LocationType): string {

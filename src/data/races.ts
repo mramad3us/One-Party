@@ -194,6 +194,137 @@ export const SRD_RACES: RaceDefinition[] = [
       skills: ['intimidation'],
     },
   },
+  {
+    id: 'half_elf',
+    name: 'Half-Elf',
+    description:
+      'Half-elves combine what some say are the best qualities of their elf and human parents: human curiosity, inventiveness, and ambition tempered by the refined senses, love of nature, and artistic tastes of the elves.',
+    abilityBonuses: {
+      charisma: 2,
+    },
+    speed: 30,
+    size: 'medium',
+    languages: ['Common', 'Elvish', 'one additional language'],
+    traits: [
+      {
+        name: 'Darkvision',
+        description:
+          'You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.',
+      },
+      {
+        name: 'Fey Ancestry',
+        description:
+          'You have advantage on saving throws against being charmed, and magic can\'t put you to sleep.',
+      },
+      {
+        name: 'Skill Versatility',
+        description:
+          'You gain proficiency in two skills of your choice.',
+      },
+      {
+        name: 'Ability Score Increase',
+        description:
+          'In addition to Charisma +2, two other ability scores of your choice each increase by 1.',
+      },
+    ],
+  },
+  {
+    id: 'gnome',
+    name: 'Gnome (Rock)',
+    description:
+      'A gnome\'s energy and enthusiasm for living shines through every inch of his or her tiny body. Rock gnomes are natural inventors and tinkerers, with a love for knowledge and discovery.',
+    abilityBonuses: {
+      intelligence: 2,
+      constitution: 1,
+    },
+    speed: 25,
+    size: 'small',
+    languages: ['Common', 'Gnomish'],
+    traits: [
+      {
+        name: 'Darkvision',
+        description:
+          'You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.',
+      },
+      {
+        name: 'Gnome Cunning',
+        description:
+          'You have advantage on all Intelligence, Wisdom, and Charisma saving throws against magic.',
+      },
+      {
+        name: "Artificer's Lore",
+        description:
+          'Whenever you make an Intelligence (History) check related to magic items, alchemical objects, or technological devices, you can add twice your proficiency bonus, instead of any proficiency bonus you normally apply.',
+      },
+      {
+        name: 'Tinker',
+        description:
+          'You have proficiency with artisan\'s tools (tinker\'s tools). Using those tools, you can spend 1 hour and 10 gp worth of materials to construct a Tiny clockwork device (AC 5, 1 hp).',
+      },
+    ],
+    proficiencies: {
+      tools: ["tinker's tools"],
+    },
+  },
+  {
+    id: 'dragonborn',
+    name: 'Dragonborn',
+    description:
+      'Born of dragons, as their name proclaims, the dragonborn walk proudly through a world that greets them with fearful incomprehension. Shaped by draconic gods or the dragons themselves, dragonborn originally hatched from dragon eggs.',
+    abilityBonuses: {
+      strength: 2,
+      charisma: 1,
+    },
+    speed: 30,
+    size: 'medium',
+    languages: ['Common', 'Draconic'],
+    traits: [
+      {
+        name: 'Draconic Ancestry',
+        description:
+          'You have draconic ancestry. Choose one type of dragon from the Draconic Ancestry table. Your breath weapon and damage resistance are determined by the dragon type.',
+      },
+      {
+        name: 'Breath Weapon',
+        description:
+          'You can use your action to exhale destructive energy. Your draconic ancestry determines the size, shape, and damage type of the exhalation. Each creature in the area must make a saving throw (DC = 8 + your Constitution modifier + your proficiency bonus). A creature takes 2d6 damage on a failed save, and half as much on a successful one. The damage increases to 3d6 at 6th level, 4d6 at 11th level, and 5d6 at 16th level. You can use this once per short or long rest.',
+      },
+      {
+        name: 'Damage Resistance',
+        description:
+          'You have resistance to the damage type associated with your draconic ancestry.',
+      },
+    ],
+  },
+  {
+    id: 'tiefling',
+    name: 'Tiefling',
+    description:
+      'To be greeted with stares and whispers, to suffer violence and insult on the street, to see mistrust and fear in every eye: this is the lot of the tiefling. Their infernal heritage has left a clear imprint on their appearance.',
+    abilityBonuses: {
+      charisma: 2,
+      intelligence: 1,
+    },
+    speed: 30,
+    size: 'medium',
+    languages: ['Common', 'Infernal'],
+    traits: [
+      {
+        name: 'Darkvision',
+        description:
+          'You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.',
+      },
+      {
+        name: 'Hellish Resistance',
+        description: 'You have resistance to fire damage.',
+      },
+      {
+        name: 'Infernal Legacy',
+        description:
+          'You know the thaumaturgy cantrip. When you reach 3rd level, you can cast the hellish rebuke spell as a 2nd-level spell once with this trait and regain the ability to do so when you finish a long rest. When you reach 5th level, you can cast the darkness spell once with this trait and regain the ability to do so when you finish a long rest. Charisma is your spellcasting ability for these spells.',
+      },
+    ],
+  },
 ];
 
 export function getRace(id: string): RaceDefinition | undefined {

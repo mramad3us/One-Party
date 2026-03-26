@@ -73,6 +73,9 @@ import { Resolver } from '@/resolution/Resolver';
 import { EncounterResolver } from '@/resolution/EncounterResolver';
 import type { CombatantDisplay } from '@/ui/screens/CombatScreen';
 import type { LocationType, LightingLevel } from '@/types/world';
+import type { NPC } from '@/types/npc';
+import { ShopScreen } from '@/ui/screens/ShopScreen';
+import { NPCInteraction } from '@/npc/NPCInteraction';
 
 // ── Lighting by location type ────────────────────────────────────
 
@@ -549,10 +552,11 @@ async function main(): Promise<void> {
     if (!activeOverworld) {
       throw new Error('No world generated — create a world first');
     }
-    const { world, startLocationId } = overworldToWorld(activeOverworld, rng);
+    const { world, startLocationId, npcs } = overworldToWorld(activeOverworld, rng);
 
     // Create game state
     const gameState = new GameState(world, character.id, startLocationId);
+    gameState.registerNPCs(npcs);
     activeGameState = gameState;
 
     // Set overworld position from starting location's coordinates
@@ -893,11 +897,105 @@ async function main(): Promise<void> {
     };
     screen.updatePlayerEntity(character.id, spawnPos, playerInfo);
 
+    // Place NPCs on the exploration grid for settlements
+    placeExplorationNPCs(grid, location, state, screen, character);
+
     // Switch keyboard input to exploration mode
     keyboardInput.setContext('exploration');
 
     // Set keyboard hints
     screen.setKeyboardHints(buildKeyboardHints());
+  }
+
+  /** Place all NPCs for this location on the exploration grid and render them. */
+  function placeExplorationNPCs(
+    grid: Grid,
+    location: import('@/types/world').Location,
+    state: GameState,
+    screen: GameScreen,
+    character: Character,
+  ): void {
+    if (location.npcs.length === 0) return;
+
+    const placements = new Map<string, import('@/types/grid').GridEntityPlacement>();
+    const entityInfos = new Map<string, EntityRenderInfo>();
+
+    // Always include the player
+    const playerPos = grid.getEntityPosition(character.id);
+    if (playerPos) {
+      placements.set(character.id, { entityId: character.id, position: playerPos, size: 1 });
+      entityInfos.set(character.id, {
+        name: character.name, color: '#2a2520', symbol: '@',
+        hp: character.currentHp, maxHp: character.maxHp,
+        isPlayer: true, isAlly: false, size: 1,
+        conditions: character.conditions.map(c => c.type),
+        spriteId: character.class,
+      });
+    }
+
+    // Place each NPC
+    for (const npcId of location.npcs) {
+      const npc = state.getNPC(npcId);
+      if (!npc) continue;
+
+      // Try to place NPC at their stored position, or find a suitable spot
+      let npcPos = npc.position;
+      if (!npcPos) {
+        // Find a floor cell near center of the map that isn't occupied
+        const gridDef = grid.getDefinition();
+        const cx = Math.floor(gridDef.width / 2);
+        const cy = Math.floor(gridDef.height / 2);
+        for (let r = 0; r < 20; r++) {
+          for (let dx = -r; dx <= r; dx++) {
+            for (let dy = -r; dy <= r; dy++) {
+              const px = cx + dx, py = cy + dy;
+              if (grid.isPassable(px, py) && !grid.getEntityAt({ x: px, y: py })) {
+                npcPos = { x: px, y: py };
+                break;
+              }
+            }
+            if (npcPos) break;
+          }
+          if (npcPos) break;
+        }
+      }
+
+      if (!npcPos) continue;
+
+      // Persist discovered position back to NPC
+      npc.position = npcPos;
+
+      // Place on grid
+      try {
+        grid.placeEntity(npc.id, npcPos, 1);
+      } catch {
+        // Position occupied — skip this NPC
+        continue;
+      }
+
+      placements.set(npc.id, { entityId: npc.id, position: npcPos, size: 1 });
+
+      const NPC_COLORS: Record<string, string> = {
+        innkeeper: '#c4943a', merchant: '#3a9c5a', blacksmith: '#8a5a3a',
+        priest: '#d4b85a', guard: '#5a7a9a', commoner: '#8a7a6a', noble: '#9a4a8a',
+      };
+      const symbol = npc.name.charAt(0).toUpperCase();
+      entityInfos.set(npc.id, {
+        name: npc.name,
+        color: NPC_COLORS[npc.role] ?? '#7a7a6a',
+        symbol,
+        hp: npc.stats.currentHp,
+        maxHp: npc.stats.maxHp,
+        isPlayer: false,
+        isAlly: true,
+        size: 1,
+        conditions: [],
+        spriteId: `npc_${npc.role}`,
+      });
+    }
+
+    // Update all entities on the grid
+    screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
   }
 
   function buildExplorationActions(
@@ -2393,6 +2491,232 @@ async function main(): Promise<void> {
     });
   });
 
+  // ── NPC Interaction — bump into an NPC entity on the exploration grid ──
+  let activeShopScreen: ShopScreen | null = null;
+
+  engine.events.on('exploration:bump_entity', (event) => {
+    if (!activeGameScreen || !activeGameState) return;
+    const { entityId } = event.data as { entityId: string; position: Coordinate };
+    const npc = activeGameState.getNPC(entityId);
+    if (!npc) return;
+
+    // Get interaction options for this NPC
+    const options = NPCInteraction.getInteractionOptions(npc);
+    if (options.length === 0) return;
+
+    // Single option — execute immediately
+    if (options.length === 1) {
+      handleNPCInteraction(npc, options[0].action);
+      return;
+    }
+
+    // Multiple options — show picker modal
+    const greetEl = el('div');
+    const greetP = el('p', { class: 'font-body', style: 'margin-bottom:var(--space-md);opacity:0.7' });
+    greetP.textContent = getRoleGreeting(npc.role);
+    greetEl.appendChild(greetP);
+    const modal = new Modal(document.getElementById('app') ?? document.body, engine, {
+      title: npc.name,
+      content: greetEl,
+      actions: options.map(opt => ({
+        label: `[${opt.key.toUpperCase()}] ${opt.label}`,
+        onClick: () => {
+          modal.close();
+          handleNPCInteraction(npc, opt.action);
+        },
+      })),
+    });
+    modal.mount();
+  });
+
+  function getRoleGreeting(role: string): string {
+    switch (role) {
+      case 'innkeeper': return '"Welcome, weary traveler! Can I interest you in a warm meal or a soft bed?"';
+      case 'merchant': return '"Ah, a customer! I have the finest wares in the region. Come, browse at your leisure."';
+      case 'blacksmith': return '"The forge burns hot today. Looking for something sturdy? I\'ve blades and armor aplenty."';
+      case 'priest': return '"Blessings upon you, friend. The light watches over all who seek solace here."';
+      case 'guard': return '"Move along, citizen. Unless you have business with the watch."';
+      case 'noble': return '"Hmm? Yes? Make it quick, I have affairs to attend to."';
+      default: return '"Good day to you, stranger."';
+    }
+  }
+
+  function handleNPCInteraction(npc: NPC, action: string): void {
+    if (!activeGameScreen || !activeGameState) return;
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+
+    switch (action) {
+      case 'shop': {
+        if (!npc.merchantInventory) {
+          activeGameScreen.addNarrative({
+            text: `${npc.name} has nothing to sell at the moment.`,
+            category: 'system',
+          });
+          return;
+        }
+        // Open the shop screen
+        activeShopScreen = new ShopScreen(
+          document.getElementById('app')!,
+          engine,
+        );
+        activeShopScreen.setShopData(npc, character.inventory);
+        activeShopScreen.mount();
+        keyboardInput.setContext('menu'); // Disable exploration input while shopping
+        break;
+      }
+      case 'talk': {
+        const dialogues = getNPCDialogue(npc);
+        const line = dialogues[Math.floor(Math.random() * dialogues.length)];
+        activeGameScreen.addNarrative({
+          text: `**${npc.name}**: "${line}"`,
+          category: 'dialogue',
+        });
+        break;
+      }
+      case 'rest': {
+        // Innkeeper rest — long rest
+        activeGameScreen.addNarrative({
+          text: `${npc.name} leads you to a small but clean room upstairs. You settle into the straw mattress and drift into a deep, restorative sleep.`,
+          category: 'action',
+        });
+        // Advance time by 8 hours via proper method
+        if (activeGameState) {
+          activeGameState.advanceTime(8 * 600);
+        }
+        // Heal to full, restore features
+        character.currentHp = character.maxHp;
+        character.hitDice.current = Math.min(
+          character.hitDice.max,
+          character.hitDice.current + Math.max(1, Math.floor(character.hitDice.max / 2)),
+        );
+        for (const feat of character.features) {
+          if (feat.usesMax !== undefined) {
+            feat.usesRemaining = feat.usesMax;
+          }
+        }
+        // Restore spell slots
+        if (character.spellcasting) {
+          for (const level in character.spellcasting.spellSlots) {
+            const slot = character.spellcasting.spellSlots[Number(level)];
+            if (slot) slot.current = slot.max;
+          }
+        }
+        // Reset survival fatigue
+        if (character.survival) {
+          character.survival.fatigue = 0;
+          character.survival.exhaustionLevel = SurvivalRules.calculateExhaustion(character.survival);
+        }
+        activeGameScreen.addNarrative({
+          text: 'You wake refreshed after a full night\'s rest. Your wounds have mended, and your strength is restored.',
+          category: 'description',
+        });
+        // Refresh player HUD
+        {
+          const pos = explorationController.getGrid()?.getEntityPosition(character.id);
+          if (pos) {
+            activeGameScreen.updatePlayerEntity(character.id, pos, {
+              name: character.name, color: '#2a2520', symbol: '@',
+              hp: character.currentHp, maxHp: character.maxHp,
+              isPlayer: true, isAlly: false, size: 1,
+              conditions: character.conditions.map(c => c.type),
+              spriteId: character.class,
+            });
+          }
+        }
+        break;
+      }
+      case 'heal': {
+        // Priest healing — restore HP
+        if (character.currentHp >= character.maxHp) {
+          activeGameScreen.addNarrative({
+            text: `${npc.name} looks you over and smiles. "You seem in fine health, friend. The light's blessing is already upon you."`,
+            category: 'dialogue',
+          });
+          return;
+        }
+        const healAmount = Math.min(
+          character.maxHp - character.currentHp,
+          Math.floor(character.maxHp * 0.5),
+        );
+        character.currentHp += healAmount;
+        activeGameScreen.addNarrative({
+          text: `${npc.name} places warm hands upon your wounds. A soft golden light suffuses your body as flesh knits and bruises fade. You are healed for **${healAmount} HP**.`,
+          category: 'action',
+        });
+        // Refresh player HUD
+        {
+          const pos = explorationController.getGrid()?.getEntityPosition(character.id);
+          if (pos) {
+            activeGameScreen.updatePlayerEntity(character.id, pos, {
+              name: character.name, color: '#2a2520', symbol: '@',
+              hp: character.currentHp, maxHp: character.maxHp,
+              isPlayer: true, isAlly: false, size: 1,
+              conditions: character.conditions.map(c => c.type),
+              spriteId: character.class,
+            });
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  function getNPCDialogue(npc: NPC): string[] {
+    switch (npc.role) {
+      case 'innkeeper': return [
+        'The road\'s been quiet lately. Too quiet, if you ask me.',
+        'Try the stew — it\'s my grandmother\'s recipe. Secret ingredient? Don\'t ask.',
+        'We had adventurers through here last tenday. Left quite a mess, they did.',
+        'If you\'re looking for trouble, head east. If you\'re running from it, you\'re in the right place.',
+      ];
+      case 'merchant': return [
+        'Business has been slow, but I\'ve got quality goods. Have a look!',
+        'I source my wares from all across the realm. Only the finest for my customers.',
+        'Careful on the roads — bandits have been getting bolder.',
+        'I can offer you a fair price on anything you\'ve looted. I mean, acquired.',
+      ];
+      case 'blacksmith': return [
+        'I can put an edge on that blade that\'ll split a hair. Interested?',
+        'Good steel\'s hard to come by these days. Everything I forge is the real thing.',
+        'Had a soldier come through wanting dragon-scale armor. Told him to bring the scales first.',
+        'The forge doesn\'t sleep and neither do I. Well, almost.',
+      ];
+      case 'priest': return [
+        'The light guides all who seek its warmth. Even in the darkest places.',
+        'I sense weariness in you, traveler. Rest here and let your burdens ease.',
+        'Dark omens have troubled my meditations of late. Be careful out there.',
+        'A prayer costs nothing and may save everything.',
+      ];
+      case 'guard': return [
+        'Keep your weapons sheathed within the walls, adventurer.',
+        'We\'ve had reports of monsters in the surrounding lands. Stay vigilant.',
+        'I stand watch so others may sleep in peace. It\'s honest work.',
+        'If you see anything suspicious, report it to the captain.',
+      ];
+      case 'noble': return [
+        'This settlement was founded by my ancestors, you know. A proud lineage.',
+        'I\'ve no time for idle chatter. Speak your business.',
+        'The common folk need strong leadership. That is our burden to bear.',
+      ];
+      default: return [
+        'Nice weather we\'re having, isn\'t it?',
+        'Just going about my day. Nothing exciting, but that\'s how I like it.',
+        'You look like an adventurer. Be careful out there.',
+        'Have you tried the tavern? Best ale in three villages.',
+      ];
+    }
+  }
+
+  // Close shop screen when event fires
+  engine.events.on('npc:shop_close', () => {
+    if (activeShopScreen) {
+      activeShopScreen.unmount();
+      activeShopScreen = null;
+      keyboardInput.setContext('exploration');
+    }
+  });
+
   // Handle inventory/character screen navigation via keyboard
   engine.events.on('input:inventory', () => {
     engine.events.emit({
@@ -2576,9 +2900,10 @@ async function main(): Promise<void> {
 
     // Get or create a Location for this tile
     const rng = activeRng ?? new SeededRNG(Date.now());
-    const { location: dest } = getOrCreateTileLocation(
+    const { location: dest, npcs: tileNPCs } = getOrCreateTileLocation(
       activeOverworld, x, y, activeGameState.world, rng,
     );
+    if (tileNPCs.length > 0) activeGameState.registerNPCs(tileNPCs);
 
     dest.discovered = true;
     activeGameState.currentLocationId = dest.id;
@@ -3002,9 +3327,10 @@ async function main(): Promise<void> {
       if (!isTraversable(tile.terrain)) break;
 
       // Get or create location for this tile
-      const { location: dest } = getOrCreateTileLocation(
+      const { location: dest, npcs: pathNPCs } = getOrCreateTileLocation(
         activeOverworld, x, y, activeGameState.world, rng,
       );
+      if (pathNPCs.length > 0) activeGameState.registerNPCs(pathNPCs);
       dest.discovered = true;
       tile.discovered = true;
 
@@ -3155,9 +3481,10 @@ async function main(): Promise<void> {
     if (finalPos) {
       const { x, y } = finalPos;
       const tile = activeOverworld.tiles[y][x];
-      const { location: dest } = getOrCreateTileLocation(
+      const { location: dest, npcs: finalNPCs } = getOrCreateTileLocation(
         activeOverworld, x, y, activeGameState.world, rng,
       );
+      if (finalNPCs.length > 0) activeGameState.registerNPCs(finalNPCs);
 
       const tileName = tile.settlement && tile.settlementName
         ? tile.settlementName

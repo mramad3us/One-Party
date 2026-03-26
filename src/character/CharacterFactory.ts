@@ -152,6 +152,13 @@ export class CharacterFactory {
     // Limited-use features that aren't bonus actions (Action Surge, Indomitable, etc.)
     const FEATURE_USES: Record<string, { usesMax: number; rechargeOn: 'shortRest' | 'longRest' }> = {
       feature_action_surge: { usesMax: 1, rechargeOn: 'shortRest' },
+      feature_second_wind: { usesMax: 1, rechargeOn: 'shortRest' },
+      feature_indomitable: { usesMax: 1, rechargeOn: 'longRest' },
+      feature_relentless_endurance: { usesMax: 1, rechargeOn: 'longRest' },
+      feature_divine_sense: { usesMax: abilityModifier(abilityScores.charisma) + 1, rechargeOn: 'longRest' },
+      feature_channel_divinity: { usesMax: 1, rechargeOn: 'shortRest' },
+      feature_wild_shape: { usesMax: 2, rechargeOn: 'shortRest' },
+      feature_arcane_recovery: { usesMax: 1, rechargeOn: 'longRest' },
     };
 
     // Build features list from class

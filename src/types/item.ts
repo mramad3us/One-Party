@@ -16,7 +16,8 @@ export type ItemType =
   | 'ammunition'
   | 'tool'
   | 'food'
-  | 'drink';
+  | 'drink'
+  | 'container';
 
 /** Magic item rarity tiers */
 export type Rarity =
@@ -74,12 +75,20 @@ export type ConsumableProperties = {
   description?: string;
 };
 
+/** Properties specific to containers (purses, bags, chests) */
+export type ContainerProperties = {
+  /** Maximum number of coins this container can hold (flavor only) */
+  coinCapacity: number;
+  description?: string;
+};
+
 /** Union of all item-specific property types */
 export type ItemProperties =
   | WeaponProperties
   | ArmorProperties
   | PotionProperties
   | ConsumableProperties
+  | ContainerProperties
   | Record<string, unknown>;
 
 /** A game item — weapon, armor, potion, or other object */
