@@ -19,6 +19,9 @@ import { LocalMapGenerator } from '@/world/LocalMapGenerator';
 import { POIMapGenerator } from '@/world/POIMapGenerator';
 import type { GridCell, GridDefinition } from '@/types/grid';
 import { WorldCreationScreen } from '@/ui/screens/WorldCreationScreen';
+import { WorldSelectionScreen } from '@/ui/screens/WorldSelectionScreen';
+import { WorldPickerScreen } from '@/ui/screens/WorldPickerScreen';
+import { WorldExporter } from '@/storage/WorldExporter';
 import {
   overworldToWorld,
   getOrCreateTileLocation,
@@ -439,6 +442,8 @@ async function main(): Promise<void> {
 
   // 7. Register screens
   ui.registerScreen('worldcreation', () => new WorldCreationScreen(container, engine));
+  ui.registerScreen('worldselection', () => new WorldSelectionScreen(container, engine));
+  ui.registerScreen('worldpicker', () => new WorldPickerScreen(container, engine));
   ui.registerScreen('menu', () => new MenuScreen(container, engine));
   ui.registerScreen('creation', () => new CreationScreen(container, engine));
   ui.registerScreen('game', () => {
@@ -602,7 +607,7 @@ async function main(): Promise<void> {
       keyboardInput.setContext('inventory');
     } else if (screen === 'character') {
       keyboardInput.setContext('character');
-    } else if (screen === 'menu' || screen === 'worldcreation' || screen === 'creation') {
+    } else if (screen === 'menu' || screen === 'worldcreation' || screen === 'worldselection' || screen === 'worldpicker' || screen === 'creation') {
       keyboardInput.setContext('menu');
     }
 
@@ -3815,23 +3820,45 @@ async function main(): Promise<void> {
   // 14. Register tooltip handling on the app container
   TooltipSystem.getInstance().registerContainer(container);
 
-  // 15. Wire world creation and deletion events
+  // 15. Wire "New Adventure" — route to creation if world exists, else world selection
+  engine.events.on('ui:new_adventure', () => {
+    if (activeOverworld) {
+      engine.events.emit({
+        type: 'ui:navigate',
+        category: 'ui',
+        data: { screen: 'creation', direction: 'left' },
+      });
+    } else {
+      engine.events.emit({
+        type: 'ui:navigate',
+        category: 'ui',
+        data: { screen: 'worldselection', direction: 'left' },
+      });
+    }
+  });
+
+  // 16. Wire world creation, export, and deletion events
   engine.events.on('world:created', async (event) => {
     const { overworld } = event.data as { overworld: OverworldData };
     activeOverworld = overworld;
     await storage.saveWorld(overworld);
     console.log(`[One Party] World "${overworld.name}" saved (${overworld.width}×${overworld.height})`);
 
-    // Navigate to menu
+    // Navigate directly to character creation
     engine.events.emit({
       type: 'ui:navigate',
       category: 'ui',
-      data: { screen: 'menu', direction: 'left' },
+      data: { screen: 'creation', direction: 'left' },
     });
   });
 
+  engine.events.on('world:export', () => {
+    if (activeOverworld) {
+      WorldExporter.download(activeOverworld);
+    }
+  });
+
   engine.events.on('world:delete', async () => {
-    // Confirm with the player
     const confirmed = await Modal.confirm(
       engine,
       'This will permanently destroy the world and all saved games. Are you sure?',
@@ -3839,7 +3866,6 @@ async function main(): Promise<void> {
     );
     if (!confirmed) return;
 
-    // Delete world and all saves
     await storage.deleteWorld();
     await storage.deleteAllSaves();
     localStorage.removeItem('oneparty-saves');
@@ -3852,11 +3878,11 @@ async function main(): Promise<void> {
     engine.events.emit({
       type: 'ui:navigate',
       category: 'ui',
-      data: { screen: 'worldcreation', direction: 'right' },
+      data: { screen: 'menu', direction: 'right' },
     });
   });
 
-  // 16. Check world and saves, decide what to show first
+  // 17. Check world and saves, always show menu first
   const hasWorld = await storage.hasWorld();
 
   if (hasWorld) {
@@ -3868,13 +3894,11 @@ async function main(): Promise<void> {
     } else {
       localStorage.removeItem('oneparty-saves');
     }
-
-    await ui.switchScreen('menu');
   } else {
-    // No world yet — show world creation screen
     localStorage.removeItem('oneparty-saves');
-    await ui.switchScreen('worldcreation');
   }
+
+  await ui.switchScreen('menu');
 
   // 17. Start the engine loop
   engine.start();

@@ -78,6 +78,12 @@ export class MenuScreen extends Component {
       ['Settings'],
     );
 
+    const exportWorldBtn = el(
+      'button',
+      { class: 'btn btn-ghost btn-lg menu-export-world', 'data-action': 'export-world' },
+      ['Export World'],
+    );
+
     const deleteWorldBtn = el(
       'button',
       { class: 'btn btn-ghost btn-lg menu-delete-world', 'data-action': 'delete-world' },
@@ -88,6 +94,7 @@ export class MenuScreen extends Component {
     actions.appendChild(continueBtn);
     actions.appendChild(loadBtn);
     actions.appendChild(settingsBtn);
+    actions.appendChild(exportWorldBtn);
     actions.appendChild(deleteWorldBtn);
     screen.appendChild(actions);
 
@@ -107,14 +114,14 @@ export class MenuScreen extends Component {
   }
 
   protected setupEvents(): void {
-    // New Adventure
+    // New Adventure — main.ts decides whether to go to creation or world selection
     const newBtn = this.el.querySelector('[data-action="new"]');
     if (newBtn) {
       this.listen(newBtn, 'click', () => {
         this.engine.events.emit({
-          type: 'ui:navigate',
+          type: 'ui:new_adventure',
           category: 'ui',
-          data: { screen: 'creation', direction: 'left' },
+          data: {},
         });
       });
     }
@@ -138,6 +145,18 @@ export class MenuScreen extends Component {
         this.engine.events.emit({
           type: 'ui:modal:load',
           category: 'ui',
+          data: {},
+        });
+      });
+    }
+
+    // Export World
+    const exportBtn = this.el.querySelector('[data-action="export-world"]');
+    if (exportBtn) {
+      this.listen(exportBtn, 'click', () => {
+        this.engine.events.emit({
+          type: 'world:export',
+          category: 'world',
           data: {},
         });
       });

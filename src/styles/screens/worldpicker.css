@@ -1,0 +1,207 @@
+/* ============================================================
+   ONE PARTY — World Picker Screen (Import Handcrafted Worlds)
+   ============================================================ */
+
+.worldpick-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 48px 32px;
+  position: relative;
+  overflow: hidden;
+  background: #080706;
+  gap: 28px;
+}
+
+/* Warm ambient glow */
+.worldpick-screen::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120%;
+  height: 70%;
+  background:
+    radial-gradient(
+      ellipse 45% 55% at 50% 35%,
+      rgba(180, 130, 50, 0.07) 0%,
+      rgba(140, 95, 30, 0.03) 35%,
+      transparent 65%
+    );
+  pointer-events: none;
+}
+
+/* Grain */
+.worldpick-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+}
+
+.worldpick-screen > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Header ── */
+.worldpick-header {
+  text-align: center;
+  opacity: 0;
+}
+
+.worldpick-screen.mounted .worldpick-header {
+  animation: fadeIn 0.8s ease 0.2s both;
+}
+
+.worldpick-title {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-fill-color: unset;
+  filter: drop-shadow(0 2px 20px rgba(180, 130, 50, 0.12));
+}
+
+.worldpick-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-style: italic;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+/* ── Drop Zone ── */
+.worldpick-dropzone {
+  width: 100%;
+  max-width: 440px;
+  border: 2px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-smooth);
+  opacity: 0;
+}
+
+.worldpick-screen.mounted .worldpick-dropzone {
+  animation: menuItemReveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+}
+
+.worldpick-dropzone:hover,
+.worldpick-dropzone--hover {
+  border-color: rgba(180, 130, 50, 0.3);
+  background: rgba(180, 130, 50, 0.03);
+}
+
+.worldpick-dropzone-icon {
+  font-size: 2.4rem;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.worldpick-dropzone-text {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+
+.worldpick-dropzone-or {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  margin: 0 0 12px;
+  font-style: italic;
+}
+
+.worldpick-browse {
+  font-size: var(--text-sm) !important;
+}
+
+/* ── Error ── */
+.worldpick-error {
+  max-width: 440px;
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(196, 64, 48, 0.08);
+  border: 1px solid rgba(196, 64, 48, 0.2);
+  border-radius: 4px;
+  color: var(--red);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+/* ── Preview ── */
+.worldpick-preview {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 24px;
+  animation: menuItemReveal 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.worldpick-preview-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  align-items: baseline;
+}
+
+.worldpick-stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.worldpick-stat-value {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+/* ── Actions ── */
+.worldpick-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.worldpick-accept {
+  width: 100%;
+}
+
+.worldpick-accept:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.worldpick-back {
+  font-size: var(--text-sm) !important;
+  color: var(--text-dim) !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* ── Exit ── */
+.worldpick-screen.exiting {
+  animation: fadeOut var(--duration-normal) var(--ease-smooth) both;
+}

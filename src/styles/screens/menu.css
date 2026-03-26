@@ -167,6 +167,7 @@
 .menu-screen.mounted .menu-actions .btn:nth-child(3) { animation-delay: 1.24s; }
 .menu-screen.mounted .menu-actions .btn:nth-child(4) { animation-delay: 1.36s; }
 .menu-screen.mounted .menu-actions .btn:nth-child(5) { animation-delay: 1.48s; }
+.menu-screen.mounted .menu-actions .btn:nth-child(6) { animation-delay: 1.60s; }
 
 @keyframes menuItemReveal {
   from {
@@ -179,9 +180,22 @@
   }
 }
 
+/* Export World button */
+.menu-export-world {
+  margin-top: 16px !important;
+  border-bottom: none !important;
+  color: var(--text-dim) !important;
+  font-size: var(--text-sm) !important;
+  letter-spacing: 0.14em !important;
+  padding: 14px 0 !important;
+}
+
+.menu-export-world:hover {
+  color: var(--gold-dim) !important;
+}
+
 /* Delete World button */
 .menu-delete-world {
-  margin-top: 16px !important;
   border-bottom: none !important;
   color: var(--text-dim) !important;
   font-size: var(--text-sm) !important;

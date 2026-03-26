@@ -1,0 +1,185 @@
+/* ============================================================
+   ONE PARTY — World Selection Screen
+   Candlelit manuscript aesthetic, two large choice cards.
+   ============================================================ */
+
+.worldsel-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 48px 32px;
+  position: relative;
+  overflow: hidden;
+  background: #080706;
+  gap: 40px;
+}
+
+/* Warm ambient glow */
+.worldsel-screen::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120%;
+  height: 70%;
+  background:
+    radial-gradient(
+      ellipse 45% 55% at 50% 35%,
+      rgba(180, 130, 50, 0.07) 0%,
+      rgba(140, 95, 30, 0.03) 35%,
+      transparent 65%
+    );
+  pointer-events: none;
+}
+
+/* Grain */
+.worldsel-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+}
+
+.worldsel-screen > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Header ── */
+.worldsel-header {
+  text-align: center;
+  opacity: 0;
+}
+
+.worldsel-screen.mounted .worldsel-header {
+  animation: fadeIn 0.8s ease 0.2s both;
+}
+
+.worldsel-title {
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-fill-color: unset;
+  filter: drop-shadow(0 2px 20px rgba(180, 130, 50, 0.12));
+}
+
+.worldsel-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-style: italic;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+/* ── Choice Cards ── */
+.worldsel-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 640px;
+  width: 100%;
+}
+
+@media (max-width: 560px) {
+  .worldsel-choices {
+    grid-template-columns: 1fr;
+    max-width: 320px;
+  }
+}
+
+.worldsel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-smooth);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.worldsel-screen.mounted .worldsel-card:nth-child(1) {
+  animation: menuItemReveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+}
+
+.worldsel-screen.mounted .worldsel-card:nth-child(2) {
+  animation: menuItemReveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.65s both;
+}
+
+.worldsel-card:hover,
+.worldsel-card.kbd-focus {
+  background: rgba(180, 130, 50, 0.05);
+  border-color: rgba(180, 130, 50, 0.2);
+  transform: translateY(-2px);
+}
+
+.worldsel-card-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+  opacity: 0.6;
+  filter: drop-shadow(0 2px 12px rgba(180, 130, 50, 0.15));
+}
+
+.worldsel-card:hover .worldsel-card-icon {
+  opacity: 0.9;
+}
+
+.worldsel-card-title {
+  font-size: var(--text-lg);
+  letter-spacing: 0.14em;
+  color: var(--text-primary);
+  margin: 0;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-fill-color: unset;
+}
+
+.worldsel-card-desc {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-relaxed);
+  margin: 0;
+}
+
+.worldsel-card-hint {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  opacity: 0.5;
+  letter-spacing: 0.08em;
+}
+
+/* ── Back Link ── */
+.worldsel-back {
+  font-size: var(--text-sm) !important;
+  color: var(--text-dim) !important;
+  letter-spacing: 0.1em !important;
+  opacity: 0;
+}
+
+.worldsel-screen.mounted .worldsel-back {
+  animation: fadeIn 0.6s ease 0.9s both;
+}
+
+/* ── Exit ── */
+.worldsel-screen.exiting {
+  animation: fadeOut var(--duration-normal) var(--ease-smooth) both;
+}
