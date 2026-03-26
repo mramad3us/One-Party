@@ -203,8 +203,9 @@ export class Modal extends Component {
           border-top: 1px solid rgba(255, 255, 255, 0.04);
         }
         .modal-footer .btn {
-          flex: 1 1 0;
-          min-width: 0;
+          flex: 0 1 auto;
+          white-space: normal;
+          text-align: center;
           padding-inline: var(--space-md);
         }
       `;
