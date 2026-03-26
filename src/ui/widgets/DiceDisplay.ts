@@ -233,6 +233,71 @@ export class DiceDisplay extends Component {
   }
 
   /**
+   * Inline dice roll for embedding in containers (e.g., TimeActivity).
+   * Faster than showRoll (~900ms total), uses relative positioning,
+   * no centering transforms that would cause layout jumps.
+   */
+  static async showRollInline(parent: HTMLElement, result: DiceRollResult, engine: GameEngine): Promise<void> {
+    const display = new DiceDisplay(parent, engine, result);
+    display.mount();
+
+    // Override fixed positioning — we're inline
+    display.el.style.position = 'relative';
+    display.el.style.top = 'auto';
+    display.el.style.left = 'auto';
+    display.el.style.transform = 'none';
+    display.el.style.opacity = '1';
+
+    // Hide results initially
+    const rollsRow = display.el.querySelector('.dice-display-rolls') as HTMLElement | null;
+    const totalEl = display.el.querySelector('.dice-display-total') as HTMLElement | null;
+    const critLabel = display.el.querySelector('.dice-display-crit-label, .dice-display-fumble-label') as HTMLElement | null;
+    const descEl = display.el.querySelector('.dice-display-desc') as HTMLElement | null;
+    const advEl = display.el.querySelector('.dice-display-adv') as HTMLElement | null;
+
+    if (rollsRow) rollsRow.style.opacity = '0';
+    if (totalEl) totalEl.style.opacity = '0';
+    if (critLabel) critLabel.style.opacity = '0';
+    if (descEl) descEl.style.opacity = '0';
+    if (advEl) advEl.style.opacity = '0';
+
+    // Phase 1: Quick tumble (500ms)
+    const diceEls = display.el.querySelectorAll('.dice-display-die');
+    diceEls.forEach((die, i) => {
+      (die as HTMLElement).classList.add('dice-display-die--tumbling');
+      (die as HTMLElement).style.animationDuration = '0.5s';
+      (die as HTMLElement).style.animationDelay = `${i * 60}ms`;
+    });
+    await new Promise<void>((r) => setTimeout(r, 500));
+
+    // Phase 2: Reveal
+    diceEls.forEach((die) => (die as HTMLElement).classList.remove('dice-display-die--tumbling'));
+
+    if (rollsRow) { rollsRow.style.transition = 'opacity 0.15s'; rollsRow.style.opacity = '1'; }
+    await new Promise<void>((r) => setTimeout(r, 80));
+
+    if (totalEl) { totalEl.style.transition = 'opacity 0.15s'; totalEl.style.opacity = '1'; }
+
+    if (result.isCritical) display.el.classList.add('dice-display--crit-flash');
+    else if (result.isFumble) display.el.classList.add('dice-display--fumble-flash');
+
+    if (critLabel) { critLabel.style.transition = 'opacity 0.15s'; critLabel.style.opacity = '1'; }
+    if (descEl) { descEl.style.transition = 'opacity 0.15s'; descEl.style.opacity = '1'; }
+    if (advEl) { advEl.style.transition = 'opacity 0.15s'; advEl.style.opacity = '1'; }
+
+    // Hold (shorter for inline)
+    await new Promise<void>((r) => setTimeout(r, result.isCritical || result.isFumble ? 800 : 400));
+
+    // Phase 3: Fade out (no transform to avoid layout jump)
+    display.el.style.transition = 'opacity 0.2s ease-out';
+    display.el.style.opacity = '0';
+    await new Promise<void>((r) => setTimeout(r, 200));
+
+    display.destroy();
+    display.el.remove();
+  }
+
+  /**
    * Quick, non-blocking encounter roll — small toast in the bottom-left corner.
    * Much faster than showRoll, doesn't block the map view.
    */

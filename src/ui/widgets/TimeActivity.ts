@@ -104,7 +104,7 @@ export class TimeActivity extends Component {
 
   /** Show the dice roll animation for this hour's result. */
   async showDiceRoll(result: ForageHourResult): Promise<void> {
-    await DiceDisplay.showRoll(this.diceContainer, result.rollResult, this.engine);
+    await DiceDisplay.showRollInline(this.diceContainer, result.rollResult, this.engine);
   }
 
   /** Add a result row for a completed hour. */

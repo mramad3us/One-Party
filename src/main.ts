@@ -2789,7 +2789,7 @@ async function main(): Promise<void> {
     }
   }
 
-  function handleNPCInteraction(npc: NPC, action: string): void {
+  async function handleNPCInteraction(npc: NPC, action: string): Promise<void> {
     if (!activeGameScreen || !activeGameState) return;
     const character = engine.entities.getAll<Character>('character')[0];
     if (!character) return;
@@ -2840,31 +2840,60 @@ async function main(): Promise<void> {
           break;
         }
         deduct(character.inventory, mealCost);
-        // Spend hit dice to heal — auto-spend up to full HP
-        const dice = new DiceRoller(activeRng ?? new SeededRNG(Date.now()));
-        const restRules = new RestRules(dice);
-        const hpMissing = character.maxHp - character.currentHp;
-        const hdToSpend = hpMissing > 0 ? Math.min(character.hitDice.current, character.hitDice.max) : 0;
-        const shortResult = restRules.shortRest(character, hdToSpend);
-        // Advance time by 1 hour
-        if (activeGameState) {
-          activeGameState.advanceTime(ROUNDS_PER_HOUR);
+
+        // TimeActivity overlay for 1 hour
+        {
+          const mealActivity = new TimeActivity(document.body, engine, {
+            title: 'Short Rest',
+            totalHours: 1,
+            startTime: { totalRounds: activeGameState!.world.time.totalRounds },
+          });
+          mealActivity.mount();
+          mealActivity.initTime(activeGameState!.world.time);
+          keyboardInput.setEnabled(false);
+
+          mealActivity.setHourLabel(0);
+          mealActivity.addTextRow(`${npc.name} sets a steaming bowl of thick stew before you.`, '\uD83C\uDF72');
+
+          activeGameState!.advanceTime(ROUNDS_PER_HOUR);
+          await mealActivity.animateSunTo(activeGameState!.world.time, 800);
+
+          // Spend hit dice to heal
+          const srDice = new DiceRoller(activeRng ?? new SeededRNG(Date.now()));
+          const srRules = new RestRules(srDice);
+          const hpMissing = character.maxHp - character.currentHp;
+          const hdToSpend = hpMissing > 0 ? Math.min(character.hitDice.current, character.hitDice.max) : 0;
+          const shortResult = srRules.shortRest(character, hdToSpend);
+
+          // Summary
+          const mealSummary: string[] = [];
+          if (shortResult.hpHealed > 0) {
+            mealSummary.push(`+${shortResult.hpHealed} HP (${shortResult.hitDiceUsed} Hit ${shortResult.hitDiceUsed === 1 ? 'Die' : 'Dice'})`);
+          }
+          if (shortResult.featuresRecharged.length > 0) {
+            mealSummary.push(shortResult.featuresRecharged.join(', '));
+          }
+          mealActivity.showCompleteText(mealSummary.length > 0 ? `Restored: ${mealSummary.join(' \u2022 ')}` : 'A fine meal. You feel rested.');
+
+          activeGameScreen.updateTime(activeGameState!.world.time);
+
+          // Narrative
+          const mealLines: string[] = [];
+          mealLines.push(`${npc.name} sets a steaming bowl of thick stew before you, with crusty bread still warm from the oven. You settle into a chair by the hearth and eat in comfortable silence.`);
+          if (shortResult.hpHealed > 0) {
+            mealLines.push(`The warmth of the fire and a full belly work their quiet magic. You recover **${shortResult.hpHealed} HP** (${shortResult.hitDiceUsed} hit ${shortResult.hitDiceUsed === 1 ? 'die' : 'dice'} spent).`);
+          }
+          if (shortResult.featuresRecharged.length > 0) {
+            mealLines.push(`The respite restores your focus: **${shortResult.featuresRecharged.join(', ')}** recharged.`);
+          }
+          activeGameScreen.addNarrative({ text: mealLines.join(' '), category: 'action' });
+
+          // Hold, then close
+          await new Promise(r => setTimeout(r, 1500));
+          await mealActivity.unmount();
+          keyboardInput.setEnabled(true);
         }
-        // Narrative
-        const mealLines = [
-          `${npc.name} sets a steaming bowl of thick stew before you, with crusty bread still warm from the oven. You settle into a chair by the hearth and eat in comfortable silence.`,
-        ];
-        if (shortResult.hpHealed > 0) {
-          mealLines.push(`The warmth of the fire and a full belly work their quiet magic. You recover **${shortResult.hpHealed} HP** (${shortResult.hitDiceUsed} hit ${shortResult.hitDiceUsed === 1 ? 'die' : 'dice'} spent).`);
-        } else {
-          mealLines.push('A fine meal, though your body has no wounds left to mend.');
-        }
-        if (shortResult.featuresRecharged.length > 0) {
-          mealLines.push(`The respite restores your focus: **${shortResult.featuresRecharged.join(', ')}** recharged.`);
-        }
-        for (const line of mealLines) {
-          activeGameScreen.addNarrative({ text: line, category: 'action' });
-        }
+
         // Refresh player HUD
         {
           const pos = explorationController.getGrid()?.getEntityPosition(character.id);
@@ -2902,44 +2931,85 @@ async function main(): Promise<void> {
           break;
         }
         deduct(character.inventory, roomCost);
-        // Apply long rest via RestRules
-        const longDice = new DiceRoller(activeRng ?? new SeededRNG(Date.now()));
-        const longRestRules = new RestRules(longDice);
-        const longResult = longRestRules.longRest(character);
-        character.lastLongRestRound = currentRound + (8 * ROUNDS_PER_HOUR);
-        // Reset survival fatigue
-        if (character.survival) {
-          character.survival.fatigue = 0;
-          character.survival.exhaustionLevel = SurvivalRules.calculateExhaustion(character.survival);
+
+        // TimeActivity overlay for 8 hours
+        {
+          const INN_REST_FLAVOR = [
+            `${npc.name} leads you up a creaking staircase to a small, tidy room.`,
+            'You bolt the door and wash the road-dust from your face.',
+            'The straw mattress creaks as you settle into the wool blanket.',
+            'Sleep takes hold quickly. The sounds of the tavern below fade to nothing.',
+            'Deep, dreamless rest. Your body mends what the road has broken.',
+            'You stir once, rolling over. The room is warm and quiet.',
+            'A faint glow touches the shuttered window. Dawn approaches.',
+            'You rise, stretch, and dress. A new day begins.',
+          ];
+
+          const innActivity = new TimeActivity(document.body, engine, {
+            title: 'Inn Rest',
+            totalHours: 8,
+            startTime: { totalRounds: activeGameState!.world.time.totalRounds },
+          });
+          innActivity.mount();
+          innActivity.initTime(activeGameState!.world.time);
+          keyboardInput.setEnabled(false);
+
+          for (let h = 0; h < 8; h++) {
+            innActivity.setHourLabel(h);
+            activeGameState!.advanceTime(ROUNDS_PER_HOUR);
+            await innActivity.animateSunTo(activeGameState!.world.time, 500);
+            innActivity.addTextRow(INN_REST_FLAVOR[h], h === 0 ? '\uD83D\uDECC' : h === 7 ? '\u2600' : '\uD83C\uDF19');
+            activeGameScreen.updateTime(activeGameState!.world.time);
+            await new Promise(r => setTimeout(r, 500));
+          }
+
+          // Apply long rest via RestRules
+          const longDice = new DiceRoller(activeRng ?? new SeededRNG(Date.now()));
+          const longRestRules = new RestRules(longDice);
+          const longResult = longRestRules.longRest(character);
+          character.lastLongRestRound = activeGameState!.world.time.totalRounds;
+
+          // Reset survival fatigue
+          if (character.survival) {
+            character.survival.fatigue = 0;
+            character.survival.exhaustionLevel = SurvivalRules.calculateExhaustion(character.survival);
+          }
+
+          // Summary
+          const lrSummary: string[] = [];
+          if (longResult.hpHealed > 0) lrSummary.push(`+${longResult.hpHealed} HP`);
+          if (longResult.hitDiceRecovered > 0) lrSummary.push(`+${longResult.hitDiceRecovered} Hit Dice`);
+          if (longResult.spellSlotsRecovered) lrSummary.push('Spell slots restored');
+          if (longResult.featuresRecharged.length > 0) lrSummary.push(longResult.featuresRecharged.join(', '));
+          innActivity.showCompleteText(lrSummary.length > 0 ? `Restored: ${lrSummary.join(' \u2022 ')}` : 'You awaken feeling refreshed.');
+
+          // Narrative
+          const restLines: string[] = [];
+          restLines.push(`${npc.name} leads you up a creaking staircase to a small but tidy room. You bolt the door, wash the road-dust from your face, and collapse into dreamless sleep.`);
+          if (longResult.hpHealed > 0) {
+            restLines.push(`You wake with the dawn, body mended and spirit renewed. **${longResult.hpHealed} HP** restored to full.`);
+          } else {
+            restLines.push('You wake with the dawn, well-rested and ready for the road ahead.');
+          }
+          if (longResult.hitDiceRecovered > 0) {
+            restLines.push(`${longResult.hitDiceRecovered} hit ${longResult.hitDiceRecovered === 1 ? 'die' : 'dice'} recovered.`);
+          }
+          if (longResult.spellSlotsRecovered) {
+            restLines.push('Your spell slots are fully restored.');
+          }
+          if (longResult.featuresRecharged.length > 0) {
+            restLines.push(`**${longResult.featuresRecharged.join(', ')}** recharged.`);
+          }
+          activeGameScreen.addNarrative({ text: restLines.join(' '), category: 'action' });
+
+          activeGameScreen.setCharacter(character);
+
+          // Hold, then close
+          await new Promise(r => setTimeout(r, 1200));
+          await innActivity.unmount();
+          keyboardInput.setEnabled(true);
         }
-        // Advance time by 8 hours
-        if (activeGameState) {
-          activeGameState.advanceTime(8 * ROUNDS_PER_HOUR);
-        }
-        // Narrative
-        activeGameScreen.addNarrative({
-          text: `${npc.name} leads you up a creaking staircase to a small but tidy room. A straw mattress lies beneath a wool blanket, and a basin of clean water sits on the nightstand. You bolt the door, wash the road-dust from your face, and collapse into dreamless sleep.`,
-          category: 'action',
-        });
-        const restLines: string[] = [];
-        if (longResult.hpHealed > 0) {
-          restLines.push(`You wake with the dawn, body mended and spirit renewed. **${longResult.hpHealed} HP** restored to full.`);
-        } else {
-          restLines.push('You wake with the dawn, well-rested and ready for the road ahead.');
-        }
-        if (longResult.hitDiceRecovered > 0) {
-          restLines.push(`${longResult.hitDiceRecovered} hit ${longResult.hitDiceRecovered === 1 ? 'die' : 'dice'} recovered.`);
-        }
-        if (longResult.spellSlotsRecovered) {
-          restLines.push('Your spell slots are fully restored.');
-        }
-        if (longResult.featuresRecharged.length > 0) {
-          restLines.push(`**${longResult.featuresRecharged.join(', ')}** recharged.`);
-        }
-        activeGameScreen.addNarrative({
-          text: restLines.join(' '),
-          category: 'description',
-        });
+
         // Refresh player HUD
         {
           const pos = explorationController.getGrid()?.getEntityPosition(character.id);
