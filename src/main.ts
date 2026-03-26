@@ -2869,15 +2869,14 @@ async function main(): Promise<void> {
       // Auto-consume supplies mid-activity
       autoConsumeSupplies(character);
 
-      // Check vitals — warn at critical, abort at dangerous
+      // Check vitals — warn at critical levels (but don't abort)
       const surv = character.survival;
       if (surv.hunger >= 76 || surv.thirst >= 76 || surv.fatigue >= 76) {
         const reasons: string[] = [];
         if (surv.hunger >= 76) reasons.push('starvation');
         if (surv.thirst >= 76) reasons.push('dehydration');
         if (surv.fatigue >= 76) reasons.push('exhaustion');
-        activity.addDangerRow(`Too dangerous to continue — ${reasons.join(' and ')} threatens the party.`);
-        break;
+        activity.addDangerRow(`${reasons.join(' and ')} wracks your body — you push on through sheer will.`);
       } else if (surv.hunger >= 61 || surv.thirst >= 61 || surv.fatigue >= 61) {
         const warnings: string[] = [];
         if (surv.hunger >= 61) warnings.push('hunger gnaws');
