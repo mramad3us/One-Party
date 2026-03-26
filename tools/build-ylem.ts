@@ -693,6 +693,22 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
   // Relocate to south of Rue des Pêcheurs, west side
   // Actually the market fill already covers this area. Let me use a different spot.
 
+  // La Banque de Plassans — stone building, east of the central plaza
+  m.building(120, 85, 14, 10, 'w', 5, 'stone');
+  m.feature(122, 87, 'counter');
+  m.feature(124, 87, 'counter');
+  m.feature(126, 87, 'counter');
+  m.feature(128, 87, 'shelf');
+  m.feature(130, 87, 'bookshelf');
+  m.feature(122, 91, 'table');
+  m.feature(123, 91, 'chair');
+  m.feature(128, 91, 'chest');
+  m.feature(130, 91, 'chest');
+  m.feature(121, 86, 'torch_wall');
+  m.feature(131, 86, 'torch_wall');
+  m.feature(121, 92, 'torch_wall');
+  m.feature(131, 92, 'torch_wall');
+
   // ─── 9. Street decorations ──
 
   // Wells scattered around
@@ -922,6 +938,19 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
       },
       position: { x: 65, y: 143 },
     },
+    // Banker
+    {
+      name: 'Monsieur Leduc',
+      role: 'banker',
+      race: 'human',
+      description: 'A meticulous man in a spotless dark doublet with silver cufflinks, his fingers stained with ink from endless ledgers. He runs La Banque de Plassans with the precision of a clockwork mechanism.',
+      dialogue: {
+        greeting: 'Welcome to La Banque de Plassans. How may I optimize your financial portfolio today?',
+        info: 'We offer coin exchange services — bring your coppers, leave with gold. The mathematics is simple and the service impeccable.',
+        farewell: 'A pleasure, as always. Your coins are in excellent hands — figuratively speaking.',
+      },
+      position: { x: 122, y: 89 },
+    },
     // Market merchants
     {
       name: 'Lucien the Spice Merchant',
@@ -982,6 +1011,7 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
     { name: 'Place de la Fontaine', type: 'landmark', tileX: 96, tileY: 81, description: 'The beating heart of Plassans — a grand plaza with a marble fountain and bustling market stalls.' },
     { name: 'Le Grand Marché', type: 'market', tileX: 40, tileY: 108, description: 'An open-air market brimming with spices, fabrics, and the shouts of eager merchants.' },
     { name: 'Le Port de Plassans', type: 'harbor', tileX: 80, tileY: 150, description: 'The lifeblood of the city — wooden docks stretching into the azure coastal waters.' },
+    { name: 'La Banque de Plassans', type: 'bank', tileX: 120, tileY: 85, description: 'A solid stone building with iron-barred windows and a heavy oak door. The city\'s premier establishment for coin exchange and financial services.' },
   ];
 
   const map = {

@@ -37,6 +37,8 @@ import type { OverworldData } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { isDevMode, setDevMode } from '@/utils/devmode';
 import { DiceRoller } from '@/rules/DiceRoller';
+import { addCoins, optimizeCoins, totalPlayerDenominations, coinCount } from '@/rules/CurrencyRules';
+import { formatCoinHtml } from '@/utils/format';
 import { TextNarrativeEngine } from '@/narrative/NarrativeEngine';
 import { SurvivalRules } from '@/rules/SurvivalRules';
 import { SurvivalNarrator } from '@/narrative/SurvivalNarrator';
@@ -1934,10 +1936,11 @@ async function main(): Promise<void> {
   // Combat ended — show summary modal, then clean up
   engine.events.on('combat:encounter_ended', (event) => {
     if (!activeGameScreen || !activeGameState) return;
-    const { result, xpEarned, loot, enemiesDefeated } = event.data as {
+    const { result, xpEarned, loot, coinLoot, enemiesDefeated } = event.data as {
       result: CombatResult;
       xpEarned: number;
       loot: { itemId: string; quantity: number }[];
+      coinLoot: { gold: number; silver: number; copper: number };
       enemiesDefeated: string[];
     };
 
@@ -1962,6 +1965,11 @@ async function main(): Promise<void> {
           }
           lootItems.push({ name: item.name, quantity: drop.quantity });
         }
+      }
+
+      // Add coin rewards to purses (overflow to loose coins)
+      if (coinLoot && (coinLoot.gold > 0 || coinLoot.silver > 0 || coinLoot.copper > 0)) {
+        addCoins(character.inventory, coinLoot);
       }
 
       healAmount = Math.ceil(character.maxHp * 0.1);
@@ -2028,10 +2036,16 @@ async function main(): Promise<void> {
       }
 
       // Loot
-      if (lootItems.length > 0) {
+      const hasCoins = coinLoot && (coinLoot.gold > 0 || coinLoot.silver > 0 || coinLoot.copper > 0);
+      if (lootItems.length > 0 || hasCoins) {
         const lootSection = el('div', { class: 'combat-summary-section' });
         lootSection.appendChild(el('h4', { class: 'combat-summary-label' }, ['Spoils']));
         const lootList = el('ul', { class: 'combat-summary-list combat-summary-loot' });
+        if (hasCoins) {
+          const coinLi = el('li', {});
+          coinLi.innerHTML = formatCoinHtml(coinLoot.gold, coinLoot.silver, coinLoot.copper);
+          lootList.appendChild(coinLi);
+        }
         for (const item of lootItems) {
           lootList.appendChild(el('li', {}, [
             item.quantity > 1 ? `${item.name} x${item.quantity}` : item.name,
@@ -2893,6 +2907,35 @@ async function main(): Promise<void> {
         }
         break;
       }
+      case 'exchange': {
+        // Banker: optimize coin denominations across all purses
+        const before = totalPlayerDenominations(character.inventory);
+        const totalCoins = coinCount(before);
+        if (totalCoins === 0) {
+          activeGameScreen.addNarrative({
+            text: `${npc.name} peers into your purse and shrugs. "You haven't a single coin to exchange, friend."`,
+            category: 'dialogue',
+          });
+          return;
+        }
+        const result = optimizeCoins(character.inventory);
+        if (result.coinsSaved <= 0) {
+          activeGameScreen.addNarrative({
+            text: `${npc.name} inspects your coins carefully, weighing each one. "Your denominations are already optimal. There is nothing to exchange."`,
+            category: 'dialogue',
+          });
+          return;
+        }
+        activeGameScreen.addNarrative({
+          text: `${npc.name} sweeps your coins across the counter with practiced hands, sorting and stacking with remarkable speed. Copper vanishes into drawers, silver clinks into neat columns, and gold is produced from a heavy lockbox beneath the desk.`,
+          category: 'action',
+        });
+        activeGameScreen.addNarrative({
+          text: `"There you are — ${result.after.gold > 0 ? result.after.gold + ' gold' : ''}${result.after.gold > 0 && result.after.silver > 0 ? ', ' : ''}${result.after.silver > 0 ? result.after.silver + ' silver' : ''}${(result.after.gold > 0 || result.after.silver > 0) && result.after.copper > 0 ? ', ' : ''}${result.after.copper > 0 ? result.after.copper + ' copper' : ''}. Much lighter on the purse, wouldn't you say?" The banker slides your coins back with a satisfied nod.`,
+          category: 'dialogue',
+        });
+        break;
+      }
     }
   }
 
@@ -2927,6 +2970,12 @@ async function main(): Promise<void> {
         'We\'ve had reports of monsters in the surrounding lands. Stay vigilant.',
         'I stand watch so others may sleep in peace. It\'s honest work.',
         'If you see anything suspicious, report it to the captain.',
+      ];
+      case 'banker': return [
+        'Every copper has its place. Let me show you where yours belong.',
+        'The exchange rate is fair — one gold for ten silver, ten silver for a hundred copper. Simple mathematics.',
+        'I\'ve counted more coin than most people will see in a lifetime. It never gets old.',
+        'A heavy purse is a dangerous thing on the road. Let me lighten it for you — figuratively speaking.',
       ];
       case 'noble': return [
         'This settlement was founded by my ancestors, you know. A proud lineage.',

@@ -22,6 +22,7 @@ const GENERAL_STOCK: string[] = [
   'item_tinderbox',
   'item_oil_flask',
   'item_chalk',
+  'item_purse',
   'item_small_purse',
   'item_belt_pouch',
   'item_money_bag',

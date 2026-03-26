@@ -133,7 +133,7 @@ export class CharacterFactory {
     }
 
     // Starting equipment as inventory entries
-    const inventoryItems: { itemId: string; quantity: number; charges?: number }[] = [];
+    const inventoryItems: { itemId: string; quantity: number; charges?: number; coins?: { gold: number; silver: number; copper: number } }[] = [];
     for (const itemId of classData.startingEquipment) {
       const existing = inventoryItems.find((e) => e.itemId === itemId);
       if (existing) {
@@ -148,6 +148,9 @@ export class CharacterFactory {
     inventoryItems.push({ itemId: 'item_waterskin', quantity: 1 });
     inventoryItems.push({ itemId: 'item_torch', quantity: 1, charges: 6 });
     inventoryItems.push({ itemId: 'item_torch', quantity: 1, charges: 6 });
+
+    // Every adventurer starts with an empty purse
+    inventoryItems.push({ itemId: 'item_purse', quantity: 1, coins: { gold: 0, silver: 0, copper: 0 } });
 
     // Limited-use features that aren't bonus actions (Action Surge, Indomitable, etc.)
     const FEATURE_USES: Record<string, { usesMax: number; rechargeOn: 'shortRest' | 'longRest' }> = {

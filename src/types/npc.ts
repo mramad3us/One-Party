@@ -27,7 +27,8 @@ export type NPCRole =
   | 'commoner'
   | 'noble'
   | 'priest'
-  | 'blacksmith';
+  | 'blacksmith'
+  | 'banker';
 
 /** A tracked goal for an NPC */
 export type Goal = {

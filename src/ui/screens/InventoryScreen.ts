@@ -7,6 +7,7 @@ import { IconSystem } from '@/ui/IconSystem';
 import { TooltipSystem } from '@/ui/TooltipSystem';
 import { el } from '@/utils/dom';
 import { formatCoinHtml } from '@/utils/format';
+import { totalPlayerDenominations } from '@/rules/CurrencyRules';
 
 const EQUIP_SLOT_LABELS: Record<keyof EquipmentSlots, string> = {
   mainHand: 'Main Hand',
@@ -178,6 +179,15 @@ export class InventoryScreen extends Component {
           `${charges}/${item.maxCharges}`,
         ]));
       }
+      // Show coin count for container items (purses)
+      if (item.itemType === 'container' && entry.coins) {
+        const total = entry.coins.gold + entry.coins.silver + entry.coins.copper;
+        if (total > 0) {
+          const coinBadge = el('span', { class: 'inventory-item-qty badge badge-gold', style: 'top:auto;bottom:6px' });
+          coinBadge.innerHTML = formatCoinHtml(entry.coins.gold, entry.coins.silver, entry.coins.copper);
+          cardWrap.appendChild(coinBadge);
+        }
+      }
 
       const card = new ItemCard(cardWrap, this.engine, item);
       this.addChild(card);
@@ -215,8 +225,9 @@ export class InventoryScreen extends Component {
       this.inventoryGrid.appendChild(cardWrap);
     }
 
-    // Gold display
-    this.goldDisplay.innerHTML = formatCoinHtml(inventory.gold, inventory.silver, inventory.copper);
+    // Gold display — total across all purses + loose coins
+    const totalCoins = totalPlayerDenominations(inventory);
+    this.goldDisplay.innerHTML = formatCoinHtml(totalCoins.gold, totalCoins.silver, totalCoins.copper);
 
     // Update keyboard-focusable items
     const focusableItems = Array.from(this.inventoryGrid.querySelectorAll('.item-card')) as HTMLElement[];

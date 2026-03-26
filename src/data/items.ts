@@ -686,6 +686,19 @@ export const SRD_ITEMS: Item[] = [
 
   // ── Containers (Purses & Bags) ──────────────────────────────────
   {
+    id: 'item_purse',
+    type: 'item',
+    name: 'Purse',
+    itemType: 'container',
+    rarity: 'common',
+    weight: 0.5,
+    value: { gold: 0, silver: 2, copper: 0 },
+    description: 'A sturdy leather purse with a drawstring closure, the adventurer\'s most trusted companion. Holds up to 500 coins.',
+    stackable: false,
+    requiresAttunement: false,
+    properties: { coinCapacity: 500, description: 'Holds up to 500 coins of any denomination.' },
+  },
+  {
     id: 'item_small_purse',
     type: 'item',
     name: 'Small Purse',

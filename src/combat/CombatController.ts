@@ -597,12 +597,15 @@ export class CombatController implements GameSystem {
 
     // Roll loot from defeated monsters
     const loot: { itemId: string; quantity: number }[] = [];
+    const coinLoot = { gold: 0, silver: 0, copper: 0 };
     const enemiesDefeated: string[] = [];
     for (const [npcId, monsterDef] of this.monsterMap) {
       if (result.casualties.includes(npcId)) {
         enemiesDefeated.push(monsterDef.name);
+        const rng = new SeededRNG(npcId.length * 31 + xpEarned);
+
+        // Item drops
         if (monsterDef.lootTable) {
-          const rng = new SeededRNG(npcId.length * 31 + xpEarned);
           for (const drop of monsterDef.lootTable) {
             if (rng.next() < drop.chance) {
               loot.push({
@@ -611,6 +614,22 @@ export class CombatController implements GameSystem {
               });
             }
           }
+        }
+
+        // Coin drops based on CR
+        const cr = monsterDef.cr;
+        if (cr <= 4) {
+          coinLoot.copper += Math.floor(rng.next() * 50);
+          coinLoot.silver += Math.floor(rng.next() * 20);
+          coinLoot.gold += Math.floor(rng.next() * 8);
+        } else if (cr <= 10) {
+          coinLoot.copper += Math.floor(rng.next() * 50);
+          coinLoot.silver += Math.floor(rng.next() * 100);
+          coinLoot.gold += Math.floor(rng.next() * 200);
+        } else {
+          coinLoot.copper += Math.floor(rng.next() * 100);
+          coinLoot.silver += Math.floor(rng.next() * 500);
+          coinLoot.gold += Math.floor(rng.next() * 2000);
         }
       }
     }
@@ -637,6 +656,7 @@ export class CombatController implements GameSystem {
         encounter: this.currentEncounter,
         xpEarned,
         loot,
+        coinLoot,
         enemiesDefeated,
       },
     });

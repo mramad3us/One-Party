@@ -12,7 +12,7 @@ import {
   buyItem,
   sellItem,
 } from '@/npc/MerchantSystem';
-import { fromCopper, canAfford } from '@/rules/CurrencyRules';
+import { fromCopper, canAfford, totalPlayerDenominations } from '@/rules/CurrencyRules';
 
 type ShopPanel = 'buy' | 'sell';
 
@@ -183,11 +183,8 @@ export class ShopScreen extends Component {
   }
 
   private renderGold(): void {
-    this.goldDisplayEl.innerHTML = formatCoinHtml(
-      this.playerInv.gold,
-      this.playerInv.silver,
-      this.playerInv.copper,
-    );
+    const total = totalPlayerDenominations(this.playerInv);
+    this.goldDisplayEl.innerHTML = formatCoinHtml(total.gold, total.silver, total.copper);
   }
 
   private renderBuyList(): void {

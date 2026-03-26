@@ -64,12 +64,21 @@ export type EquipmentSlots = {
   belt: EntityId | null;
 };
 
+/** Coins stored inside a container (purse, pouch, chest) */
+export type PurseContents = {
+  gold: number;
+  silver: number;
+  copper: number;
+};
+
 /** A single inventory stack */
 export type InventoryEntry = {
   itemId: EntityId;
   quantity: number;
   /** Current charges for refillable items (e.g. waterskin) */
   charges?: number;
+  /** Coins stored inside this container item */
+  coins?: PurseContents;
 };
 
 /** Full inventory state */

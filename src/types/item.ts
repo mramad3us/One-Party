@@ -77,7 +77,7 @@ export type ConsumableProperties = {
 
 /** Properties specific to containers (purses, bags, chests) */
 export type ContainerProperties = {
-  /** Maximum number of coins this container can hold (flavor only) */
+  /** Maximum number of coins (total across all denominations) this container can hold */
   coinCapacity: number;
   description?: string;
 };

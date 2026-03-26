@@ -4,7 +4,7 @@ import type { Coordinate, NPC, NPCRole } from '@/types';
 export type InteractionOption = {
   label: string;
   key: string;
-  action: 'shop' | 'talk' | 'rest' | 'heal';
+  action: 'shop' | 'talk' | 'rest' | 'heal' | 'exchange';
 };
 
 /** Interaction options per NPC role. */
@@ -40,6 +40,10 @@ const ROLE_INTERACTIONS: Record<NPCRole, InteractionOption[]> = {
     { label: 'Chat', key: 'c', action: 'talk' },
   ],
   companion: [
+    { label: 'Chat', key: 'c', action: 'talk' },
+  ],
+  banker: [
+    { label: 'Exchange Coins', key: 'e', action: 'exchange' },
     { label: 'Chat', key: 'c', action: 'talk' },
   ],
   hostile: [],
