@@ -632,12 +632,12 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
   m.feature(34, 126, 'shelf');
   m.feature(30, 128, 'hearth');
 
-  // House 8: Near market
-  m.building(42, 103, 10, 8, 'e', 4, 'wood');
-  m.feature(44, 105, 'bed');
-  m.feature(48, 105, 'table');
-  m.feature(47, 105, 'chair');
-  m.feature(44, 107, 'shelf');
+  // House 8: North of market
+  m.building(42, 93, 10, 8, 'e', 4, 'wood');
+  m.feature(44, 95, 'bed');
+  m.feature(48, 95, 'table');
+  m.feature(47, 95, 'chair');
+  m.feature(44, 97, 'shelf');
 
   // House 9: Central east
   m.building(142, 55, 12, 8, 'w', 4, 'wood');
@@ -687,12 +687,7 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
   m.feature(60, 142, 'table');
   m.feature(61, 142, 'chair');
 
-  // House 15: West residential
-  m.building(28, 103, 10, 8, 'e', 4, 'wood');
-  // Wait, this overlaps with Le Grand Marché... let me skip or relocate.
-  // Actually Le Grand Marché starts at (28, 103) too. Let me place this house elsewhere.
-  // Relocate to south of Rue des Pêcheurs, west side
-  // Actually the market fill already covers this area. Let me use a different spot.
+  // (House 15 removed — overlapped with Le Grand Marché at the same coordinates)
 
   // La Banque de Plassans — stone building, east of the central plaza
   m.building(120, 85, 14, 10, 'w', 5, 'stone');
