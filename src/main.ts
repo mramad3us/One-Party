@@ -933,6 +933,35 @@ async function main(): Promise<void> {
       });
     }
 
+    // Pre-scan: find all indoor floor cells (passable cells adjacent to a wall)
+    // These are ideal NPC placement spots — inside buildings, not in the street
+    const gridDef = grid.getDefinition();
+    const indoorCells: import('@/types').Coordinate[] = [];
+    const outdoorCells: import('@/types').Coordinate[] = [];
+    for (let y = 1; y < gridDef.height - 1; y++) {
+      for (let x = 1; x < gridDef.width - 1; x++) {
+        if (!grid.isPassable(x, y)) continue;
+        if (grid.getEntityAt({ x, y })) continue;
+        // Check if any neighbor is a wall (movementCost === Infinity)
+        const hasWallNeighbor = [[-1,0],[1,0],[0,-1],[0,1]].some(([dx,dy]) => {
+          const cell = grid.getCell(x+dx!, y+dy!);
+          return cell && cell.movementCost === Infinity;
+        });
+        if (hasWallNeighbor) {
+          indoorCells.push({ x, y });
+        } else {
+          outdoorCells.push({ x, y });
+        }
+      }
+    }
+    // Shuffle so NPCs spread across different buildings
+    for (let i = indoorCells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indoorCells[i], indoorCells[j]] = [indoorCells[j], indoorCells[i]];
+    }
+    let indoorIdx = 0;
+    let outdoorIdx = 0;
+
     // Place each NPC
     for (const npcId of location.npcs) {
       const npc = state.getNPC(npcId);
@@ -941,22 +970,31 @@ async function main(): Promise<void> {
       // Try to place NPC at their stored position, or find a suitable spot
       let npcPos = npc.position;
       if (!npcPos) {
-        // Find a floor cell near center of the map that isn't occupied
-        const gridDef = grid.getDefinition();
-        const cx = Math.floor(gridDef.width / 2);
-        const cy = Math.floor(gridDef.height / 2);
-        for (let r = 0; r < 20; r++) {
-          for (let dx = -r; dx <= r; dx++) {
-            for (let dy = -r; dy <= r; dy++) {
-              const px = cx + dx, py = cy + dy;
-              if (grid.isPassable(px, py) && !grid.getEntityAt({ x: px, y: py })) {
-                npcPos = { x: px, y: py };
-                break;
-              }
-            }
-            if (npcPos) break;
+        // Prefer indoor cells for most NPCs, outdoor for guards/commoners overflow
+        while (indoorIdx < indoorCells.length) {
+          const candidate = indoorCells[indoorIdx++];
+          if (!grid.getEntityAt(candidate)) {
+            npcPos = candidate;
+            break;
           }
-          if (npcPos) break;
+        }
+        // Fallback: outdoor passable cells near center
+        if (!npcPos) {
+          const cx = Math.floor(gridDef.width / 2);
+          const cy = Math.floor(gridDef.height / 2);
+          // Sort outdoor cells by distance to center
+          if (outdoorIdx === 0) {
+            outdoorCells.sort((a, b) =>
+              Math.abs(a.x - cx) + Math.abs(a.y - cy) - Math.abs(b.x - cx) - Math.abs(b.y - cy)
+            );
+          }
+          while (outdoorIdx < outdoorCells.length) {
+            const candidate = outdoorCells[outdoorIdx++];
+            if (!grid.getEntityAt(candidate)) {
+              npcPos = candidate;
+              break;
+            }
+          }
         }
       }
 

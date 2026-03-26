@@ -208,11 +208,38 @@ type SubLocationConfig = {
 const VILLAGE_SUBS: SubLocationConfig[] = [
   { subType: 'tavern', interiorType: 'interior', required: true },
   { subType: 'shop', interiorType: 'interior', required: true },
-  { subType: 'house', interiorType: 'interior' },
+  { subType: 'house', interiorType: 'interior', required: true },
   { subType: 'house', interiorType: 'interior' },
   { subType: 'blacksmith', interiorType: 'interior' },
   { subType: 'temple', interiorType: 'interior' },
+];
+
+const TOWN_SUBS: SubLocationConfig[] = [
+  { subType: 'tavern', interiorType: 'interior', required: true },
+  { subType: 'shop', interiorType: 'interior', required: true },
+  { subType: 'blacksmith', interiorType: 'interior', required: true },
+  { subType: 'temple', interiorType: 'interior', required: true },
+  { subType: 'barracks', interiorType: 'interior', required: true },
+  { subType: 'house', interiorType: 'interior', required: true },
+  { subType: 'house', interiorType: 'interior', required: true },
+  { subType: 'house', interiorType: 'interior' },
   { subType: 'market', interiorType: 'exterior' },
+];
+
+const CITY_SUBS: SubLocationConfig[] = [
+  { subType: 'tavern', interiorType: 'interior', required: true },
+  { subType: 'tavern', interiorType: 'interior', required: true },
+  { subType: 'shop', interiorType: 'interior', required: true },
+  { subType: 'shop', interiorType: 'interior', required: true },
+  { subType: 'blacksmith', interiorType: 'interior', required: true },
+  { subType: 'temple', interiorType: 'interior', required: true },
+  { subType: 'barracks', interiorType: 'interior', required: true },
+  { subType: 'market', interiorType: 'exterior', required: true },
+  { subType: 'house', interiorType: 'interior', required: true },
+  { subType: 'house', interiorType: 'interior', required: true },
+  { subType: 'house', interiorType: 'interior', required: true },
+  { subType: 'house', interiorType: 'interior' },
+  { subType: 'house', interiorType: 'interior' },
 ];
 
 const DUNGEON_SUBS: SubLocationConfig[] = [
@@ -262,7 +289,8 @@ const SETTLEMENT_TYPES: LocationType[] = ['village', 'town', 'city'];
 function getSubLocationConfigs(locType: LocationType): SubLocationConfig[] {
   switch (locType) {
     case 'village': return VILLAGE_SUBS;
-    case 'town': return VILLAGE_SUBS;
+    case 'town': return TOWN_SUBS;
+    case 'city': return CITY_SUBS;
     case 'dungeon': return DUNGEON_SUBS;
     case 'wilderness': return WILDERNESS_SUBS;
     case 'ruins': return RUINS_SUBS;
@@ -270,7 +298,6 @@ function getSubLocationConfigs(locType: LocationType): SubLocationConfig[] {
     case 'castle': return RUINS_SUBS;
     case 'temple': return RUINS_SUBS;
     case 'camp': return WILDERNESS_SUBS;
-    case 'city': return VILLAGE_SUBS;
     default: return WILDERNESS_SUBS;
   }
 }
@@ -420,15 +447,19 @@ export class WorldGenerator {
       tags: [locationType, `difficulty_${difficulty}`],
     };
 
-    // Generate sub-locations
+    // Generate sub-locations — settlements get most/all of their configs
     const configs = getSubLocationConfigs(locationType);
     const required = configs.filter((c) => c.required);
     const optional = configs.filter((c) => !c.required);
 
-    const subCount = this.rng.nextInt(2, 4);
+    // Settlements: take all required + most optional. Non-settlements: random 2-4.
+    const isSettlementType = SETTLEMENT_TYPES.includes(locationType);
+    const optionalCount = isSettlementType
+      ? Math.max(0, optional.length - (this.rng.next() < 0.3 ? 1 : 0)) // drop 0-1 optional
+      : Math.max(0, this.rng.nextInt(2, 4) - required.length);
     const selectedConfigs = [
       ...required,
-      ...this.rng.shuffle(optional).slice(0, Math.max(0, subCount - required.length)),
+      ...this.rng.shuffle(optional).slice(0, optionalCount),
     ];
 
     const isSettlement = SETTLEMENT_TYPES.includes(locationType);
@@ -501,9 +532,9 @@ export class WorldGenerator {
   ): NPC | null {
     const subType = subLocation.subType;
 
-    // Houses have a 50% chance of a commoner NPC
+    // Houses have an 85% chance of a commoner NPC
     if (subType === 'house') {
-      if (this.rng.next() < 0.5) {
+      if (this.rng.next() < 0.85) {
         return this.npcFactory.createFromTemplate('commoner', 1, locationId, {
           biome: this.currentBiome,
           difficulty,

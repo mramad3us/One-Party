@@ -252,8 +252,6 @@
 .narrative-block--combat {
   background: rgba(180, 50, 50, 0.06);
   border-left-color: rgba(200, 60, 60, 0.5);
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
   color: #e0bab0;
 }
 
@@ -264,7 +262,6 @@
 /* ── System — muted, recessed ── */
 .narrative-block--system {
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.015);
   border-left-color: rgba(255, 255, 255, 0.08);
