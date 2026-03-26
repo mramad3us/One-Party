@@ -21,6 +21,19 @@ type CellFeature = 'door' | 'door_locked' | 'trap' | 'chest' | 'fire' | 'altar' 
   | 'table' | 'chair' | 'bed' | 'shelf' | 'counter' | 'anvil' | 'barrel' | 'crate' | 'bookshelf' | 'rug'
   | 'banner' | 'well' | 'market_stall' | 'sign' | 'candle' | 'chandelier' | 'weapon_rack' | 'hearth' | 'bench';
 type GridCell = { terrain: CellTerrain; movementCost: number; blocksLoS: boolean; elevation: number; features: CellFeature[] };
+
+/** Physical properties for features — must match src/types/grid.ts FEATURE_PHYSICS */
+const FEATURE_PHYSICS: Partial<Record<CellFeature, { blocks: boolean; blocksLoS: boolean }>> = {
+  tree: { blocks: true, blocksLoS: true }, rock: { blocks: true, blocksLoS: true },
+  pillar: { blocks: true, blocksLoS: true }, counter: { blocks: true, blocksLoS: true },
+  shelf: { blocks: true, blocksLoS: true }, bookshelf: { blocks: true, blocksLoS: true },
+  barrel: { blocks: true, blocksLoS: true }, crate: { blocks: true, blocksLoS: true },
+  bed: { blocks: true, blocksLoS: false }, well: { blocks: true, blocksLoS: false },
+  anvil: { blocks: true, blocksLoS: false }, weapon_rack: { blocks: true, blocksLoS: true },
+  market_stall: { blocks: true, blocksLoS: true }, chest: { blocks: true, blocksLoS: false },
+  hearth: { blocks: true, blocksLoS: false }, fountain: { blocks: true, blocksLoS: false },
+  door_locked: { blocks: true, blocksLoS: true },
+};
 type Coordinate = { x: number; y: number };
 type BiomeType = 'forest' | 'mountain' | 'desert' | 'swamp' | 'plains' | 'coast' | 'tundra' | 'volcanic' | 'underdark' | 'urban';
 type OverworldTerrain = 'deep_water' | 'shallow_water' | 'beach' | 'plains' | 'forest' | 'dense_forest' | 'hills' | 'mountain' | 'peak' | 'snow' | 'desert' | 'swamp' | 'tundra' | 'volcanic';
@@ -109,13 +122,26 @@ class MapBuilder {
 
   /** Place a feature on an existing cell, or create a floor cell with the feature. */
   feature(x: number, y: number, feat: CellFeature, terrain?: CellTerrain): void {
+    const phys = FEATURE_PHYSICS[feat];
     const existing = this.get(x, y);
     if (existing) {
-      // Add feature to existing cell (whether wall or floor)
       existing.features.push(feat);
+      // Upgrade passability if feature is blocking
+      if (phys?.blocks && existing.movementCost < Infinity) {
+        existing.movementCost = Infinity;
+      }
+      if (phys?.blocksLoS) {
+        existing.blocksLoS = true;
+      }
       this.set(x, y, existing);
     } else {
-      this.set(x, y, { terrain: terrain ?? 'wood', movementCost: 1, blocksLoS: false, elevation: 0, features: [feat] });
+      this.set(x, y, {
+        terrain: terrain ?? 'wood',
+        movementCost: phys?.blocks ? Infinity : 1,
+        blocksLoS: phys?.blocksLoS ?? false,
+        elevation: 0,
+        features: [feat],
+      });
     }
   }
 
@@ -154,7 +180,7 @@ class MapBuilder {
     for (let dy = 0; dy < h; dy++) {
       for (let dx = 0; dx < w; dx++) {
         if (!this.get(x + dx, y + dy) && pseudoRandom(x + dx, y + dy) < density) {
-          this.set(x + dx, y + dy, { terrain: 'grass', movementCost: 2, blocksLoS: true, elevation: 0, features: ['tree'] });
+          this.set(x + dx, y + dy, { terrain: 'grass', movementCost: Infinity, blocksLoS: true, elevation: 0, features: ['tree'] });
         }
       }
     }

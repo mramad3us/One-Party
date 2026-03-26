@@ -233,68 +233,94 @@ export class DiceDisplay extends Component {
   }
 
   /**
-   * Inline dice roll for embedding in containers (e.g., TimeActivity).
-   * Faster than showRoll (~900ms total), uses relative positioning,
-   * no centering transforms that would cause layout jumps.
+   * Compact inline dice roll for embedding in containers (e.g., TimeActivity).
+   * Renders a single horizontal row: die icon → roll values → total.
+   * No card, no overlay — just an animated inline element.
    */
-  static async showRollInline(parent: HTMLElement, result: DiceRollResult, engine: GameEngine): Promise<void> {
-    const display = new DiceDisplay(parent, engine, result);
-    display.mount();
+  static async showRollInline(parent: HTMLElement, result: DiceRollResult, _engine: GameEngine): Promise<void> {
+    const dieType = result.dieType ?? 20;
+    const row = el('div', { class: 'dice-inline' });
 
-    // Override fixed positioning — we're inline
-    display.el.style.position = 'relative';
-    display.el.style.top = 'auto';
-    display.el.style.left = 'auto';
-    display.el.style.transform = 'none';
-    display.el.style.opacity = '1';
+    // Die icon
+    const dieIcon = IconSystem.icon(`dice-d${dieType}`);
+    dieIcon.classList.add('dice-inline-die');
+    row.appendChild(dieIcon);
 
-    // Hide results initially
-    const rollsRow = display.el.querySelector('.dice-display-rolls') as HTMLElement | null;
-    const totalEl = display.el.querySelector('.dice-display-total') as HTMLElement | null;
-    const critLabel = display.el.querySelector('.dice-display-crit-label, .dice-display-fumble-label') as HTMLElement | null;
-    const descEl = display.el.querySelector('.dice-display-desc') as HTMLElement | null;
-    const advEl = display.el.querySelector('.dice-display-adv') as HTMLElement | null;
+    // Individual roll values
+    for (const roll of result.rolls) {
+      row.appendChild(el('span', { class: 'dice-inline-roll font-mono' }, [String(roll)]));
+    }
 
-    if (rollsRow) rollsRow.style.opacity = '0';
-    if (totalEl) totalEl.style.opacity = '0';
-    if (critLabel) critLabel.style.opacity = '0';
-    if (descEl) descEl.style.opacity = '0';
-    if (advEl) advEl.style.opacity = '0';
+    // Modifier
+    if (result.modifier !== 0) {
+      const modStr = result.modifier > 0 ? `+${result.modifier}` : String(result.modifier);
+      row.appendChild(el('span', { class: 'dice-inline-mod font-mono' }, [modStr]));
+    }
 
-    // Phase 1: Quick tumble (500ms)
-    const diceEls = display.el.querySelectorAll('.dice-display-die');
-    diceEls.forEach((die, i) => {
-      (die as HTMLElement).classList.add('dice-display-die--tumbling');
-      (die as HTMLElement).style.animationDuration = '0.5s';
-      (die as HTMLElement).style.animationDelay = `${i * 60}ms`;
+    // Equals sign + total
+    row.appendChild(el('span', { class: 'dice-inline-eq font-mono' }, ['=']));
+    const totalClasses = ['dice-inline-total', 'font-mono'];
+    if (result.isCritical) totalClasses.push('dice-inline-total--crit');
+    if (result.isFumble) totalClasses.push('dice-inline-total--fumble');
+    const totalEl = el('span', { class: totalClasses.join(' ') }, [String(result.total)]);
+    row.appendChild(totalEl);
+
+    // Crit / fumble badge
+    if (result.isCritical) {
+      row.appendChild(el('span', { class: 'dice-inline-badge dice-inline-badge--crit font-heading' }, ['CRIT']));
+    } else if (result.isFumble) {
+      row.appendChild(el('span', { class: 'dice-inline-badge dice-inline-badge--fumble font-heading' }, ['FUMBLE']));
+    }
+
+    parent.appendChild(row);
+
+    // Phase 1: Die tumbles while rest is hidden
+    const rollEls = row.querySelectorAll('.dice-inline-roll, .dice-inline-mod, .dice-inline-eq, .dice-inline-total, .dice-inline-badge');
+    rollEls.forEach((e) => ((e as HTMLElement).style.opacity = '0'));
+
+    dieIcon.animate([
+      { transform: 'rotate(0deg) scale(0.5)', opacity: '0.3' },
+      { transform: 'rotate(540deg) scale(1)', opacity: '1' },
+    ], { duration: 400, easing: 'ease-out', fill: 'forwards' });
+
+    row.animate([
+      { opacity: '0', transform: 'translateY(4px)' },
+      { opacity: '1', transform: 'translateY(0)' },
+    ], { duration: 250, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+
+    await new Promise<void>((r) => setTimeout(r, 400));
+
+    // Phase 2: Reveal rolls + total with quick stagger
+    let delay = 0;
+    rollEls.forEach((e) => {
+      (e as HTMLElement).animate([
+        { opacity: '0', transform: 'translateY(2px)' },
+        { opacity: '1', transform: 'translateY(0)' },
+      ], { duration: 120, delay, easing: 'ease-out', fill: 'forwards' });
+      delay += 40;
     });
-    await new Promise<void>((r) => setTimeout(r, 500));
 
-    // Phase 2: Reveal
-    diceEls.forEach((die) => (die as HTMLElement).classList.remove('dice-display-die--tumbling'));
+    await new Promise<void>((r) => setTimeout(r, delay + 120));
 
-    if (rollsRow) { rollsRow.style.transition = 'opacity 0.15s'; rollsRow.style.opacity = '1'; }
-    await new Promise<void>((r) => setTimeout(r, 80));
+    // Crit/fumble flash on the total
+    if (result.isCritical || result.isFumble) {
+      totalEl.animate([
+        { transform: 'scale(1.3)' },
+        { transform: 'scale(1)' },
+      ], { duration: 200, easing: 'ease-out' });
+    }
 
-    if (totalEl) { totalEl.style.transition = 'opacity 0.15s'; totalEl.style.opacity = '1'; }
+    // Hold to read
+    await new Promise<void>((r) => setTimeout(r, result.isCritical || result.isFumble ? 600 : 300));
 
-    if (result.isCritical) display.el.classList.add('dice-display--crit-flash');
-    else if (result.isFumble) display.el.classList.add('dice-display--fumble-flash');
+    // Phase 3: Fade out
+    row.animate([
+      { opacity: '1' },
+      { opacity: '0' },
+    ], { duration: 180, easing: 'ease-in', fill: 'forwards' });
+    await new Promise<void>((r) => setTimeout(r, 180));
 
-    if (critLabel) { critLabel.style.transition = 'opacity 0.15s'; critLabel.style.opacity = '1'; }
-    if (descEl) { descEl.style.transition = 'opacity 0.15s'; descEl.style.opacity = '1'; }
-    if (advEl) { advEl.style.transition = 'opacity 0.15s'; advEl.style.opacity = '1'; }
-
-    // Hold (shorter for inline)
-    await new Promise<void>((r) => setTimeout(r, result.isCritical || result.isFumble ? 800 : 400));
-
-    // Phase 3: Fade out (no transform to avoid layout jump)
-    display.el.style.transition = 'opacity 0.2s ease-out';
-    display.el.style.opacity = '0';
-    await new Promise<void>((r) => setTimeout(r, 200));
-
-    display.destroy();
-    display.el.remove();
+    row.remove();
   }
 
   /**

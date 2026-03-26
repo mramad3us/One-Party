@@ -149,12 +149,42 @@
 /* ── Preview ── */
 .worldpick-preview {
   width: 100%;
-  max-width: 440px;
+  max-width: 600px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 4px;
   padding: 24px;
   animation: menuItemReveal 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Map preview ── */
+.worldpick-map-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.worldpick-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 0 20px rgba(0, 0, 0, 0.4),
+    0 0 60px rgba(15, 41, 66, 0.15);
+  image-rendering: pixelated;
+}
+
+.worldpick-map-label {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .worldpick-preview-grid {

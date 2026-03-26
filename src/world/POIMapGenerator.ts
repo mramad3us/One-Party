@@ -4,7 +4,7 @@ import type { SettlementType, OverworldTerrain } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
 import {
   LocalMapGenerator,
-  makeCell, wallCell, floorCell, treeCell, rockCell,
+  makeCell, featureCell, wallCell, floorCell, treeCell, rockCell,
   tileSeed,
   type MapResult,
 } from './LocalMapGenerator';
@@ -929,7 +929,7 @@ export class POIMapGenerator extends LocalMapGenerator {
       // Feature in clearing: fire, altar, or chest
       const featureChoice = this.rng.next();
       const feature: CellFeature = featureChoice < 0.33 ? 'fire' : featureChoice < 0.66 ? 'altar' : 'chest';
-      cells[scy][scx] = makeCell(ground, 1, false, [feature]);
+      cells[scy][scx] = featureCell(ground, [feature]);
 
       // Connect to center via winding path
       this.carveWindingPath(cells, w, h, { x: scx, y: scy }, { x: CENTER, y: CENTER }, ground, 1);

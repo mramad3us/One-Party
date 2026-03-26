@@ -1111,18 +1111,87 @@
 
 .time-activity-dice {
   position: relative;
-  min-height: 40px;
+  min-height: 28px;
   width: 100%;
   display: flex;
   justify-content: center;
+  align-items: center;
 }
 
-/* Override dice-display positioning inside time activity */
-.time-activity-dice .dice-display {
-  position: relative;
-  top: auto;
-  left: auto;
-  transform: none;
+/* ── Inline dice row (compact, no card overlay) ── */
+.dice-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dice-inline-die {
+  width: 22px;
+  height: 22px;
+  color: var(--gold-dim, var(--text-muted));
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 4px rgba(180, 130, 50, 0.2));
+}
+
+.dice-inline-roll {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  padding: 1px 5px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.dice-inline-mod {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.dice-inline-eq {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}
+
+.dice-inline-total {
+  font-size: var(--text-base);
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.dice-inline-total--crit {
+  color: var(--gold);
+  text-shadow: 0 0 10px rgba(212, 170, 60, 0.4);
+}
+
+.dice-inline-total--fumble {
+  color: var(--red);
+  text-shadow: 0 0 10px rgba(184, 56, 56, 0.4);
+}
+
+.dice-inline-badge {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  padding: 1px 5px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+
+.dice-inline-badge--crit {
+  color: var(--gold);
+  background: rgba(212, 170, 60, 0.1);
+  border: 1px solid rgba(212, 170, 60, 0.2);
+}
+
+.dice-inline-badge--fumble {
+  color: var(--red);
+  background: rgba(184, 56, 56, 0.1);
+  border: 1px solid rgba(184, 56, 56, 0.2);
 }
 
 .time-activity-results {

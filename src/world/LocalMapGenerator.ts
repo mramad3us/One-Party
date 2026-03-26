@@ -1,4 +1,5 @@
 import type { Coordinate, GridCell, GridDefinition, CellTerrain, CellFeature } from '@/types';
+import { FEATURE_PHYSICS } from '@/types/grid';
 import type { LocationType, BiomeType, SubLocationType } from '@/types/world';
 import type { OverworldTerrain } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
@@ -37,14 +38,28 @@ export function floorCell(terrain: CellTerrain = 'floor'): GridCell {
   return makeCell(terrain);
 }
 
+/** Cell with feature(s) — auto-derives passability from FEATURE_PHYSICS. */
+export function featureCell(terrain: CellTerrain, features: CellFeature[]): GridCell {
+  let blocks = false;
+  let blocksLoS = false;
+  for (const f of features) {
+    const p = FEATURE_PHYSICS[f];
+    if (p) {
+      if (p.blocks) blocks = true;
+      if (p.blocksLoS) blocksLoS = true;
+    }
+  }
+  return makeCell(terrain, blocks ? Infinity : 1, blocksLoS, features);
+}
+
 /** Tree on terrain — impassable, blocks LoS */
 export function treeCell(ground: CellTerrain = 'grass'): GridCell {
-  return makeCell(ground, Infinity, true, ['tree']);
+  return featureCell(ground, ['tree']);
 }
 
 /** Large rock — impassable, blocks LoS */
 export function rockCell(ground: CellTerrain = 'stone'): GridCell {
-  return makeCell(ground, Infinity, true, ['rock']);
+  return featureCell(ground, ['rock']);
 }
 
 /**
@@ -237,7 +252,7 @@ export class LocalMapGenerator {
         if (!this.adjacentTo(cells, w, h, x, y, 'water')) continue;
         const r = this.rng.next();
         if (r < 0.012) {
-          cells[y][x] = makeCell('sand', 1, false, ['chest']); // driftwood/debris
+          cells[y][x] = featureCell('sand', ['chest']); // driftwood/debris
         }
       }
     }
@@ -370,7 +385,7 @@ export class LocalMapGenerator {
     // Mushroom rings, fallen logs (features in clearings)
     for (const c of clearings) {
       if (this.rng.next() < 0.5) {
-        cells[c.y][c.x] = makeCell('grass', 1, false, ['fire']); // campfire remains
+        cells[c.y][c.x] = featureCell('grass', ['fire']); // campfire remains
       }
     }
 
@@ -956,7 +971,7 @@ export class LocalMapGenerator {
     // Center feature — fountain or well
     const featureRoll = this.rng.next();
     const centerFeature: CellFeature = featureRoll < 0.6 ? 'fountain' : 'well';
-    cells[midY][midX] = makeCell(roadTerrain, 1, false, [centerFeature]);
+    cells[midY][midX] = featureCell(roadTerrain, [centerFeature]);
 
     // Determine which buildings to place
     const requestedTypes = subLocations && subLocations.length > 0
@@ -1166,7 +1181,7 @@ export class LocalMapGenerator {
     const counterXEnd = ix + iw - 2;
     for (let x = counterXStart; x <= counterXEnd; x++) {
       if (x < gw) {
-        cells[counterY][x] = makeCell('wood', Infinity, true, ['counter']);
+        cells[counterY][x] = featureCell('wood', ['counter']);
       }
     }
 
@@ -1178,7 +1193,7 @@ export class LocalMapGenerator {
     // Hearth/fireplace on left wall
     const hearthY = iy + Math.floor(ih / 2);
     if (ix < gw && hearthY < gh) {
-      cells[hearthY][ix] = makeCell('wood', Infinity, true, ['hearth']);
+      cells[hearthY][ix] = featureCell('wood', ['hearth']);
     }
 
     // Tables and chairs in the main area (south half)
@@ -1186,10 +1201,10 @@ export class LocalMapGenerator {
     for (let ty = tableStartY; ty < iy + ih - 1; ty += 2) {
       for (let tx = ix + 1; tx < ix + iw - 1; tx += 3) {
         if (tx < gw && ty < gh) {
-          cells[ty][tx] = makeCell('wood', 1, false, ['table']);
+          cells[ty][tx] = featureCell('wood', ['table']);
           // Chairs around the table
-          if (tx - 1 >= ix && tx - 1 < gw) cells[ty][tx - 1] = makeCell('wood', 1, false, ['chair']);
-          if (tx + 1 < ix + iw && tx + 1 < gw) cells[ty][tx + 1] = makeCell('wood', 1, false, ['chair']);
+          if (tx - 1 >= ix && tx - 1 < gw) cells[ty][tx - 1] = featureCell('wood', ['chair']);
+          if (tx + 1 < ix + iw && tx + 1 < gw) cells[ty][tx + 1] = featureCell('wood', ['chair']);
         }
       }
     }
@@ -1198,7 +1213,7 @@ export class LocalMapGenerator {
     for (let ty = tableStartY; ty < iy + ih - 1; ty += 4) {
       const cx = ix + 1;
       if (cx < gw && ty < gh && cells[ty][cx].features.includes('table')) {
-        cells[ty][cx] = makeCell('wood', 1, false, ['table', 'candle']);
+        cells[ty][cx] = featureCell('wood', ['table', 'candle']);
       }
     }
 
@@ -1206,10 +1221,10 @@ export class LocalMapGenerator {
     const barrelX = ix + iw - 1;
     const barrelY = iy;
     if (barrelX < gw && barrelY < gh) {
-      cells[barrelY][barrelX] = makeCell('wood', Infinity, true, ['barrel']);
+      cells[barrelY][barrelX] = featureCell('wood', ['barrel']);
     }
     if (barrelX - 1 >= ix && barrelY < gh) {
-      cells[barrelY][barrelX - 1] = makeCell('wood', Infinity, true, ['barrel']);
+      cells[barrelY][barrelX - 1] = featureCell('wood', ['barrel']);
     }
 
     return npcPos;
@@ -1227,7 +1242,7 @@ export class LocalMapGenerator {
     const counterY = iy + Math.floor(ih / 2);
     for (let x = ix; x < ix + iw - 1; x++) {
       if (x < gw && counterY < gh) {
-        cells[counterY][x] = makeCell('wood', Infinity, true, ['counter']);
+        cells[counterY][x] = featureCell('wood', ['counter']);
       }
     }
     // Leave a gap at the right end for NPC to walk behind
@@ -1243,30 +1258,30 @@ export class LocalMapGenerator {
     // Shelves along the left and right walls (north half, above counter)
     for (let y = iy; y < counterY; y++) {
       if (ix < gw && y < gh) {
-        cells[y][ix] = makeCell('wood', Infinity, true, ['shelf']);
+        cells[y][ix] = featureCell('wood', ['shelf']);
       }
       if (ix + iw - 1 < gw && y < gh) {
-        cells[y][ix + iw - 1] = makeCell('wood', Infinity, true, ['shelf']);
+        cells[y][ix + iw - 1] = featureCell('wood', ['shelf']);
       }
     }
 
     // Crates and barrels in back corners (north wall)
     if (ix + 1 < gw && iy < gh) {
-      cells[iy][ix + 1] = makeCell('wood', Infinity, true, ['crate']);
+      cells[iy][ix + 1] = featureCell('wood', ['crate']);
     }
     if (ix + iw - 2 >= ix && ix + iw - 2 < gw && iy < gh) {
-      cells[iy][ix + iw - 2] = makeCell('wood', Infinity, true, ['barrel']);
+      cells[iy][ix + iw - 2] = featureCell('wood', ['barrel']);
     }
 
     // Bookshelf on back wall center
     const bookX = ix + Math.floor(iw / 2);
     if (bookX < gw && iy < gh) {
-      cells[iy][bookX] = makeCell('wood', Infinity, true, ['bookshelf']);
+      cells[iy][bookX] = featureCell('wood', ['bookshelf']);
     }
 
     // Candle on counter
     if (npcX < gw && counterY < gh) {
-      cells[counterY][npcX] = makeCell('wood', Infinity, true, ['counter', 'candle']);
+      cells[counterY][npcX] = featureCell('wood', ['counter', 'candle']);
     }
 
     return npcPos;
@@ -1283,14 +1298,14 @@ export class LocalMapGenerator {
     // Forge/hearth on the back wall (north, center)
     const forgeX = ix + Math.floor(iw / 2);
     if (forgeX < gw && iy < gh) {
-      cells[iy][forgeX] = makeCell('wood', Infinity, true, ['hearth']);
+      cells[iy][forgeX] = featureCell('wood', ['hearth']);
     }
 
     // Anvil in front of forge
     const anvilX = forgeX;
     const anvilY = iy + 2;
     if (anvilX < gw && anvilY < gh) {
-      cells[anvilY][anvilX] = makeCell('wood', 1, false, ['anvil']);
+      cells[anvilY][anvilX] = featureCell('wood', ['anvil']);
     }
 
     // NPC position: next to the anvil
@@ -1299,28 +1314,28 @@ export class LocalMapGenerator {
 
     // Weapon rack on left wall
     if (ix < gw && iy + 1 < gh) {
-      cells[iy + 1][ix] = makeCell('wood', Infinity, true, ['weapon_rack']);
+      cells[iy + 1][ix] = featureCell('wood', ['weapon_rack']);
     }
 
     // Barrels on right wall
     const barrelX = ix + iw - 1;
     if (barrelX < gw && iy < gh) {
-      cells[iy][barrelX] = makeCell('wood', Infinity, true, ['barrel']);
+      cells[iy][barrelX] = featureCell('wood', ['barrel']);
     }
     if (barrelX < gw && iy + 1 < gh) {
-      cells[iy + 1][barrelX] = makeCell('wood', Infinity, true, ['barrel']);
+      cells[iy + 1][barrelX] = featureCell('wood', ['barrel']);
     }
 
     // Crate near door
     if (ix < gw && iy + ih - 1 < gh) {
-      cells[iy + ih - 1][ix] = makeCell('wood', Infinity, true, ['crate']);
+      cells[iy + ih - 1][ix] = featureCell('wood', ['crate']);
     }
 
     // Table with tools on right side
     const tableX = ix + iw - 2;
     const tableY = iy + Math.floor(ih / 2);
     if (tableX >= ix && tableX < gw && tableY < gh) {
-      cells[tableY][tableX] = makeCell('wood', 1, false, ['table']);
+      cells[tableY][tableX] = featureCell('wood', ['table']);
     }
 
     return npcPos;
@@ -1338,7 +1353,7 @@ export class LocalMapGenerator {
     const altarX = ix + Math.floor(iw / 2);
     const altarY = iy + 1;
     if (altarX < gw && altarY < gh) {
-      cells[altarY][altarX] = makeCell('wood', 1, false, ['altar']);
+      cells[altarY][altarX] = featureCell('wood', ['altar']);
     }
 
     // NPC position: next to the altar (south side)
@@ -1353,37 +1368,37 @@ export class LocalMapGenerator {
     ];
     for (const p of pillarOffsets) {
       if (p.x < gw && p.y < gh && p.x !== altarX && p.y !== altarY) {
-        cells[p.y][p.x] = makeCell('wood', Infinity, true, ['pillar']);
+        cells[p.y][p.x] = featureCell('wood', ['pillar']);
       }
     }
 
     // Rug/carpet leading from door to altar (center column)
     for (let y = altarY + 2; y < iy + ih; y++) {
       if (altarX < gw && y < gh) {
-        cells[y][altarX] = makeCell('wood', 1, false, ['rug']);
+        cells[y][altarX] = featureCell('wood', ['rug']);
       }
     }
 
     // Candles flanking the altar
     if (altarX - 1 >= ix && altarX - 1 < gw && altarY < gh) {
-      cells[altarY][altarX - 1] = makeCell('wood', 1, false, ['candle']);
+      cells[altarY][altarX - 1] = featureCell('wood', ['candle']);
     }
     if (altarX + 1 < ix + iw && altarX + 1 < gw && altarY < gh) {
-      cells[altarY][altarX + 1] = makeCell('wood', 1, false, ['candle']);
+      cells[altarY][altarX + 1] = featureCell('wood', ['candle']);
     }
 
     // Small fountain near entrance
     const fountainY = iy + ih - 2;
     if (altarX < gw && fountainY < gh && fountainY > altarY + 2) {
-      cells[fountainY][altarX] = makeCell('wood', 1, false, ['fountain']);
+      cells[fountainY][altarX] = featureCell('wood', ['fountain']);
     }
 
     // Candles along walls
     if (ix < gw && iy + Math.floor(ih / 2) < gh) {
-      cells[iy + Math.floor(ih / 2)][ix] = makeCell('wood', Infinity, true, ['candle']);
+      cells[iy + Math.floor(ih / 2)][ix] = featureCell('wood', ['candle']);
     }
     if (ix + iw - 1 < gw && iy + Math.floor(ih / 2) < gh) {
-      cells[iy + Math.floor(ih / 2)][ix + iw - 1] = makeCell('wood', Infinity, true, ['candle']);
+      cells[iy + Math.floor(ih / 2)][ix + iw - 1] = featureCell('wood', ['candle']);
     }
 
     return npcPos;
@@ -1399,22 +1414,22 @@ export class LocalMapGenerator {
   ): Coordinate {
     // Bed in top-left corner
     if (ix < gw && iy < gh) {
-      cells[iy][ix] = makeCell('wood', Infinity, true, ['bed']);
+      cells[iy][ix] = featureCell('wood', ['bed']);
     }
     if (ix + 1 < gw && iy < gh) {
-      cells[iy][ix + 1] = makeCell('wood', Infinity, true, ['bed']);
+      cells[iy][ix + 1] = featureCell('wood', ['bed']);
     }
 
     // Chest at foot of bed
     if (ix < gw && iy + 1 < gh) {
-      cells[iy + 1][ix] = makeCell('wood', 1, false, ['chest']);
+      cells[iy + 1][ix] = featureCell('wood', ['chest']);
     }
 
     // Table in center-right area
     const tableX = ix + iw - 2;
     const tableY = iy + Math.floor(ih / 2);
     if (tableX >= ix && tableX < gw && tableY < gh) {
-      cells[tableY][tableX] = makeCell('wood', 1, false, ['table']);
+      cells[tableY][tableX] = featureCell('wood', ['table']);
     }
 
     // NPC position: near the table
@@ -1422,17 +1437,17 @@ export class LocalMapGenerator {
 
     // Chair next to table
     if (tableX - 1 >= ix && tableX - 1 < gw && tableY < gh) {
-      cells[tableY][tableX - 1] = makeCell('wood', 1, false, ['chair']);
+      cells[tableY][tableX - 1] = featureCell('wood', ['chair']);
     }
 
     // Candle on table
     if (tableX < gw && tableY < gh) {
-      cells[tableY][tableX] = makeCell('wood', 1, false, ['table', 'candle']);
+      cells[tableY][tableX] = featureCell('wood', ['table', 'candle']);
     }
 
     // Shelf on right wall
     if (ix + iw - 1 < gw && iy < gh) {
-      cells[iy][ix + iw - 1] = makeCell('wood', Infinity, true, ['shelf']);
+      cells[iy][ix + iw - 1] = featureCell('wood', ['shelf']);
     }
 
     return npcPos;
@@ -1449,21 +1464,21 @@ export class LocalMapGenerator {
     // Row of beds along the left wall
     for (let y = iy; y < iy + ih - 1 && y < gh; y += 2) {
       if (ix < gw) {
-        cells[y][ix] = makeCell('wood', Infinity, true, ['bed']);
+        cells[y][ix] = featureCell('wood', ['bed']);
       }
     }
 
     // Row of beds along the right wall
     for (let y = iy; y < iy + ih - 1 && y < gh; y += 2) {
       if (ix + iw - 1 < gw) {
-        cells[y][ix + iw - 1] = makeCell('wood', Infinity, true, ['bed']);
+        cells[y][ix + iw - 1] = featureCell('wood', ['bed']);
       }
     }
 
     // Weapon rack on back wall (center)
     const rackX = ix + Math.floor(iw / 2);
     if (rackX < gw && iy < gh) {
-      cells[iy][rackX] = makeCell('wood', Infinity, true, ['weapon_rack']);
+      cells[iy][rackX] = featureCell('wood', ['weapon_rack']);
     }
 
     // NPC position: near the weapon rack
@@ -1473,25 +1488,25 @@ export class LocalMapGenerator {
     const tableX = ix + Math.floor(iw / 2);
     const tableY = iy + Math.floor(ih / 2);
     if (tableX < gw && tableY < gh) {
-      cells[tableY][tableX] = makeCell('wood', 1, false, ['table']);
+      cells[tableY][tableX] = featureCell('wood', ['table']);
     }
 
     // Chairs around table
     if (tableX - 1 >= ix && tableX - 1 < gw && tableY < gh) {
-      cells[tableY][tableX - 1] = makeCell('wood', 1, false, ['chair']);
+      cells[tableY][tableX - 1] = featureCell('wood', ['chair']);
     }
     if (tableX + 1 < ix + iw && tableX + 1 < gw && tableY < gh) {
-      cells[tableY][tableX + 1] = makeCell('wood', 1, false, ['chair']);
+      cells[tableY][tableX + 1] = featureCell('wood', ['chair']);
     }
 
     // Chest near weapon rack
     if (rackX + 1 < ix + iw && rackX + 1 < gw && iy < gh) {
-      cells[iy][rackX + 1] = makeCell('wood', Infinity, true, ['chest']);
+      cells[iy][rackX + 1] = featureCell('wood', ['chest']);
     }
 
     // Banner on back wall
     if (rackX - 1 >= ix && rackX - 1 < gw && iy < gh) {
-      cells[iy][rackX - 1] = makeCell('wood', Infinity, true, ['banner']);
+      cells[iy][rackX - 1] = featureCell('wood', ['banner']);
     }
 
     return npcPos;
@@ -1514,7 +1529,7 @@ export class LocalMapGenerator {
       const sx = midX + dx;
       const sy = midY + dy;
       if (sx >= 1 && sx < gw - 1 && sy >= 1 && sy < gh - 1) {
-        cells[sy][sx] = makeCell(roadTerrain, 1, false, ['market_stall']);
+        cells[sy][sx] = featureCell(roadTerrain, ['market_stall']);
       }
     }
 
@@ -1522,7 +1537,7 @@ export class LocalMapGenerator {
     const signX = midX - sqSize + 1;
     const signY = midY;
     if (signX >= 0 && signX < gw && signY >= 0 && signY < gh) {
-      cells[signY][signX] = makeCell(roadTerrain, 1, false, ['sign']);
+      cells[signY][signX] = featureCell(roadTerrain, ['sign']);
     }
   }
 
@@ -1608,19 +1623,19 @@ export class LocalMapGenerator {
       const firstRoom = rooms[0];
       const stairsUpX = Math.floor(firstRoom.x + firstRoom.w / 2);
       const stairsUpY = Math.floor(firstRoom.y + firstRoom.h / 2);
-      cells[stairsUpY][stairsUpX] = makeCell('stone', 1, false, ['stairs_up']);
+      cells[stairsUpY][stairsUpX] = featureCell('stone', ['stairs_up']);
 
       const lastRoom = rooms[rooms.length - 1];
       const stairsDownX = Math.floor(lastRoom.x + lastRoom.w / 2);
       const stairsDownY = Math.floor(lastRoom.y + lastRoom.h / 2);
-      cells[stairsDownY][stairsDownX] = makeCell('stone', 1, false, ['stairs_down']);
+      cells[stairsDownY][stairsDownX] = featureCell('stone', ['stairs_down']);
 
       for (let i = 1; i < rooms.length - 1; i++) {
         if (this.rng.next() < 0.3) {
           const rx = rooms[i].x + 1;
           const ry = rooms[i].y + 1;
           if (cells[ry][rx].terrain === 'stone') {
-            cells[ry][rx] = makeCell('stone', 1, false, ['chest']);
+            cells[ry][rx] = featureCell('stone', ['chest']);
           }
         }
       }
@@ -1629,7 +1644,7 @@ export class LocalMapGenerator {
         for (let x = 1; x < w - 1; x++) {
           if (cells[y][x].terrain === 'stone' && cells[y][x].features.length === 0) {
             if (this.rng.next() < 0.01) {
-              cells[y][x] = makeCell('stone', 1, false, ['trap']);
+              cells[y][x] = featureCell('stone', ['trap']);
             }
           }
         }
@@ -1830,7 +1845,7 @@ export class LocalMapGenerator {
       const rx = 3 + Math.floor(this.rng.next() * (w - 6));
       const ry = 3 + Math.floor(this.rng.next() * (h - 6));
       if (cells[ry][rx].terrain === 'stone' && cells[ry][rx].features.length === 0) {
-        cells[ry][rx] = makeCell('stone', 1, false, ['chest']);
+        cells[ry][rx] = featureCell('stone', ['chest']);
       }
     }
 
@@ -1882,10 +1897,10 @@ export class LocalMapGenerator {
       }
     }
 
-    cells[17][17] = makeCell('stone', 1, false, ['altar']);
+    cells[17][17] = featureCell('stone', ['altar']);
 
     for (const pos of [{ x: 14, y: 14 }, { x: 20, y: 14 }, { x: 14, y: 20 }, { x: 20, y: 20 }]) {
-      cells[pos.y][pos.x] = makeCell('stone', Infinity, true, ['pillar']);
+      cells[pos.y][pos.x] = featureCell('stone', ['pillar']);
     }
 
     cells[h - 1][Math.floor(w / 2)] = floorCell('stone');
@@ -1918,13 +1933,13 @@ export class LocalMapGenerator {
 
     // Pillars along nave
     for (let y = 5; y < h - 5; y += 4) {
-      cells[y][8] = makeCell('stone', Infinity, true, ['pillar']);
-      cells[y][21] = makeCell('stone', Infinity, true, ['pillar']);
+      cells[y][8] = featureCell('stone', ['pillar']);
+      cells[y][21] = featureCell('stone', ['pillar']);
     }
 
-    cells[3][15] = makeCell('stone', 1, false, ['altar']);
-    cells[h - 4][15] = makeCell('stone', 1, false, ['fountain']);
-    cells[h - 2][15] = makeCell('stone', 1, false, ['door']);
+    cells[3][15] = featureCell('stone', ['altar']);
+    cells[h - 4][15] = featureCell('stone', ['fountain']);
+    cells[h - 2][15] = featureCell('stone', ['door']);
 
     // Spent and lit torches along the nave walls
     for (let y = 5; y < h - 5; y += 4) {
@@ -2412,7 +2427,7 @@ export class LocalMapGenerator {
         if (cx > 0 && cx < w - 1 && cy > 0 && cy < h - 1) {
           const cell = cells[cy][cx];
           if (cell.terrain === 'stone' && cell.features.length === 0) {
-            cells[cy][cx] = makeCell('stone', 1, false, ['brazier']);
+            cells[cy][cx] = featureCell('stone', ['brazier']);
           }
         }
       }
@@ -2512,7 +2527,7 @@ export class LocalMapGenerator {
     // 30% chance of a campfire in an open area
     if (floorSpots.length > 10 && this.rng.next() < 0.3) {
       const fireSpot = floorSpots[Math.floor(this.rng.next() * floorSpots.length)];
-      cells[fireSpot.y][fireSpot.x] = makeCell('stone', 1, false, ['fire']);
+      cells[fireSpot.y][fireSpot.x] = featureCell('stone', ['fire']);
     }
   }
 

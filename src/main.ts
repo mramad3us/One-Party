@@ -4292,7 +4292,7 @@ async function main(): Promise<void> {
     engine.events.emit({
       type: 'ui:navigate',
       category: 'ui',
-      data: { screen: 'menu', direction: 'right' },
+      data: { screen: 'worldselection', direction: 'right' },
     });
   });
 
