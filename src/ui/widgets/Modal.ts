@@ -196,10 +196,16 @@ export class Modal extends Component {
         }
         .modal-footer {
           display: flex;
-          justify-content: flex-end;
+          flex-wrap: wrap;
+          justify-content: center;
           gap: var(--space-sm);
           padding: var(--space-md) var(--space-lg);
           border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .modal-footer .btn {
+          flex: 1 1 0;
+          min-width: 0;
+          padding-inline: var(--space-md);
         }
       `;
       document.head.appendChild(style);
