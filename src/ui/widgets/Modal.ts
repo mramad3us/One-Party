@@ -207,6 +207,11 @@ export class Modal extends Component {
           white-space: normal;
           text-align: center;
           padding-inline: var(--space-md);
+          letter-spacing: 0.18em !important;
+        }
+        .modal-footer .btn:hover,
+        .modal-footer .btn.kbd-focus {
+          letter-spacing: 0.18em !important;
         }
       `;
       document.head.appendChild(style);
