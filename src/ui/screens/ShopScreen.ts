@@ -4,7 +4,7 @@ import { Component } from '@/ui/Component';
 import { FocusNav } from '@/ui/FocusNav';
 import { IconSystem } from '@/ui/IconSystem';
 import { el } from '@/utils/dom';
-import { formatCoin } from '@/utils/format';
+import { formatCoinHtml, formatCurrencyHtml } from '@/utils/format';
 import { getItem } from '@/data/items';
 import {
   getBuyPrice,
@@ -12,7 +12,7 @@ import {
   buyItem,
   sellItem,
 } from '@/npc/MerchantSystem';
-import { fromCopper, canAfford, formatCurrency } from '@/rules/CurrencyRules';
+import { fromCopper, canAfford } from '@/rules/CurrencyRules';
 
 type ShopPanel = 'buy' | 'sell';
 
@@ -183,7 +183,7 @@ export class ShopScreen extends Component {
   }
 
   private renderGold(): void {
-    this.goldDisplayEl.textContent = formatCoin(
+    this.goldDisplayEl.innerHTML = formatCoinHtml(
       this.playerInv.gold,
       this.playerInv.silver,
       this.playerInv.copper,
@@ -234,7 +234,9 @@ export class ShopScreen extends Component {
       row.appendChild(info);
 
       // Price
-      row.appendChild(el('span', { class: 'shop-item-price font-mono' }, [priceDisplay]));
+      const priceEl = el('span', { class: 'shop-item-price font-mono' });
+      priceEl.innerHTML = priceDisplay;
+      row.appendChild(priceEl);
 
       // Buy button
       const buyBtn = el('button', {
@@ -292,7 +294,9 @@ export class ShopScreen extends Component {
       }
       row.appendChild(info);
 
-      row.appendChild(el('span', { class: 'shop-item-price font-mono' }, [priceDisplay]));
+      const priceEl = el('span', { class: 'shop-item-price font-mono' });
+      priceEl.innerHTML = priceDisplay;
+      row.appendChild(priceEl);
 
       const sellBtn = el('button', {
         class: 'shop-item-action btn btn-sm',
@@ -381,21 +385,22 @@ export class ShopScreen extends Component {
     this.focusNav.setItems(rows);
   }
 
-  /** Format a copper amount into a readable price string. */
+  /** Format a copper amount into HTML with coin icons. */
   private formatPrice(copper: number): string {
     const coins = fromCopper(copper);
-    return formatCurrency(coins.gold, coins.silver, coins.copper);
+    return formatCurrencyHtml(coins.gold, coins.silver, coins.copper);
   }
 
   /** Flash a status message below the panels. */
   private showStatus(message: string, type: 'success' | 'error'): void {
-    this.statusEl.textContent = message;
+    this.statusEl.innerHTML = message;
     this.statusEl.className = `shop-status shop-status--${type}`;
 
     // Auto-clear after a few seconds
+    const snapshot = message;
     setTimeout(() => {
-      if (this.statusEl.textContent === message) {
-        this.statusEl.textContent = '';
+      if (this.statusEl.innerHTML === snapshot) {
+        this.statusEl.innerHTML = '';
         this.statusEl.className = 'shop-status';
       }
     }, 3000);

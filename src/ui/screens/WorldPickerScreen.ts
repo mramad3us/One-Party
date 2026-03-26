@@ -1,9 +1,12 @@
 import type { GameEngine } from '@/engine/GameEngine';
 import type { OverworldData } from '@/types/overworld';
+import type { Universe } from '@/types/universe';
+import { getFirstCountry } from '@/types/universe';
 import { Component } from '@/ui/Component';
 import { FocusNav } from '@/ui/FocusNav';
 import { el } from '@/utils/dom';
-import { WorldExporter, type WorldExportData } from '@/storage/WorldExporter';
+import { IconSystem } from '@/ui/IconSystem';
+import { WorldExporter, type WorldExportData, type WorldExportDataV1, type WorldExportDataV2 } from '@/storage/WorldExporter';
 
 /**
  * World picker screen — import a handcrafted world from JSON.
@@ -18,6 +21,7 @@ export class WorldPickerScreen extends Component {
   private errorEl!: HTMLElement;
   private acceptBtn!: HTMLButtonElement;
   private importedOverworld: OverworldData | null = null;
+  private importedUniverse: Universe | null = null;
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
@@ -40,7 +44,8 @@ export class WorldPickerScreen extends Component {
     // ── Drop zone ──
     this.dropZone = el('div', { class: 'worldpick-dropzone' });
     const dropContent = el('div', { class: 'worldpick-dropzone-content' });
-    dropContent.appendChild(el('div', { class: 'worldpick-dropzone-icon' }, ['\u{1F4DC}'])); // 📜
+    const dropIcon = IconSystem.icon('import', 'worldpick-dropzone-icon');
+    dropContent.appendChild(dropIcon);
     dropContent.appendChild(el('p', { class: 'worldpick-dropzone-text' }, [
       'Drag & drop a world file here',
     ]));
@@ -88,8 +93,14 @@ export class WorldPickerScreen extends Component {
     // Browse button opens file picker
     const browseBtn = this.el.querySelector('.worldpick-browse');
     if (browseBtn) {
-      this.listen(browseBtn, 'click', () => this.fileInput.click());
+      this.listen(browseBtn, 'click', (e: Event) => {
+        e.stopPropagation();
+        this.fileInput.click();
+      });
     }
+
+    // Click anywhere on drop zone also triggers file picker
+    this.listen(this.dropZone, 'click', () => this.fileInput.click());
 
     // File input change
     this.listen(this.fileInput, 'change', () => {
@@ -115,12 +126,23 @@ export class WorldPickerScreen extends Component {
 
     // Accept button
     this.listen(this.acceptBtn, 'click', () => {
-      if (!this.importedOverworld) return;
-      this.engine.events.emit({
-        type: 'world:created',
-        category: 'world',
-        data: { overworld: this.importedOverworld },
-      });
+      if (this.importedUniverse) {
+        // v2 universe import
+        const firstCountry = getFirstCountry(this.importedUniverse);
+        if (!firstCountry) return;
+        this.engine.events.emit({
+          type: 'universe:created',
+          category: 'world',
+          data: { universe: this.importedUniverse, overworld: firstCountry.overworld },
+        });
+      } else if (this.importedOverworld) {
+        // v1 legacy import
+        this.engine.events.emit({
+          type: 'world:created',
+          category: 'world',
+          data: { overworld: this.importedOverworld },
+        });
+      }
     });
 
     // Back button
@@ -162,7 +184,16 @@ export class WorldPickerScreen extends Component {
           return;
         }
         const exportData = raw as WorldExportData;
-        this.importedOverworld = exportData.overworld;
+        if (exportData.version === 2) {
+          const v2 = exportData as WorldExportDataV2;
+          this.importedUniverse = v2.universe;
+          const firstCountry = getFirstCountry(v2.universe);
+          this.importedOverworld = firstCountry?.overworld ?? null;
+        } else {
+          const v1 = exportData as WorldExportDataV1;
+          this.importedOverworld = v1.overworld;
+          this.importedUniverse = null;
+        }
         this.showPreview(exportData);
       } catch {
         this.showError('Could not parse file. Is it valid JSON?');
@@ -173,7 +204,6 @@ export class WorldPickerScreen extends Component {
   }
 
   private showPreview(data: WorldExportData): void {
-    const ow = data.overworld;
     this.previewEl.innerHTML = '';
     this.previewEl.style.display = '';
 
@@ -184,25 +214,63 @@ export class WorldPickerScreen extends Component {
       grid.appendChild(el('span', { class: 'worldpick-stat-value' }, [value]));
     };
 
-    addStat('Name', ow.name);
-    addStat('Size', `${ow.width}\u00D7${ow.height}`);
-    addStat('Regions', String(ow.regions.length));
-    addStat('Seed', String(ow.seed));
+    if (data.version === 2) {
+      const v2 = data as WorldExportDataV2;
+      const u = v2.universe;
+      addStat('Universe', u.name);
+      addStat('Format', 'v2 (Hierarchical)');
+      addStat('Planes', String(u.planes.length));
 
-    // Count settlements
-    let settlements = 0;
-    for (const row of ow.tiles) {
-      for (const tile of row) {
-        if (tile.settlement) settlements++;
+      // Count continents, regions, countries
+      let continents = 0, regions = 0, countries = 0;
+      for (const p of u.planes) {
+        if (!p.inline) continue;
+        continents += p.inline.continents.length;
+        for (const c of p.inline.continents) {
+          if (!c.inline) continue;
+          regions += c.inline.regions.length;
+          for (const r of c.inline.regions) {
+            if (!r.inline) continue;
+            countries += r.inline.countries.length;
+          }
+        }
       }
+      addStat('Continents', String(continents));
+      addStat('Countries', String(countries));
+
+      if (u.meta?.author) {
+        addStat('Author', u.meta.author);
+      }
+    } else {
+      const v1 = data as WorldExportDataV1;
+      const ow = v1.overworld;
+      addStat('Name', ow.name);
+      addStat('Format', 'v1 (Legacy)');
+      addStat('Size', `${ow.width}\u00D7${ow.height}`);
+      addStat('Regions', String(ow.regions.length));
+      addStat('Seed', String(ow.seed));
+
+      let settlements = 0;
+      for (const row of ow.tiles) {
+        for (const tile of row) {
+          if (tile.settlement) settlements++;
+        }
+      }
+      addStat('Settlements', String(settlements));
     }
-    addStat('Settlements', String(settlements));
 
     if (data.exportedAt) {
       addStat('Exported', new Date(data.exportedAt).toLocaleDateString());
     }
 
+    // "Choose different file" link
+    const changeBtn = el('button', { class: 'btn btn-ghost worldpick-change' }, [
+      'Choose a different file',
+    ]);
+    changeBtn.addEventListener('click', () => this.clearState());
+
     this.previewEl.appendChild(grid);
+    this.previewEl.appendChild(changeBtn);
 
     // Enable accept
     this.acceptBtn.removeAttribute('disabled');
@@ -218,6 +286,7 @@ export class WorldPickerScreen extends Component {
 
   private clearState(): void {
     this.importedOverworld = null;
+    this.importedUniverse = null;
     this.errorEl.style.display = 'none';
     this.errorEl.textContent = '';
     this.previewEl.style.display = 'none';

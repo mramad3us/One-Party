@@ -78,6 +78,15 @@ export class MenuScreen extends Component {
       ['Settings'],
     );
 
+    actions.appendChild(newBtn);
+    actions.appendChild(continueBtn);
+    actions.appendChild(loadBtn);
+    actions.appendChild(settingsBtn);
+    screen.appendChild(actions);
+
+    // ── World management (only visible when a world is loaded) ──
+    const worldActions = el('div', { class: 'menu-world-actions' });
+
     const exportWorldBtn = el(
       'button',
       { class: 'btn btn-ghost btn-lg menu-export-world', 'data-action': 'export-world' },
@@ -90,13 +99,9 @@ export class MenuScreen extends Component {
       ['Delete World'],
     );
 
-    actions.appendChild(newBtn);
-    actions.appendChild(continueBtn);
-    actions.appendChild(loadBtn);
-    actions.appendChild(settingsBtn);
-    actions.appendChild(exportWorldBtn);
-    actions.appendChild(deleteWorldBtn);
-    screen.appendChild(actions);
+    worldActions.appendChild(exportWorldBtn);
+    worldActions.appendChild(deleteWorldBtn);
+    screen.appendChild(worldActions);
 
     // ── Footer ──
     const footer = el('div', { class: 'menu-footer' });
@@ -189,8 +194,11 @@ export class MenuScreen extends Component {
     // Check if saves exist to enable continue/load buttons
     this.checkSaves();
 
+    // Check if a world exists to show/hide world management buttons
+    this.checkWorldExists();
+
     // Keyboard navigation for menu buttons
-    const buttons = Array.from(this.el.querySelectorAll('.menu-actions .btn')) as HTMLElement[];
+    const buttons = Array.from(this.el.querySelectorAll('.menu-actions .btn, .menu-world-actions .btn')) as HTMLElement[];
     this.focusNav.setItems(buttons);
     this.focusNav.attach();
   }
@@ -220,6 +228,16 @@ export class MenuScreen extends Component {
       ) as HTMLButtonElement | null;
       if (contBtn) contBtn.removeAttribute('disabled');
       if (loadBtn) loadBtn.removeAttribute('disabled');
+    }
+  }
+
+  private checkWorldExists(): void {
+    // World management buttons only make sense when a world is loaded
+    // Check localStorage flag set by main.ts when a world is loaded
+    const hasWorld = localStorage.getItem('oneparty-has-world') !== null;
+    const worldActions = this.el.querySelector('.menu-world-actions') as HTMLElement | null;
+    if (worldActions) {
+      worldActions.style.display = hasWorld ? '' : 'none';
     }
   }
 }

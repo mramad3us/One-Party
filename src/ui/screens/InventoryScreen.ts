@@ -6,7 +6,7 @@ import { ItemCard } from '@/ui/widgets/ItemCard';
 import { IconSystem } from '@/ui/IconSystem';
 import { TooltipSystem } from '@/ui/TooltipSystem';
 import { el } from '@/utils/dom';
-import { formatCoin } from '@/utils/format';
+import { formatCoinHtml } from '@/utils/format';
 
 const EQUIP_SLOT_LABELS: Record<keyof EquipmentSlots, string> = {
   mainHand: 'Main Hand',
@@ -216,13 +216,7 @@ export class InventoryScreen extends Component {
     }
 
     // Gold display
-    this.goldDisplay.innerHTML = '';
-    const coinIcon = IconSystem.icon('coins');
-    coinIcon.classList.add('inventory-coin-icon');
-    this.goldDisplay.appendChild(coinIcon);
-    this.goldDisplay.appendChild(
-      document.createTextNode(formatCoin(inventory.gold, inventory.silver, inventory.copper)),
-    );
+    this.goldDisplay.innerHTML = formatCoinHtml(inventory.gold, inventory.silver, inventory.copper);
 
     // Update keyboard-focusable items
     const focusableItems = Array.from(this.inventoryGrid.querySelectorAll('.item-card')) as HTMLElement[];

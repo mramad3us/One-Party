@@ -285,6 +285,7 @@ export class GridRenderer {
   renderEntities(
     placements: Map<EntityId, GridEntityPlacement>,
     getInfo: (id: EntityId) => EntityRenderInfo | undefined,
+    fog?: FogOfWar,
   ): void {
     const { ctx } = this;
     const dpr = window.devicePixelRatio;
@@ -306,6 +307,9 @@ export class GridRenderer {
     for (const [entityId, placement] of placements) {
       const info = getInfo(entityId);
       if (!info) continue;
+
+      // Non-player entities are only visible when in fog-of-war visible cells
+      if (fog && !info.isPlayer && !fog.isVisible(placement.position.x, placement.position.y)) continue;
 
       const vx = placement.position.x - startX;
       const vy = placement.position.y - startY;

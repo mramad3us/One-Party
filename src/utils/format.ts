@@ -19,6 +19,34 @@ export function formatCoin(gold: number, silver: number, copper: number): string
   return parts.length > 0 ? parts.join(' ') : '0c';
 }
 
+/** SVG coin icon reference. Returns an <svg> use-href string for inline use. */
+function coinSvg(type: 'gold' | 'silver' | 'copper'): string {
+  return `<svg class="coin-icon coin-icon--${type}" aria-hidden="true"><use href="#icon-coin-${type}"/></svg>`;
+}
+
+/**
+ * Formats coins as HTML with pixel-art SVG coin icons.
+ * Returns HTML string — use innerHTML to render.
+ */
+export function formatCoinHtml(gold: number, silver: number, copper: number): string {
+  const parts: string[] = [];
+  if (gold > 0) parts.push(`<span class="coin-amount coin-amount--gold">${gold}${coinSvg('gold')}</span>`);
+  if (silver > 0) parts.push(`<span class="coin-amount coin-amount--silver">${silver}${coinSvg('silver')}</span>`);
+  if (copper > 0) parts.push(`<span class="coin-amount coin-amount--copper">${copper}${coinSvg('copper')}</span>`);
+  return parts.length > 0 ? parts.join(' ') : `<span class="coin-amount coin-amount--copper">0${coinSvg('copper')}</span>`;
+}
+
+/**
+ * Formats a currency amount as HTML with SVG icons (longer form: "5 gp, 3 sp").
+ */
+export function formatCurrencyHtml(gold: number, silver: number, copper: number): string {
+  const parts: string[] = [];
+  if (gold > 0) parts.push(`<span class="coin-amount coin-amount--gold">${gold}${coinSvg('gold')}</span>`);
+  if (silver > 0) parts.push(`<span class="coin-amount coin-amount--silver">${silver}${coinSvg('silver')}</span>`);
+  if (copper > 0) parts.push(`<span class="coin-amount coin-amount--copper">${copper}${coinSvg('copper')}</span>`);
+  return parts.length > 0 ? parts.join(' ') : `<span class="coin-amount coin-amount--copper">0${coinSvg('copper')}</span>`;
+}
+
 /** Formats a dice expression like "2d6+3". Omits bonus if 0. */
 export function formatDice(count: number, die: number, bonus?: number): string {
   let result = `${count}d${die}`;

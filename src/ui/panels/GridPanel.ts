@@ -67,6 +67,16 @@ export class GridPanel extends Component {
     this.entityInfoFn = getInfo;
   }
 
+  /** Get current entity placements (for merging updates). */
+  getEntityPlacements(): Map<EntityId, GridEntityPlacement> {
+    return this.entityPlacements;
+  }
+
+  /** Get current entity info function (for merging updates). */
+  getEntityInfoFn(): ((id: EntityId) => EntityRenderInfo | undefined) | null {
+    return this.entityInfoFn;
+  }
+
   highlightMovement(cells: Set<string>): void {
     this.renderer?.highlightCells(cells, 'rgba(50,100,255,0.8)', 0.25);
   }
@@ -126,7 +136,7 @@ export class GridPanel extends Component {
 
       this.renderer.render(this.grid, this.fog);
       if (this.entityInfoFn) {
-        this.renderer.renderEntities(this.entityPlacements, this.entityInfoFn);
+        this.renderer.renderEntities(this.entityPlacements, this.entityInfoFn, this.fog);
       }
 
       this.renderLoop = requestAnimationFrame(loop);

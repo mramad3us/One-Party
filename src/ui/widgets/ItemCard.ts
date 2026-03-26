@@ -2,7 +2,7 @@ import type { GameEngine } from '@/engine/GameEngine';
 import type { Item, Rarity, ItemType } from '@/types';
 import { Component } from '@/ui/Component';
 import { el } from '@/utils/dom';
-import { formatCoin } from '@/utils/format';
+import { formatCoinHtml } from '@/utils/format';
 
 const RARITY_CLASSES: Record<Rarity, string> = {
   common: 'item-card--common',
@@ -70,9 +70,9 @@ export class ItemCard extends Component {
     // Bottom: weight + value
     const bottom = el('div', { class: 'item-card-bottom' });
     bottom.appendChild(el('span', { class: 'item-card-weight' }, [`${item.weight} lb`]));
-    bottom.appendChild(el('span', { class: 'item-card-value' }, [
-      formatCoin(item.value.gold, item.value.silver, item.value.copper),
-    ]));
+    const valueEl = el('span', { class: 'item-card-value' });
+    valueEl.innerHTML = formatCoinHtml(item.value.gold, item.value.silver, item.value.copper);
+    bottom.appendChild(valueEl);
     card.appendChild(bottom);
 
     // Description (shown on hover via CSS max-height transition)

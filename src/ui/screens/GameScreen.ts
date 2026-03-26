@@ -531,15 +531,22 @@ export class GameScreen extends Component {
     this.gridPanel.initGrid(grid, fog);
   }
 
-  /** Update the player entity on the grid. */
+  /** Update the player entity on the grid (preserves existing NPC entities). */
   updatePlayerEntity(
     playerId: EntityId,
     position: { x: number; y: number },
     info: EntityRenderInfo,
   ): void {
-    const placements = new Map();
+    // Merge player into existing placements instead of replacing them all
+    const existing = this.gridPanel.getEntityPlacements();
+    const placements = new Map(existing);
     placements.set(playerId, { entityId: playerId, position, size: 1 });
-    this.gridPanel.updateEntities(placements, (id) => id === playerId ? info : undefined);
+
+    const existingInfoFn = this.gridPanel.getEntityInfoFn();
+    this.gridPanel.updateEntities(placements, (id) => {
+      if (id === playerId) return info;
+      return existingInfoFn?.(id);
+    });
   }
 
   /** Center the grid camera on a position. */

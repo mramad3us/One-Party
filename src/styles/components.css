@@ -592,3 +592,30 @@
 .btn-primary.kbd-focus {
   letter-spacing: 0.28em !important;
 }
+
+/* ── Coin Icons ── */
+
+.coin-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.1em;
+  margin-left: 0.1em;
+  flex-shrink: 0;
+}
+
+.coin-icon--gold { color: #d4a017; }
+.coin-icon--silver { color: #a8b4c0; }
+.coin-icon--copper { color: #b87333; }
+
+.coin-amount {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.coin-amount--gold { color: var(--gold-light, #d4a017); }
+.coin-amount--silver { color: #c0c8d4; }
+.coin-amount--copper { color: #c4845a; }

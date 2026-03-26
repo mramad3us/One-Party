@@ -1,13 +1,15 @@
 import type { SaveMeta, SaveData } from '@/types';
 import type { OverworldData } from '@/types/overworld';
+import type { Universe } from '@/types/universe';
 
 const DB_NAME = 'one-party';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const STORE_SAVE_META = 'save-meta';
 const STORE_SAVE_DATA = 'save-data';
 const STORE_SETTINGS = 'settings';
 const STORE_WORLD = 'world';
+const STORE_UNIVERSE = 'universe';
 
 /**
  * IndexedDB wrapper providing async access to save data,
@@ -34,6 +36,9 @@ export class StorageEngine {
         }
         if (oldVersion < 2) {
           db.createObjectStore(STORE_WORLD, { keyPath: 'id' });
+        }
+        if (oldVersion < 3) {
+          db.createObjectStore(STORE_UNIVERSE, { keyPath: 'id' });
         }
       };
 
@@ -175,6 +180,46 @@ export class StorageEngine {
     const store = tx.objectStore(STORE_WORLD);
     const count = await this.request<number>(store.count());
     return count > 0;
+  }
+
+  // ── Universe (v2 hierarchical worlds) ──
+
+  /** Save a universe (v2 format). Stores the full inline universe. */
+  async saveUniverse(universe: Universe): Promise<void> {
+    const tx = this.transaction(STORE_UNIVERSE, 'readwrite');
+    const store = tx.objectStore(STORE_UNIVERSE);
+    store.put(universe);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /** Load the current universe. */
+  async loadUniverse(): Promise<Universe | undefined> {
+    const tx = this.transaction(STORE_UNIVERSE, 'readonly');
+    const store = tx.objectStore(STORE_UNIVERSE);
+    const all = await this.request<Universe[]>(store.getAll());
+    return all[0];
+  }
+
+  /** Check whether a universe (v2) is stored. */
+  async hasUniverse(): Promise<boolean> {
+    const tx = this.transaction(STORE_UNIVERSE, 'readonly');
+    const store = tx.objectStore(STORE_UNIVERSE);
+    const count = await this.request<number>(store.count());
+    return count > 0;
+  }
+
+  /** Delete the stored universe. */
+  async deleteUniverse(): Promise<void> {
+    const tx = this.transaction(STORE_UNIVERSE, 'readwrite');
+    const store = tx.objectStore(STORE_UNIVERSE);
+    store.clear();
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   /** Delete all saves (used when deleting a world). */

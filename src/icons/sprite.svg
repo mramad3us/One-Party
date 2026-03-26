@@ -103,6 +103,35 @@
     <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M12 8v8"/>
   </symbol>
 
+  <!-- Pixel-art coin icons for currency display -->
+  <symbol id="icon-coin-gold" viewBox="0 0 16 16">
+    <!-- Irregular gold coin — slightly dented, hammered look -->
+    <path d="M5 2h6l2 1 1 2v1l1 2v2l-1 2-1 2-2 1h-1l-2 1H7l-2-1H4l-2-1-1-2V9L0 7V6l1-2 1-1 1-1h2z" fill="#d4a017"/>
+    <path d="M5 2h6l2 1 1 2v1l1 2v1" fill="none" stroke="#f5d442" stroke-width="0.8"/>
+    <path d="M4 14l-2-1-1-2V9L0 7V6" fill="none" stroke="#8a6914" stroke-width="0.8"/>
+    <!-- Crown stamp -->
+    <path d="M6 7l1-2 1 1 1-1 1 2H6z" fill="#8a6914" opacity="0.6"/>
+    <rect x="6" y="8" width="4" height="1" fill="#8a6914" opacity="0.4"/>
+  </symbol>
+
+  <symbol id="icon-coin-silver" viewBox="0 0 16 16">
+    <!-- Irregular silver coin — oval, worn edges -->
+    <path d="M4 3h7l2 2v1l1 1v3l-1 2-1 1-1 1H6L4 13l-1-1-1-1V7l1-2 1-2z" fill="#a8b4c0"/>
+    <path d="M4 3h7l2 2v1l1 1v1" fill="none" stroke="#d0d8e4" stroke-width="0.8"/>
+    <path d="M4 13l-1-1-1-1V7l1-2" fill="none" stroke="#6a7580" stroke-width="0.8"/>
+    <!-- Cross stamp -->
+    <path d="M8 6v4M6 8h4" stroke="#6a7580" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+  </symbol>
+
+  <symbol id="icon-coin-copper" viewBox="0 0 16 16">
+    <!-- Irregular copper coin — rough, chipped -->
+    <path d="M5 3h5l2 1 1 1 1 2v3l-1 2-2 1-1 1H6L4 13 3 12 2 10V7l1-2 1-1 1-1z" fill="#b87333"/>
+    <path d="M5 3h5l2 1 1 1 1 2" fill="none" stroke="#d4944a" stroke-width="0.8"/>
+    <path d="M4 13 3 12 2 10V7l1-2" fill="none" stroke="#7a4a1e" stroke-width="0.8"/>
+    <!-- Dot stamp -->
+    <circle cx="8" cy="8" r="1.5" fill="#7a4a1e" opacity="0.45"/>
+  </symbol>
+
   <!-- ═══ DICE ICONS ═══ -->
 
   <symbol id="icon-dice-d4" viewBox="0 0 24 24">

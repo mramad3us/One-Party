@@ -22,6 +22,9 @@ import { WorldCreationScreen } from '@/ui/screens/WorldCreationScreen';
 import { WorldSelectionScreen } from '@/ui/screens/WorldSelectionScreen';
 import { WorldPickerScreen } from '@/ui/screens/WorldPickerScreen';
 import { WorldExporter } from '@/storage/WorldExporter';
+import type { Universe } from '@/types/universe';
+import { getLocationOverride } from '@/types/universe';
+import { NPCFactory } from '@/npc/NPCFactory';
 import {
   overworldToWorld,
   getOrCreateTileLocation,
@@ -329,8 +332,9 @@ function getDirectionName(dx: number, dy: number): string {
 }
 
 /** Regenerate the base grid for a location from its overworld tile.
- *  Every overworld tile gets a 120×120 POI map. Settlement tiles get
+ *  Every overworld tile gets a 200×200 POI map. Settlement tiles get
  *  settlement POIs, terrain tiles get terrain-appropriate POIs.
+ *  If a handcrafted map exists in the universe for this tile, use it instead.
  */
 function regenerateBaseGrid(
   overworld: OverworldData,
@@ -338,8 +342,42 @@ function regenerateBaseGrid(
   tileY: number,
   _locationType: import('@/types/world').LocationType,
   biome: import('@/types/world').BiomeType,
+  universe?: Universe | null,
   entryDir: { dx: number; dy: number } = { dx: 0, dy: 0 },
 ): { grid: GridDefinition; playerStart: import('@/types').Coordinate } {
+  // Check for handcrafted map override from universe
+  if (universe) {
+    const override = getLocationOverride(universe, overworld.id ? `country_${overworld.id}` : '', tileX, tileY);
+    // Also try matching by iterating all countries to find the one whose overworld.id matches
+    const hm = override?.handcraftedMap ?? findHandcraftedMap(universe, tileX, tileY);
+    if (hm) {
+      // Build full grid from sparse handcrafted cells
+      const defaultCell: GridCell = { terrain: 'grass', movementCost: 1, blocksLoS: false, elevation: 0, features: [] };
+      const cells: GridCell[][] = [];
+      for (let y = 0; y < hm.height; y++) {
+        cells[y] = [];
+        for (let x = 0; x < hm.width; x++) {
+          cells[y][x] = { ...defaultCell, features: [] };
+        }
+      }
+      for (const [x, y, cell] of hm.cells) {
+        if (y >= 0 && y < hm.height && x >= 0 && x < hm.width) {
+          // Fix Infinity lost in JSON serialization (null or 999999 sentinel)
+          if (cell.terrain === 'wall' || cell.movementCost === 999999 || cell.movementCost === null) {
+            if (cell.terrain === 'wall') {
+              cell.movementCost = Infinity;
+              cell.blocksLoS = true;
+            } else if ((cell.movementCost as unknown) === 999999) {
+              cell.movementCost = Infinity;
+            }
+          }
+          cells[y][x] = cell;
+        }
+      }
+      return { grid: { width: hm.width, height: hm.height, cells }, playerStart: hm.playerStart };
+    }
+  }
+
   const tile = overworld.tiles[tileY][tileX];
   const poiGen = new POIMapGenerator(new SeededRNG(0));
   if (tile.settlement) {
@@ -347,6 +385,135 @@ function regenerateBaseGrid(
   }
   const waterSides = getWaterSides(overworld, tileX, tileY);
   return poiGen.generateTerrainPOI(tile.terrain, biome, tile.river, waterSides, entryDir, overworld.seed, tileX, tileY);
+}
+
+/** Search all countries in a universe for a handcrafted map at the given tile. */
+function findHandcraftedMap(
+  universe: Universe,
+  tileX: number,
+  tileY: number,
+): import('@/types/universe').LocationOverride['handcraftedMap'] | undefined {
+  for (const planeRef of universe.planes) {
+    const plane = planeRef.inline;
+    if (!plane) continue;
+    for (const contRef of plane.continents) {
+      const cont = contRef.inline;
+      if (!cont) continue;
+      for (const regRef of cont.regions) {
+        const reg = regRef.inline;
+        if (!reg) continue;
+        for (const countryRef of reg.countries) {
+          const country = countryRef.inline;
+          if (!country) continue;
+          const override = country.locationOverrides.find(
+            lo => lo.tileX === tileX && lo.tileY === tileY,
+          );
+          if (override?.handcraftedMap) return override.handcraftedMap;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Create NPC objects from handcrafted universe data and attach them to
+ * the matching world Locations. Returns all created NPCs.
+ */
+function injectHandcraftedNPCs(
+  universe: Universe,
+  world: import('@/types/world').World,
+  rng: SeededRNG,
+): import('@/types/npc').NPC[] {
+  const factory = new NPCFactory(rng);
+  const allNPCs: import('@/types/npc').NPC[] = [];
+
+  for (const planeRef of universe.planes) {
+    const plane = planeRef.inline;
+    if (!plane) continue;
+    for (const contRef of plane.continents) {
+      const cont = contRef.inline;
+      if (!cont) continue;
+      for (const regRef of cont.regions) {
+        const reg = regRef.inline;
+        if (!reg) continue;
+        for (const countryRef of reg.countries) {
+          const country = countryRef.inline;
+          if (!country) continue;
+          for (const lo of country.locationOverrides) {
+            if (!lo.npcs || lo.npcs.length === 0) continue;
+
+            // Find the Location in the world at these coordinates
+            const locationId = findLocationIdAtTile(world, lo.tileX, lo.tileY);
+            if (!locationId) continue;
+
+            for (const hnpc of lo.npcs) {
+              const role = (hnpc.role ?? 'commoner') as import('@/types/npc').NPCRole;
+              const npc = factory.createFromTemplate(role, 1, locationId);
+              // Override with handcrafted data
+              npc.name = hnpc.name;
+              if (hnpc.position) npc.position = hnpc.position;
+
+              // Find the location and add NPC to its list
+              for (const [, region] of world.regions) {
+                const loc = region.locations.get(locationId);
+                if (loc && !loc.npcs.includes(npc.id)) {
+                  loc.npcs.push(npc.id);
+                }
+              }
+              allNPCs.push(npc);
+            }
+          }
+        }
+      }
+    }
+  }
+  return allNPCs;
+}
+
+/** Find a Location ID in the world by overworld tile coordinates. */
+function findLocationIdAtTile(
+  world: import('@/types/world').World,
+  tileX: number,
+  tileY: number,
+): import('@/types').EntityId | null {
+  for (const [, region] of world.regions) {
+    for (const [locId, loc] of region.locations) {
+      if (loc.coordinates.x === tileX && loc.coordinates.y === tileY) {
+        return locId;
+      }
+    }
+  }
+  return null;
+}
+
+/** Find the start location for a handcrafted world (first LocationOverride with a map). */
+function findHandcraftedStartLocation(
+  universe: Universe,
+  world: import('@/types/world').World,
+): import('@/types').EntityId | null {
+  for (const planeRef of universe.planes) {
+    const plane = planeRef.inline;
+    if (!plane) continue;
+    for (const contRef of plane.continents) {
+      const cont = contRef.inline;
+      if (!cont) continue;
+      for (const regRef of cont.regions) {
+        const reg = regRef.inline;
+        if (!reg) continue;
+        for (const countryRef of reg.countries) {
+          const country = countryRef.inline;
+          if (!country) continue;
+          for (const lo of country.locationOverrides) {
+            if (!lo.handcraftedMap) continue;
+            const locId = findLocationIdAtTile(world, lo.tileX, lo.tileY);
+            if (locId) return locId;
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /** Compare current grid against the regenerated base; return only changed cells. */
@@ -437,6 +604,7 @@ async function main(): Promise<void> {
   let activeRng: SeededRNG | null = null;
   let activeDice: DiceRoller | null = null;
   let activeOverworld: OverworldData | null = null;
+  let activeUniverse: Universe | null = null;
   const narrator = new TextNarrativeEngine();
   const equipmentRules = new EquipmentRules();
 
@@ -557,11 +725,34 @@ async function main(): Promise<void> {
     if (!activeOverworld) {
       throw new Error('No world generated — create a world first');
     }
-    const { world, startLocationId, npcs } = overworldToWorld(activeOverworld, rng);
+    const { world, startLocationId: defaultStartId, npcs } = overworldToWorld(activeOverworld, rng);
+
+    // For handcrafted worlds, start at the first LocationOverride tile (the main city)
+    let startLocationId = defaultStartId;
+    if (activeUniverse) {
+      const overrideStart = findHandcraftedStartLocation(activeUniverse, world);
+      if (overrideStart) {
+        startLocationId = overrideStart;
+        // Ensure the start location and its region are discovered
+        for (const [, region] of world.regions) {
+          const loc = region.locations.get(startLocationId);
+          if (loc) { loc.discovered = true; region.discovered = true; break; }
+        }
+      }
+    }
 
     // Create game state
     const gameState = new GameState(world, character.id, startLocationId);
     gameState.registerNPCs(npcs);
+
+    // Inject handcrafted NPCs from universe LocationOverrides
+    if (activeUniverse) {
+      const handcraftedNPCs = injectHandcraftedNPCs(activeUniverse, world, rng);
+      if (handcraftedNPCs.length > 0) {
+        gameState.registerNPCs(handcraftedNPCs);
+      }
+    }
+
     activeGameState = gameState;
 
     // Set overworld position from starting location's coordinates
@@ -829,7 +1020,7 @@ async function main(): Promise<void> {
       } else if (activeOverworld && state.overworldPosition) {
         // New delta format: regenerate base and apply modifications
         const { x: tx, y: ty } = state.overworldPosition;
-        const base = regenerateBaseGrid(activeOverworld, tx, ty, location.locationType, region.biome);
+        const base = regenerateBaseGrid(activeOverworld, tx, ty, location.locationType, region.biome, activeUniverse);
         gridDef = base.grid;
         applyGridMods(gridDef, location.localMap.modifications ?? []);
       } else {
@@ -849,7 +1040,7 @@ async function main(): Promise<void> {
       // First visit — generate local map from deterministic seed
       if (activeOverworld && state.overworldPosition) {
         const { x: tx, y: ty } = state.overworldPosition;
-        const base = regenerateBaseGrid(activeOverworld, tx, ty, location.locationType, region.biome);
+        const base = regenerateBaseGrid(activeOverworld, tx, ty, location.locationType, region.biome, activeUniverse);
         gridDef = base.grid;
         playerStart = base.playerStart;
       } else {
@@ -1470,7 +1661,7 @@ async function main(): Promise<void> {
       const currentGrid = explorationController.getGridDefinition();
       if (currentGrid && activeOverworld && activeGameState.overworldPosition) {
         const { x: tx, y: ty } = activeGameState.overworldPosition;
-        const base = regenerateBaseGrid(activeOverworld, tx, ty, location.locationType, activeGameState.getCurrentRegion().biome);
+        const base = regenerateBaseGrid(activeOverworld, tx, ty, location.locationType, activeGameState.getCurrentRegion().biome, activeUniverse);
         location.localMap.modifications = computeGridDiff(base.grid, currentGrid);
         // Drop legacy full grid if present (migrated to delta)
         delete location.localMap.grid;
@@ -2603,8 +2794,8 @@ async function main(): Promise<void> {
           document.getElementById('app')!,
           engine,
         );
-        activeShopScreen.setShopData(npc, character.inventory);
         activeShopScreen.mount();
+        activeShopScreen.setShopData(npc, character.inventory);
         keyboardInput.setContext('menu'); // Disable exploration input while shopping
         break;
       }
@@ -2993,7 +3184,7 @@ async function main(): Promise<void> {
         gridDef = dest.localMap.grid;
       } else {
         // Delta format: regenerate + apply mods
-        const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain));
+        const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain), activeUniverse);
         gridDef = base.grid;
         applyGridMods(gridDef, dest.localMap.modifications ?? []);
       }
@@ -3005,7 +3196,7 @@ async function main(): Promise<void> {
       // First visit — generate from deterministic seed
       // Compute entry direction from travel vector
       const entryDir = curPos ? { dx: x - curPos.x, dy: y - curPos.y } : { dx: 0, dy: 0 };
-      const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain), entryDir);
+      const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain), activeUniverse, entryDir);
       gridDef = base.grid;
       playerStart = base.playerStart;
       dest.localMap = { playerStart, exploredCells: [], modifications: [] };
@@ -3544,7 +3735,7 @@ async function main(): Promise<void> {
         if (dest.localMap.grid) {
           gridDef = dest.localMap.grid;
         } else {
-          const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain));
+          const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain), activeUniverse);
           gridDef = base.grid;
           applyGridMods(gridDef, dest.localMap.modifications ?? []);
         }
@@ -3553,7 +3744,7 @@ async function main(): Promise<void> {
           fog.setState({ explored: new Set(dest.localMap.exploredCells), visible: new Set() });
         }
       } else {
-        const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain));
+        const base = regenerateBaseGrid(activeOverworld, x, y, dest.locationType, getTerrainBiome(tile.terrain), activeUniverse);
         gridDef = base.grid;
         playerStart = base.playerStart;
         dest.localMap = { playerStart, exploredCells: [], modifications: [] };
@@ -3842,6 +4033,7 @@ async function main(): Promise<void> {
     const { overworld } = event.data as { overworld: OverworldData };
     activeOverworld = overworld;
     await storage.saveWorld(overworld);
+    localStorage.setItem('oneparty-has-world', 'true');
     console.log(`[One Party] World "${overworld.name}" saved (${overworld.width}×${overworld.height})`);
 
     // Navigate directly to character creation
@@ -3852,8 +4044,27 @@ async function main(): Promise<void> {
     });
   });
 
+  // Universe v2 import — stores both the universe and extracts the active overworld
+  engine.events.on('universe:created', async (event) => {
+    const { universe, overworld } = event.data as { universe: Universe; overworld: OverworldData };
+    activeUniverse = universe;
+    activeOverworld = overworld;
+    await storage.saveUniverse(universe);
+    await storage.saveWorld(overworld);
+    localStorage.setItem('oneparty-has-world', 'true');
+    console.log(`[One Party] Universe "${universe.name}" saved (${universe.planes.length} planes)`);
+
+    engine.events.emit({
+      type: 'ui:navigate',
+      category: 'ui',
+      data: { screen: 'creation', direction: 'left' },
+    });
+  });
+
   engine.events.on('world:export', () => {
-    if (activeOverworld) {
+    if (activeUniverse) {
+      WorldExporter.download(activeUniverse);
+    } else if (activeOverworld) {
       WorldExporter.download(activeOverworld);
     }
   });
@@ -3867,9 +4078,12 @@ async function main(): Promise<void> {
     if (!confirmed) return;
 
     await storage.deleteWorld();
+    await storage.deleteUniverse();
     await storage.deleteAllSaves();
     localStorage.removeItem('oneparty-saves');
+    localStorage.removeItem('oneparty-has-world');
     activeOverworld = null;
+    activeUniverse = null;
     activeGameState = null;
     gamePopulated = false;
     engine.entities.clear();
@@ -3887,6 +4101,8 @@ async function main(): Promise<void> {
 
   if (hasWorld) {
     activeOverworld = (await storage.loadWorld()) ?? null;
+    activeUniverse = (await storage.loadUniverse()) ?? null;
+    localStorage.setItem('oneparty-has-world', 'true');
 
     const hasSaves = await saveManager.hasSaves();
     if (hasSaves) {
@@ -3896,6 +4112,7 @@ async function main(): Promise<void> {
     }
   } else {
     localStorage.removeItem('oneparty-saves');
+    localStorage.removeItem('oneparty-has-world');
   }
 
   await ui.switchScreen('menu');
