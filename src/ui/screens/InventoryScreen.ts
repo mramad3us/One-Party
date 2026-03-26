@@ -272,12 +272,22 @@ export class InventoryScreen extends Component {
 
           // Click to unequip
           slotEl.classList.add('inventory-equip-slot--filled');
+          slotEl.setAttribute('role', 'button');
+          slotEl.setAttribute('tabindex', '0');
+          slotEl.setAttribute('aria-label', `Unequip ${item.name} from ${EQUIP_SLOT_LABELS[slot]}`);
           slotEl.addEventListener('click', () => {
             this.engine.events.emit({
               type: 'inventory:unequip',
               category: 'character',
               data: { slot },
             });
+          });
+          slotEl.addEventListener('keydown', (e: Event) => {
+            const ke = e as KeyboardEvent;
+            if (ke.key === 'Enter' || ke.key === ' ') {
+              ke.preventDefault();
+              slotEl.click();
+            }
           });
         } else {
           slotEl.appendChild(el('div', { class: 'inventory-equip-empty' }, ['Empty']));

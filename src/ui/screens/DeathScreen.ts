@@ -17,6 +17,7 @@ export interface DeathScreenOptions {
  */
 export class DeathScreen extends Component {
   private options: DeathScreenOptions;
+  private timers: ReturnType<typeof setTimeout>[] = [];
 
   constructor(parent: HTMLElement, engine: GameEngine, options: DeathScreenOptions) {
     super(parent, engine);
@@ -121,11 +122,17 @@ export class DeathScreen extends Component {
     }
 
     elements.forEach((elem, i) => {
-      setTimeout(() => {
+      this.timers.push(setTimeout(() => {
         elem.style.transition = 'opacity 0.8s var(--ease-smooth), transform 0.8s var(--ease-out-back)';
         elem.style.opacity = '1';
         elem.style.transform = 'translateY(0)';
-      }, 500 + i * 300);
+      }, 500 + i * 300));
     });
+  }
+
+  destroy(): void {
+    for (const t of this.timers) clearTimeout(t);
+    this.timers = [];
+    super.destroy();
   }
 }

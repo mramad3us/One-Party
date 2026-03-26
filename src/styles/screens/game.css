@@ -324,7 +324,7 @@
 .party-member:hover { border-color: rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.02); box-shadow: none; }
 .party-member--player { border-bottom-color: rgba(255, 255, 255, 0.06); background: transparent; }
 .party-member-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xs); }
-.party-member-name { font-family: var(--font-heading); font-size: var(--text-sm); color: var(--text-primary); font-weight: 600; }
+.party-member-name { font-family: var(--font-heading); font-size: var(--text-sm); color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .party-member-name--player { color: var(--text-primary); }
 .party-member-ac { font-size: var(--text-xs); padding: 1px 6px; }
 .party-member-info { font-family: var(--font-ui); font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-xs); }

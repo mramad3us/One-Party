@@ -42,6 +42,7 @@ export class CombatHUD extends Component {
   private hpBars: Map<EntityId, ProgressBar> = new Map();
   private currentTurnId: EntityId | null = null;
   private gridToScreen: GridToScreenFn | null = null;
+  private toastTimers: ReturnType<typeof setTimeout>[] = [];
 
   constructor(parent: HTMLElement, engine: GameEngine) {
     super(parent, engine);
@@ -51,6 +52,12 @@ export class CombatHUD extends Component {
   setGridOverlay(fn: GridToScreenFn, damageContainer: HTMLElement): void {
     this.gridToScreen = fn;
     this.damageContainer = damageContainer;
+  }
+
+  destroy(): void {
+    for (const t of this.toastTimers) clearTimeout(t);
+    this.toastTimers = [];
+    super.destroy();
   }
 
   protected createElement(): HTMLElement {
@@ -170,12 +177,12 @@ export class CombatHUD extends Component {
     });
 
     // Fade out after delay
-    setTimeout(() => {
+    this.toastTimers.push(setTimeout(() => {
       toast.style.transition = 'transform 0.3s var(--ease-smooth), opacity 0.3s var(--ease-smooth)';
       toast.style.transform = 'translateX(100%)';
       toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
+      this.toastTimers.push(setTimeout(() => toast.remove(), 300));
+    }, 3000));
   }
 
   showDamageNumber(position: Coordinate, damage: number, type: DamageType): void {

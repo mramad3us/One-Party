@@ -560,7 +560,7 @@
   position: absolute;
   bottom: 12px;
   left: 12px;
-  z-index: 100;
+  z-index: var(--z-dropdown);
   width: 240px;
   background: rgba(8, 6, 4, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -730,7 +730,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: var(--z-notification);
   pointer-events: none;
 }
 
