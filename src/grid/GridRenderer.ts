@@ -9,6 +9,7 @@ import { FogOfWar } from './FogOfWar';
 import type { Tileset, TilesetRenderContext } from './Tileset';
 import { cellHash, AsciiTileset } from './Tileset';
 import { LIGHT_SOURCE_RADIUS } from '@/types/grid';
+import { FEATURE_GLOW_COLORS } from '@/data/features';
 
 // ── Visual info for entity rendering ─────────────────────────
 
@@ -379,11 +380,11 @@ export class GridRenderer {
           const cy = vy * this.cellH + this.cellH / 2 + this.offsetY;
           const radiusPx = radiusCells * Math.max(this.cellW, this.cellH);
 
-          // Pick glow color by feature type
-          let r = 255, g = 160, b = 40; // warm amber default
-          if (feat === 'fountain') { r = 100; g = 180; b = 255; } // cool blue
-          else if (feat === 'brazier') { r = 255; g = 120; b = 20; } // deep orange
-          else if (feat === 'fire') { r = 255; g = 140; b = 30; } // orange-yellow
+          // Pick glow color from registry (default warm amber)
+          const glow = FEATURE_GLOW_COLORS[feat];
+          const r = glow ? glow[0] : 255;
+          const g = glow ? glow[1] : 160;
+          const b = glow ? glow[2] : 40;
 
           const alpha = 0.12 * dim;
           const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radiusPx);

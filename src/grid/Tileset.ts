@@ -1,4 +1,5 @@
 import type { CellTerrain, CellFeature } from '@/types';
+import { FEATURE_GLYPHS } from '@/data/features';
 import type { Grid } from './Grid';
 
 // ── Tileset Interfaces ────────────────────────────────────────
@@ -131,42 +132,7 @@ const TERRAIN_GLYPHS: Record<CellTerrain, { chars: string[]; fg: string; bg: str
   pit:    { chars: [' '],              fg: '#222222', bg: '#000000' },
 };
 
-const FEATURE_GLYPHS: Record<CellFeature, { ch: string; fg: string; bg: string }> = {
-  door:        { ch: '+', fg: '#ffaa00', bg: '#332200' },
-  door_locked: { ch: '+', fg: '#ff4444', bg: '#330000' },
-  chest:       { ch: '*', fg: '#ffee00', bg: '#332a00' },
-  trap:        { ch: '^', fg: '#ff2222', bg: '#220000' },
-  stairs_up:   { ch: '<', fg: '#ffffff', bg: '#002244' },
-  stairs_down: { ch: '>', fg: '#ffffff', bg: '#002244' },
-  fountain:    { ch: '{', fg: '#00ccff', bg: '#001a33' },
-  fire:        { ch: '&', fg: '#ff6600', bg: '#331100' },
-  altar:       { ch: '_', fg: '#cc66ff', bg: '#1a0033' },
-  pillar:      { ch: 'O', fg: '#aaaaaa', bg: '#222222' },
-  tree:        { ch: 'T', fg: '#8b5a2b', bg: '#2a1a0a' },
-  rock:        { ch: '.', fg: '#888888', bg: '#333333' },
-  running_water: { ch: '~', fg: '#4ac4ff', bg: '#0a2a4a' },
-  torch_wall:       { ch: '!', fg: '#ffaa33', bg: '#331a00' },
-  torch_wall_spent: { ch: '!', fg: '#555544', bg: '#1a1a14' },
-  brazier:          { ch: '0', fg: '#ff6600', bg: '#331100' },
-  table:            { ch: 'T', fg: '#aa7733', bg: '#2a1a0a' },
-  chair:            { ch: 'h', fg: '#885522', bg: '#1a0f00' },
-  bed:              { ch: 'B', fg: '#ddccaa', bg: '#2a1a0a' },
-  shelf:            { ch: '#', fg: '#996633', bg: '#1a0f00' },
-  counter:          { ch: '=', fg: '#bb8844', bg: '#2a1a0a' },
-  anvil:            { ch: 'A', fg: '#888899', bg: '#1a1a22' },
-  barrel:           { ch: 'o', fg: '#996633', bg: '#1a0f00' },
-  crate:            { ch: 'c', fg: '#bb9955', bg: '#2a1a0a' },
-  bookshelf:        { ch: '#', fg: '#886633', bg: '#1a0f00' },
-  rug:              { ch: '~', fg: '#cc3333', bg: '#330a0a' },
-  banner:           { ch: '|', fg: '#cc2222', bg: '#330000' },
-  well:             { ch: 'O', fg: '#8888aa', bg: '#1a1a22' },
-  market_stall:     { ch: 'M', fg: '#996633', bg: '#2a1a0a' },
-  sign:             { ch: '!', fg: '#aa7733', bg: '#1a0f00' },
-  candle:           { ch: 'i', fg: '#ffdd33', bg: '#332a00' },
-  chandelier:       { ch: 'Y', fg: '#ccaa33', bg: '#332a00' },
-  weapon_rack:      { ch: '/', fg: '#aaaabb', bg: '#1a1a22' },
-  hearth:           { ch: '&', fg: '#ff8822', bg: '#331100' },
-};
+// FEATURE_GLYPHS imported from @/data/features (centralized registry)
 
 export class AsciiTileset implements Tileset {
   readonly name = 'Classic ASCII';

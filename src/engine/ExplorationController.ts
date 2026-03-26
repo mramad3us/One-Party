@@ -12,6 +12,7 @@ import { SurvivalNarrator } from '@/narrative/SurvivalNarrator';
 import { ForageRules } from '@/rules/ForageRules';
 import type { ForageOption } from '@/rules/ForageRules';
 import { getItem } from '@/data/items';
+import { FEATURES, FEATURE_NARRATIVES } from '@/data/features';
 import { gameTimeToCalendar } from '@/types/time';
 
 /** Descriptions for bumping into impassable terrain */
@@ -56,141 +57,7 @@ const MOVE_FLAVORS: string[] = [
   'Cobwebs cling to your arms as you push through a narrow gap.',
 ];
 
-/** Feature discovery narratives */
-const FEATURE_NARRATIVES: Record<CellFeature, string[]> = {
-  door: [
-    'A heavy wooden door stands here, its iron handle worn smooth by countless hands.',
-    'You notice a door set into the wall. It looks like it could be opened.',
-  ],
-  door_locked: [
-    'A sturdy door bars the way. The lock gleams — it won\'t yield without a key or clever fingers.',
-    'An iron-banded door stands sealed. You\'ll need to find a way to open it.',
-  ],
-  chest: [
-    'A wooden chest sits in the corner, its lid firmly shut. Something glints between the slats.',
-    'You spot a chest half-hidden in the shadows. Who knows what treasures it holds?',
-  ],
-  trap: [
-    'Your eye catches something — a thin wire stretched across the floor. A trap!',
-    'A subtle discoloration in the stone betrays a pressure plate. Someone doesn\'t want you here.',
-  ],
-  fire: [
-    'Flames crackle and dance, casting long shadows across the walls. The warmth is welcome, but the fire blocks the way.',
-  ],
-  altar: [
-    'An ancient stone altar rises from the floor, its surface carved with worn symbols. You feel a faint thrum of old power.',
-  ],
-  stairs_up: [
-    'Stone steps spiral upward into darkness. Whatever lies above, it awaits your arrival.',
-    'A staircase leads up, its steps worn smooth by ages of passage.',
-  ],
-  stairs_down: [
-    'Steps descend into deeper shadow. The air rising from below is cool and carries a faint musty scent.',
-    'A stairway plunges downward. The lower depths await.',
-  ],
-  fountain: [
-    'A stone fountain bubbles with clear water. The sound is oddly soothing in this place.',
-    'Cool water wells up from a carved basin, catching the light. It looks safe to drink.',
-  ],
-  pillar: [
-    'A thick stone pillar supports the ceiling here, carved with faded patterns.',
-  ],
-  tree: [
-    'A gnarled tree spreads its branches overhead, roots gripping the earth like claws.',
-    'An ancient tree stands here, its bark scarred by wind and time.',
-  ],
-  rock: [
-    'A weathered boulder juts from the ground, its surface pocked and cracked.',
-    'A large stone rests here, half-buried and stubborn as the mountains that spawned it.',
-  ],
-  running_water: [
-    'A stream flows here, swift and clear over smooth stones. The water looks safe to drink.',
-    'Running water courses along a natural channel, glinting in the light. You could refill your waterskin here.',
-  ],
-  torch_wall: [
-    'A torch burns in an iron sconce on the wall, casting flickering shadows across the stone.',
-    'Firelight dances from a wall-mounted torch, its flame guttering in an unseen draft.',
-  ],
-  torch_wall_spent: [
-    'An empty iron sconce juts from the wall, its torch long since burned to ash. Soot stains the stone above it like a black tongue.',
-    'A spent torch hangs limp in its bracket, nothing but a charred stub. This place has been dark a long time.',
-    'The remains of a wall torch — a blackened stick in a rusted sconce. Whoever lit it last never came back.',
-  ],
-  brazier: [
-    'A large brazier crackles with burning coals, its warmth radiating outward in waves. The fire pit lights the chamber with a deep orange glow.',
-    'An iron brazier stands here, its bed of embers painting the surrounding stone in shades of amber and crimson.',
-  ],
-  table: [
-    'A sturdy wooden table stands here, its surface scarred by years of use.',
-    'A well-crafted table occupies this space, its planks worn smooth by countless meals and meetings.',
-  ],
-  chair: [
-    'A simple wooden chair sits here, waiting for someone to rest their weary bones.',
-  ],
-  bed: [
-    'A bed with rumpled linens offers the promise of rest in this unforgiving place.',
-    'A sleeping pallet lies here, its blankets still bearing the impression of whoever last sought respite.',
-  ],
-  shelf: [
-    'A tall wooden shelf looms here, its boards sagging under the weight of accumulated goods.',
-    'Shelves line the wall, cluttered with dusty odds and ends.',
-  ],
-  counter: [
-    'A polished wooden counter stretches across the space, its surface worn by years of commerce.',
-  ],
-  anvil: [
-    'A heavy iron anvil squats on a thick stump, its face pitted from a thousand hammer blows.',
-    'An anvil stands here, dark and massive. The ring of steel on iron still seems to hang in the air.',
-  ],
-  barrel: [
-    'A stout wooden barrel stands here, its staves bound with iron bands.',
-    'A barrel rests against the wall. Something sloshes faintly within.',
-  ],
-  crate: [
-    'A wooden crate sits here, its planks nailed shut. Whatever is inside was meant to stay there.',
-    'A sturdy shipping crate occupies this corner, its contents a mystery.',
-  ],
-  bookshelf: [
-    'A towering bookshelf reaches toward the ceiling, its shelves crammed with leather-bound volumes.',
-    'Books of every size and color crowd these shelves. The scent of old parchment fills the air.',
-  ],
-  rug: [
-    'A richly woven rug covers the floor, its patterns faded but still beautiful.',
-    'A decorative rug lies underfoot, its crimson and gold threads speaking of distant lands.',
-  ],
-  banner: [
-    'A fabric banner hangs from the wall, its colors faded but its heraldry still legible.',
-    'A tattered banner sways in a draft you cannot feel, bearing symbols of an age gone by.',
-  ],
-  well: [
-    'A stone well rises from the ground, its rope and bucket still intact. Dark water gleams far below.',
-    'You peer into a deep well. The water at the bottom reflects a perfect circle of light.',
-  ],
-  market_stall: [
-    'A vendor\'s stall stands here, its colorful awning shading a counter of wares.',
-    'A market stall displays its goods beneath a bright canopy, awaiting customers.',
-  ],
-  sign: [
-    'A wooden signpost juts from the ground, its painted letters pointing the way.',
-    'A weathered sign hangs here, its message still readable despite the elements.',
-  ],
-  candle: [
-    'A lone candle flickers in a holder, its small flame casting a warm circle of light.',
-    'A candle gutters here, its wax pooling in a brass dish. The flame dances with each breath of air.',
-  ],
-  chandelier: [
-    'An ornate chandelier hangs overhead, its many candles bathing the room in warm, golden light.',
-    'A brass chandelier sways gently above, its flames casting shifting shadows across the walls.',
-  ],
-  weapon_rack: [
-    'A wooden rack displays an array of weapons — blades, hafts, and points gleaming in the dim light.',
-    'Weapons of various make hang from a sturdy rack, ready to be claimed by willing hands.',
-  ],
-  hearth: [
-    'A stone hearth crackles with a welcoming fire, its warmth seeping into your bones.',
-    'A fireplace dominates the wall, its flames licking at blackened stones. The scent of woodsmoke fills the air.',
-  ],
-};
+// FEATURE_NARRATIVES imported from @/data/features (centralized registry)
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -1310,42 +1177,6 @@ export class ExplorationController implements GameSystem {
   }
 
   private describeFeature(feature: CellFeature): string {
-    const descriptions: Record<CellFeature, string> = {
-      door: 'a door',
-      door_locked: 'a locked door',
-      chest: 'a chest',
-      trap: 'a trap',
-      fire: 'a fire',
-      altar: 'an altar',
-      stairs_up: 'stairs leading up',
-      stairs_down: 'stairs leading down',
-      fountain: 'a fountain',
-      pillar: 'a stone pillar',
-      tree: 'a gnarled tree',
-      rock: 'a large rock',
-      running_water: 'flowing water',
-      torch_wall: 'a wall torch',
-      torch_wall_spent: 'a spent torch',
-      brazier: 'a brazier',
-      table: 'a wooden table',
-      chair: 'a chair',
-      bed: 'a bed',
-      shelf: 'a shelf',
-      counter: 'a counter',
-      anvil: 'an anvil',
-      barrel: 'a barrel',
-      crate: 'a crate',
-      bookshelf: 'a bookshelf',
-      rug: 'a decorative rug',
-      banner: 'a hanging banner',
-      well: 'a stone well',
-      market_stall: 'a market stall',
-      sign: 'a signpost',
-      candle: 'a candle',
-      chandelier: 'a chandelier',
-      weapon_rack: 'a weapon rack',
-      hearth: 'a hearth',
-    };
-    return descriptions[feature] ?? 'something';
+    return FEATURES[feature]?.label ?? 'something';
   }
 }

@@ -1,5 +1,5 @@
 import type { Coordinate, GridCell, GridDefinition, CellTerrain, CellFeature } from '@/types';
-import { FEATURE_PHYSICS } from '@/types/grid';
+import { FEATURE_PHYSICS } from '@/data/features';
 import type { LocationType, BiomeType, SubLocationType } from '@/types/world';
 import type { OverworldTerrain } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';

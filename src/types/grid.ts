@@ -49,46 +49,11 @@ export type CellFeature =
   | 'candle'
   | 'chandelier'
   | 'weapon_rack'
-  | 'hearth';
+  | 'hearth'
+  | 'bench';
 
-/**
- * Physical properties for features — determines passability and LoS blocking.
- * Features not listed here default to passable + transparent.
- */
-export const FEATURE_PHYSICS: Partial<Record<CellFeature, { blocks: boolean; blocksLoS: boolean }>> = {
-  // Solid furniture — impassable, blocks LoS
-  tree:         { blocks: true, blocksLoS: true },
-  rock:         { blocks: true, blocksLoS: true },
-  pillar:       { blocks: true, blocksLoS: true },
-  counter:      { blocks: true, blocksLoS: true },
-  shelf:        { blocks: true, blocksLoS: true },
-  bookshelf:    { blocks: true, blocksLoS: true },
-  barrel:       { blocks: true, blocksLoS: true },
-  crate:        { blocks: true, blocksLoS: true },
-  bed:          { blocks: true, blocksLoS: false },
-  well:         { blocks: true, blocksLoS: false },
-  anvil:        { blocks: true, blocksLoS: false },
-  weapon_rack:  { blocks: true, blocksLoS: true },
-  market_stall: { blocks: true, blocksLoS: true },
-  chest:        { blocks: true, blocksLoS: false },
-  hearth:       { blocks: true, blocksLoS: false },
-  fountain:     { blocks: true, blocksLoS: false },
-  door_locked:  { blocks: true, blocksLoS: true },
-  // Passable — can walk through
-  // door, table, chair, rug, banner, candle, fire, altar, stairs_up, stairs_down,
-  // torch_wall, torch_wall_spent, brazier, chandelier, sign, running_water, trap
-};
-
-/** Features that emit light and their radius in grid cells (1 cell = 5ft) */
-export const LIGHT_SOURCE_RADIUS: Partial<Record<CellFeature, number>> = {
-  torch_wall: 5,   // 25ft — wall sconce
-  brazier: 6,      // 30ft — large fire pit
-  fire: 5,         // 25ft — campfire
-  fountain: 3,     // 15ft — faint magical glow
-  candle: 2,       // 10ft — small flame
-  chandelier: 5,   // 25ft — overhead light
-  hearth: 4,       // 20ft — fireplace glow
-};
+// Re-export from centralized feature registry for backwards compatibility
+export { FEATURE_PHYSICS, LIGHT_SOURCE_RADIUS } from '@/data/features';
 
 /** A single cell in the tactical grid */
 export type GridCell = {

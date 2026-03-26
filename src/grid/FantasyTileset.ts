@@ -1,4 +1,5 @@
 import type { CellTerrain, CellFeature } from '@/types';
+import { FEATURE_COLORS } from '@/data/features';
 import type { Tileset, TilesetRenderContext } from './Tileset';
 import { getWallChar } from './Tileset';
 import { spriteRenderer } from './PixelSprites';
@@ -82,42 +83,7 @@ const TERRAIN_COLORS: Record<CellTerrain, { base: RGB; alt: RGB; accent: RGB }> 
   pit:    { base: [8, 6, 4],      alt: [12, 10, 8],    accent: [5, 4, 3] },
 };
 
-const FEATURE_COLORS: Record<CellFeature, { primary: RGB; secondary: RGB; bg: RGB }> = {
-  door:        { primary: [200, 140, 40],  secondary: [160, 110, 30],  bg: [80, 55, 20] },
-  door_locked: { primary: [200, 50, 50],   secondary: [160, 40, 40],   bg: [80, 20, 20] },
-  chest:       { primary: [240, 200, 40],  secondary: [200, 160, 30],  bg: [80, 65, 15] },
-  trap:        { primary: [220, 40, 40],   secondary: [180, 30, 30],   bg: [60, 15, 15] },
-  stairs_up:   { primary: [200, 210, 220], secondary: [150, 160, 170], bg: [30, 50, 80] },
-  stairs_down: { primary: [200, 210, 220], secondary: [150, 160, 170], bg: [30, 50, 80] },
-  fountain:    { primary: [40, 180, 240],  secondary: [30, 140, 200],  bg: [15, 50, 80] },
-  fire:        { primary: [255, 140, 20],  secondary: [255, 80, 10],   bg: [80, 30, 5] },
-  altar:       { primary: [180, 80, 240],  secondary: [140, 60, 200],  bg: [50, 20, 80] },
-  pillar:      { primary: [160, 155, 145], secondary: [130, 125, 115], bg: [70, 68, 62] },
-  tree:        { primary: [50, 120, 40],   secondary: [100, 70, 30],   bg: [20, 45, 15] },
-  rock:        { primary: [120, 115, 108], secondary: [95, 90, 82],    bg: [55, 52, 48] },
-  running_water: { primary: [60, 180, 255], secondary: [30, 140, 220], bg: [10, 40, 70] },
-  torch_wall:       { primary: [255, 170, 50], secondary: [200, 120, 30], bg: [80, 40, 10] },
-  torch_wall_spent: { primary: [85, 80, 65],  secondary: [60, 55, 45],  bg: [30, 28, 22] },
-  brazier:          { primary: [255, 120, 20], secondary: [220, 80, 10],  bg: [80, 30, 5] },
-  table:            { primary: [160, 110, 50], secondary: [130, 85, 35],  bg: [90, 60, 25] },
-  chair:            { primary: [120, 80, 35],  secondary: [95, 62, 28],   bg: [65, 42, 18] },
-  bed:              { primary: [230, 220, 200], secondary: [130, 85, 40], bg: [80, 55, 25] },
-  shelf:            { primary: [140, 95, 42],  secondary: [110, 72, 32],  bg: [75, 50, 22] },
-  counter:          { primary: [170, 120, 55], secondary: [140, 95, 40],  bg: [95, 65, 28] },
-  anvil:            { primary: [90, 90, 95],   secondary: [60, 60, 65],   bg: [35, 35, 40] },
-  barrel:           { primary: [145, 95, 38],  secondary: [110, 70, 28],  bg: [75, 48, 18] },
-  crate:            { primary: [175, 135, 70], secondary: [140, 105, 50], bg: [95, 72, 32] },
-  bookshelf:        { primary: [130, 85, 38],  secondary: [100, 65, 28],  bg: [68, 44, 18] },
-  rug:              { primary: [165, 40, 40],  secondary: [200, 165, 50], bg: [120, 28, 28] },
-  banner:           { primary: [180, 35, 35],  secondary: [210, 180, 50], bg: [130, 25, 25] },
-  well:             { primary: [130, 130, 135], secondary: [50, 120, 190], bg: [85, 85, 90] },
-  market_stall:     { primary: [145, 100, 45], secondary: [180, 50, 50],  bg: [95, 65, 28] },
-  sign:             { primary: [140, 95, 42],  secondary: [220, 215, 200], bg: [90, 60, 25] },
-  candle:           { primary: [255, 220, 60], secondary: [140, 95, 42],  bg: [80, 55, 22] },
-  chandelier:       { primary: [200, 170, 60], secondary: [255, 220, 80], bg: [140, 115, 40] },
-  weapon_rack:      { primary: [100, 65, 30],  secondary: [170, 170, 180], bg: [65, 42, 18] },
-  hearth:           { primary: [255, 150, 30], secondary: [130, 130, 135], bg: [80, 30, 5] },
-};
+// FEATURE_COLORS imported from @/data/features (centralized registry)
 
 // ── Terrain Patterns (8×8) — Faux-Isometric 3/4 View ────────
 // Bottom rows show a south-facing edge/lip for depth.
@@ -1230,6 +1196,9 @@ export class FantasyTileset implements Tileset {
         break;
       case 'hearth':
         pattern = makeHearthPattern(colors.primary, colors.secondary);
+        break;
+      case 'bench':
+        pattern = makeChairPattern(colors.primary, colors.secondary);
         break;
     }
 

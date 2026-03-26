@@ -14,6 +14,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // ── Inline types (mirrors src/types) ────────────────────────────
+// NOTE: Feature physics (blocks, blocksLoS, lightRadius) are canonically
+// defined in src/data/features.ts. This build tool duplicates them inline
+// because it runs standalone and cannot import from src/.
 
 type CellTerrain = 'floor' | 'wall' | 'water' | 'lava' | 'pit' | 'grass' | 'stone' | 'ice' | 'mud' | 'sand' | 'wood';
 type CellFeature = 'door' | 'door_locked' | 'trap' | 'chest' | 'fire' | 'altar' | 'stairs_up' | 'stairs_down'
@@ -22,7 +25,7 @@ type CellFeature = 'door' | 'door_locked' | 'trap' | 'chest' | 'fire' | 'altar' 
   | 'banner' | 'well' | 'market_stall' | 'sign' | 'candle' | 'chandelier' | 'weapon_rack' | 'hearth' | 'bench';
 type GridCell = { terrain: CellTerrain; movementCost: number; blocksLoS: boolean; elevation: number; features: CellFeature[] };
 
-/** Physical properties for features — must match src/types/grid.ts FEATURE_PHYSICS */
+/** Inline copy of physics — must match src/data/features.ts FEATURES registry */
 const FEATURE_PHYSICS: Partial<Record<CellFeature, { blocks: boolean; blocksLoS: boolean }>> = {
   tree: { blocks: true, blocksLoS: true }, rock: { blocks: true, blocksLoS: true },
   pillar: { blocks: true, blocksLoS: true }, counter: { blocks: true, blocksLoS: true },
@@ -126,7 +129,6 @@ class MapBuilder {
     const existing = this.get(x, y);
     if (existing) {
       existing.features.push(feat);
-      // Upgrade passability if feature is blocking
       if (phys?.blocks && existing.movementCost < Infinity) {
         existing.movementCost = Infinity;
       }
