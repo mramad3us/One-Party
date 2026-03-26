@@ -110,7 +110,8 @@ class MapBuilder {
   /** Place a feature on an existing cell, or create a floor cell with the feature. */
   feature(x: number, y: number, feat: CellFeature, terrain?: CellTerrain): void {
     const existing = this.get(x, y);
-    if (existing && existing.movementCost < Infinity) {
+    if (existing) {
+      // Add feature to existing cell (whether wall or floor)
       existing.features.push(feat);
       this.set(x, y, existing);
     } else {
