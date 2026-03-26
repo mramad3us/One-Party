@@ -37,7 +37,7 @@ import type { OverworldData } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { isDevMode, setDevMode } from '@/utils/devmode';
 import { DiceRoller } from '@/rules/DiceRoller';
-import { addCoins, optimizeCoins, totalPlayerDenominations, coinCount } from '@/rules/CurrencyRules';
+import { addCoins, optimizeCoins, totalPlayerDenominations, coinCount, canAfford, deduct } from '@/rules/CurrencyRules';
 import { formatCoinHtml } from '@/utils/format';
 import { TextNarrativeEngine } from '@/narrative/NarrativeEngine';
 import { SurvivalRules } from '@/rules/SurvivalRules';
@@ -46,7 +46,7 @@ import { getItem } from '@/data/items';
 import { getSpell } from '@/data/spells';
 import { getBonusAction } from '@/data/bonusActions';
 import type { ConsumableProperties } from '@/types/item';
-import { ROUNDS_PER_HOUR } from '@/types/time';
+import { ROUNDS_PER_HOUR, ROUNDS_PER_DAY } from '@/types/time';
 import { KeyboardInput } from '@/engine/KeyboardInput';
 import { ExplorationController } from '@/engine/ExplorationController';
 import { Grid } from '@/grid/Grid';
@@ -2822,41 +2822,122 @@ async function main(): Promise<void> {
         });
         break;
       }
-      case 'rest': {
-        // Innkeeper rest — long rest
-        activeGameScreen.addNarrative({
-          text: `${npc.name} leads you to a small but clean room upstairs. You settle into the straw mattress and drift into a deep, restorative sleep.`,
-          category: 'action',
-        });
-        // Advance time by 8 hours via proper method
+      case 'short_rest': {
+        // Innkeeper short rest — buy a meal and rest by the fire (1 hour)
+        const mealCost = 20; // 2 silver in copper
+        if (!canAfford(character.inventory, mealCost)) {
+          activeGameScreen.addNarrative({
+            text: `${npc.name} eyes your empty purse with sympathy. "I'm sorry, friend — a meal costs two silver. I can't give them away, much as I'd like to."`,
+            category: 'dialogue',
+          });
+          break;
+        }
+        if (character.currentHp >= character.maxHp && character.hitDice.current === 0) {
+          activeGameScreen.addNarrative({
+            text: `${npc.name} looks you over. "You seem hale enough, traveller. Save your coin for when you truly need the rest."`,
+            category: 'dialogue',
+          });
+          break;
+        }
+        deduct(character.inventory, mealCost);
+        // Spend hit dice to heal — auto-spend up to full HP
+        const dice = new DiceRoller(activeRng ?? new SeededRNG(Date.now()));
+        const restRules = new RestRules(dice);
+        const hpMissing = character.maxHp - character.currentHp;
+        const hdToSpend = hpMissing > 0 ? Math.min(character.hitDice.current, character.hitDice.max) : 0;
+        const shortResult = restRules.shortRest(character, hdToSpend);
+        // Advance time by 1 hour
         if (activeGameState) {
-          activeGameState.advanceTime(8 * 600);
+          activeGameState.advanceTime(ROUNDS_PER_HOUR);
         }
-        // Heal to full, restore features
-        character.currentHp = character.maxHp;
-        character.hitDice.current = Math.min(
-          character.hitDice.max,
-          character.hitDice.current + Math.max(1, Math.floor(character.hitDice.max / 2)),
-        );
-        for (const feat of character.features) {
-          if (feat.usesMax !== undefined) {
-            feat.usesRemaining = feat.usesMax;
+        // Narrative
+        const mealLines = [
+          `${npc.name} sets a steaming bowl of thick stew before you, with crusty bread still warm from the oven. You settle into a chair by the hearth and eat in comfortable silence.`,
+        ];
+        if (shortResult.hpHealed > 0) {
+          mealLines.push(`The warmth of the fire and a full belly work their quiet magic. You recover **${shortResult.hpHealed} HP** (${shortResult.hitDiceUsed} hit ${shortResult.hitDiceUsed === 1 ? 'die' : 'dice'} spent).`);
+        } else {
+          mealLines.push('A fine meal, though your body has no wounds left to mend.');
+        }
+        if (shortResult.featuresRecharged.length > 0) {
+          mealLines.push(`The respite restores your focus: **${shortResult.featuresRecharged.join(', ')}** recharged.`);
+        }
+        for (const line of mealLines) {
+          activeGameScreen.addNarrative({ text: line, category: 'action' });
+        }
+        // Refresh player HUD
+        {
+          const pos = explorationController.getGrid()?.getEntityPosition(character.id);
+          if (pos) {
+            activeGameScreen.updatePlayerEntity(character.id, pos, {
+              name: character.name, color: '#2a2520', symbol: '@',
+              hp: character.currentHp, maxHp: character.maxHp,
+              isPlayer: true, isAlly: false, size: 1,
+              conditions: character.conditions.map(c => c.type),
+              spriteId: character.class,
+            });
           }
         }
-        // Restore spell slots
-        if (character.spellcasting) {
-          for (const level in character.spellcasting.spellSlots) {
-            const slot = character.spellcasting.spellSlots[Number(level)];
-            if (slot) slot.current = slot.max;
-          }
+        break;
+      }
+      case 'rest': {
+        // Innkeeper long rest — rent a room (8 hours)
+        const roomCost = 50; // 5 silver in copper
+        if (!canAfford(character.inventory, roomCost)) {
+          activeGameScreen.addNarrative({
+            text: `${npc.name} shakes their head gently. "A room for the night runs five silver, friend. Come back when your purse is heavier."`,
+            category: 'dialogue',
+          });
+          break;
         }
+        // Enforce one long rest per 24 hours
+        const currentRound = activeGameState?.world.time.totalRounds ?? 0;
+        const lastRest = character.lastLongRestRound ?? 0;
+        if (currentRound - lastRest < ROUNDS_PER_DAY) {
+          const hoursLeft = Math.ceil((ROUNDS_PER_DAY - (currentRound - lastRest)) / ROUNDS_PER_HOUR);
+          activeGameScreen.addNarrative({
+            text: `${npc.name} raises an eyebrow. "You only just rose from bed! Your body won't benefit from more sleep for another ${hoursLeft} ${hoursLeft === 1 ? 'hour' : 'hours'} or so. Go stretch your legs, then come back."`,
+            category: 'dialogue',
+          });
+          break;
+        }
+        deduct(character.inventory, roomCost);
+        // Apply long rest via RestRules
+        const longDice = new DiceRoller(activeRng ?? new SeededRNG(Date.now()));
+        const longRestRules = new RestRules(longDice);
+        const longResult = longRestRules.longRest(character);
+        character.lastLongRestRound = currentRound + (8 * ROUNDS_PER_HOUR);
         // Reset survival fatigue
         if (character.survival) {
           character.survival.fatigue = 0;
           character.survival.exhaustionLevel = SurvivalRules.calculateExhaustion(character.survival);
         }
+        // Advance time by 8 hours
+        if (activeGameState) {
+          activeGameState.advanceTime(8 * ROUNDS_PER_HOUR);
+        }
+        // Narrative
         activeGameScreen.addNarrative({
-          text: 'You wake refreshed after a full night\'s rest. Your wounds have mended, and your strength is restored.',
+          text: `${npc.name} leads you up a creaking staircase to a small but tidy room. A straw mattress lies beneath a wool blanket, and a basin of clean water sits on the nightstand. You bolt the door, wash the road-dust from your face, and collapse into dreamless sleep.`,
+          category: 'action',
+        });
+        const restLines: string[] = [];
+        if (longResult.hpHealed > 0) {
+          restLines.push(`You wake with the dawn, body mended and spirit renewed. **${longResult.hpHealed} HP** restored to full.`);
+        } else {
+          restLines.push('You wake with the dawn, well-rested and ready for the road ahead.');
+        }
+        if (longResult.hitDiceRecovered > 0) {
+          restLines.push(`${longResult.hitDiceRecovered} hit ${longResult.hitDiceRecovered === 1 ? 'die' : 'dice'} recovered.`);
+        }
+        if (longResult.spellSlotsRecovered) {
+          restLines.push('Your spell slots are fully restored.');
+        }
+        if (longResult.featuresRecharged.length > 0) {
+          restLines.push(`**${longResult.featuresRecharged.join(', ')}** recharged.`);
+        }
+        activeGameScreen.addNarrative({
+          text: restLines.join(' '),
           category: 'description',
         });
         // Refresh player HUD
@@ -4519,6 +4600,18 @@ function openRestMenu(
 
   const longBtn = el('button', { class: 'btn btn-primary rest-btn' }, ['Take Long Rest']);
 
+  // 24-hour cooldown check
+  const campCurrentRound = gameState.world.time.totalRounds;
+  const campLastRest = character.lastLongRestRound ?? 0;
+  if (campCurrentRound - campLastRest < ROUNDS_PER_DAY) {
+    const campHoursLeft = Math.ceil((ROUNDS_PER_DAY - (campCurrentRound - campLastRest)) / ROUNDS_PER_HOUR);
+    longBtn.setAttribute('disabled', '');
+    longBtn.title = `You must wait ${campHoursLeft} more ${campHoursLeft === 1 ? 'hour' : 'hours'} before another long rest`;
+    const cooldownWarn = el('p', { class: 'rest-warning font-mono' });
+    cooldownWarn.textContent = `You cannot benefit from another long rest for ${campHoursLeft} more ${campHoursLeft === 1 ? 'hour' : 'hours'}.`;
+    longSection.appendChild(cooldownWarn);
+  }
+
   if (!hasFood || !hasWater) {
     const warning = el('p', { class: 'rest-warning font-mono' });
     const missing: string[] = [];
@@ -4622,6 +4715,7 @@ function openRestMenu(
 
     // Apply rest rules (full HP, hit dice, spell slots, features)
     const result = restRules.longRest(character);
+    character.lastLongRestRound = gameState.world.time.totalRounds;
 
     // Reset fatigue
     SurvivalRules.rest(character.survival);

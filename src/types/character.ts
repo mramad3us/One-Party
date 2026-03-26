@@ -161,4 +161,6 @@ export interface Character extends Entity {
   initiative: number | null;
   epicBoons: EpicBoon[];
   survival: SurvivalState;
+  /** Game round when the last long rest was completed (for 24-hour cooldown). */
+  lastLongRestRound?: number;
 }
