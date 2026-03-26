@@ -388,7 +388,7 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
   m.feature(46, 71, 'counter');
   m.feature(44, 70, 'barrel');               // Kegs behind bar
   m.feature(46, 70, 'barrel');
-  m.feature(42, 78, 'stairs_up');            // To rooms
+  m.feature(42, 77, 'stairs_up');            // To rooms (north of interior wall)
   m.feature(30, 72, 'chandelier');
   m.feature(40, 72, 'chandelier');
   // Interior wall dividing common room from guest rooms
@@ -455,20 +455,20 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
   m.feature(112, 56, 'torch_wall');
 
   // ─── CASERNE DES GARDES ─── (barracks/guard house)
-  // Far east
-  m.building(142, 34, 18, 14, 'w', 7, 'stone');
+  // Far east (width 16 to clear Rue des Remparts at x=158-159)
+  m.building(142, 34, 16, 14, 'w', 7, 'stone');
   // Armory side
   m.feature(145, 37, 'weapon_rack');
   m.feature(147, 37, 'weapon_rack');
   m.feature(149, 37, 'weapon_rack');
   m.feature(145, 39, 'chest');
-  // Bunks
+  // Bunks (shifted inward)
+  m.feature(151, 37, 'bed');
   m.feature(153, 37, 'bed');
   m.feature(155, 37, 'bed');
-  m.feature(157, 37, 'bed');
+  m.feature(151, 39, 'bed');
   m.feature(153, 39, 'bed');
   m.feature(155, 39, 'bed');
-  m.feature(157, 39, 'bed');
   // Common area
   m.feature(150, 42, 'table');
   m.feature(149, 42, 'chair');
@@ -479,8 +479,8 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
   m.feature(145, 44, 'hearth');
   m.feature(143, 36, 'torch_wall');
   m.feature(143, 44, 'torch_wall');
-  m.feature(158, 36, 'torch_wall');
-  m.feature(158, 44, 'torch_wall');
+  m.feature(156, 36, 'torch_wall');
+  m.feature(156, 44, 'torch_wall');
   m.feature(155, 36, 'banner');
 
   // ─── HÔTEL DE VILLE ─── (town hall)
@@ -554,16 +554,16 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
   m.feature(107, 140, 'barrel');
   m.feature(109, 140, 'crate');
 
-  // ─── WAREHOUSE 1 ───
-  m.building(115, 124, 14, 10, 'w', 5, 'stone');
-  m.feature(118, 126, 'crate');
+  // ─── WAREHOUSE 1 ─── (moved east to clear Rue des Artisans at x=115-116)
+  m.building(117, 124, 14, 10, 'w', 5, 'stone');
   m.feature(120, 126, 'crate');
   m.feature(122, 126, 'crate');
-  m.feature(124, 126, 'barrel');
-  m.feature(118, 130, 'barrel');
+  m.feature(124, 126, 'crate');
+  m.feature(126, 126, 'barrel');
   m.feature(120, 130, 'barrel');
-  m.feature(122, 130, 'crate');
+  m.feature(122, 130, 'barrel');
   m.feature(124, 130, 'crate');
+  m.feature(126, 130, 'crate');
 
   // ─── WAREHOUSE 2 ───
   m.building(135, 124, 12, 10, 'w', 5, 'stone');
@@ -632,12 +632,12 @@ function buildPlassans(): { map: typeof dummyMap; npcs: HandcraftedNPC[]; pois: 
   m.feature(34, 126, 'shelf');
   m.feature(30, 128, 'hearth');
 
-  // House 8: North of market
-  m.building(42, 93, 10, 8, 'e', 4, 'wood');
-  m.feature(44, 95, 'bed');
-  m.feature(48, 95, 'table');
-  m.feature(47, 95, 'chair');
-  m.feature(44, 97, 'shelf');
+  // House 8: North of market (ends at y=98, clear of Rue du Commerce at y=100)
+  m.building(42, 91, 10, 8, 'e', 4, 'wood');
+  m.feature(44, 93, 'bed');
+  m.feature(48, 93, 'table');
+  m.feature(47, 93, 'chair');
+  m.feature(44, 95, 'shelf');
 
   // House 9: Central east
   m.building(142, 55, 12, 8, 'w', 4, 'wood');

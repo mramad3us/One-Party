@@ -144,7 +144,6 @@ export class InventoryScreen extends Component {
 
   mount(): void {
     super.mount();
-    this.focusNav.attach();
   }
 
   destroy(): void {

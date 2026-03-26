@@ -205,10 +205,9 @@ export class MenuScreen extends Component {
 
   mount(): void {
     super.mount();
-    // Re-attach focus nav when remounting
+    // Re-set focus nav items when remounting
     const buttons = Array.from(this.el.querySelectorAll('.menu-actions .btn')) as HTMLElement[];
     this.focusNav.setItems(buttons);
-    this.focusNav.attach();
   }
 
   destroy(): void {

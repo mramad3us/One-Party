@@ -150,7 +150,6 @@ export class ShopScreen extends Component {
 
   mount(): void {
     super.mount();
-    // focusNav.attach is already called in setupEvents via super.mount
   }
 
   destroy(): void {
@@ -388,15 +387,17 @@ export class ShopScreen extends Component {
     return formatCurrencyHtml(coins.gold, coins.silver, coins.copper);
   }
 
+  private statusSeq = 0;
+
   /** Flash a status message below the panels. */
   private showStatus(message: string, type: 'success' | 'error'): void {
     this.statusEl.innerHTML = message;
     this.statusEl.className = `shop-status shop-status--${type}`;
 
-    // Auto-clear after a few seconds
-    const snapshot = message;
+    // Auto-clear after a few seconds (use sequence counter to avoid innerHTML comparison issues)
+    const seq = ++this.statusSeq;
     setTimeout(() => {
-      if (this.statusEl.innerHTML === snapshot) {
+      if (this.statusSeq === seq) {
         this.statusEl.innerHTML = '';
         this.statusEl.className = 'shop-status';
       }

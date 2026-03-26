@@ -144,7 +144,6 @@ export class CreationScreen extends Component {
   mount(): void {
     super.mount();
     this.renderStep();
-    this.focusNav.attach();
   }
 
   destroy(): void {
