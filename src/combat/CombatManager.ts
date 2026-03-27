@@ -44,6 +44,9 @@ import {
   narrateOpportunityAttack,
   narrateUnarmedStrike,
   narrateFeatureHealing,
+  narrateDivineOracleAttack,
+  narrateDivineOracleSave,
+  narrateGreaterMagicImmunity,
 } from './CombatNarration';
 
 /** Active spell buff/debuff on a combat participant. */
@@ -710,6 +713,11 @@ export class CombatManager {
       }
     }
 
+    // Prepend Divine Oracle flavor when Naelia is attacked and the feature triggers
+    if (this.participantHasFeature(target, 'divine_oracle') && !result.success) {
+      result.description = narrateDivineOracleAttack() + ' ' + result.description;
+    }
+
     this.emitOrDefer({
       type: 'combat:attack',
       category: 'combat',
@@ -1018,7 +1026,17 @@ export class CombatManager {
       // Narrate based on primary target's result
       const primary = perEntityResults[0];
       if (primary) {
-        description = narrateSpellSave(spell.name, primary.saved, primary.damage, damageType ?? 'magical', primary.saveTotal, spellSaveDC);
+        const primaryTarget_ = this.participants.get(primary.id);
+        // Prepend divine feature flavor when Naelia saves
+        let featureFlavor = '';
+        if (primary.saved && primaryTarget_) {
+          if (this.participantHasFeature(primaryTarget_, 'divine_oracle')) {
+            featureFlavor = narrateDivineOracleSave() + ' ';
+          } else if (this.participantHasFeature(primaryTarget_, 'greater_magic_immunity')) {
+            featureFlavor = narrateGreaterMagicImmunity() + ' ';
+          }
+        }
+        description = featureFlavor + narrateSpellSave(spell.name, primary.saved, primary.damage, damageType ?? 'magical', primary.saveTotal, spellSaveDC);
         if (conditionsApplied.length > 0 && !primary.saved) {
           description += ` (${conditionsApplied.join(', ')} applied)`;
         }

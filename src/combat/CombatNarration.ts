@@ -576,6 +576,39 @@ const SPELL_NARRATION: Record<string, NarrationEntry> = {
   },
 };
 
+// ── Naelia Feature Flavor Text ──
+
+const DIVINE_ORACLE_ATTACK = [
+  'Naelia\'s eyes flash with prescient light — she sees the blow coming before it is even launched.',
+  'The goddess reads her attacker\'s intent like an open book, already shifting before the strike begins.',
+  'Time seems to slow around Naelia as divine foresight guides her every movement.',
+  'The attacker\'s muscles tense — and Naelia is already elsewhere, having seen this moment a heartbeat ago.',
+];
+
+const DIVINE_ORACLE_SAVE = [
+  'Divine foresight ripples through Naelia — she sees the spell\'s weave before it reaches her.',
+  'The goddess perceived the danger before it manifested, her divine awareness transcending mortal magic.',
+  'Naelia\'s eyes glow briefly — the Oracle saw this threat coming since before the battle began.',
+];
+
+const GREATER_MAGIC_IMMUNITY = [
+  'The spell crashes against Naelia\'s divine nature like waves against a mountain — and breaks apart.',
+  'Lesser magic cannot touch a god. The spell simply... dissipates before reaching her.',
+  'Naelia barely acknowledges the spell. Mortal magic has no dominion over her.',
+];
+
+export function narrateDivineOracleAttack(): string {
+  return pick(DIVINE_ORACLE_ATTACK);
+}
+
+export function narrateDivineOracleSave(): string {
+  return pick(DIVINE_ORACLE_SAVE);
+}
+
+export function narrateGreaterMagicImmunity(): string {
+  return pick(GREATER_MAGIC_IMMUNITY);
+}
+
 // ── Melee Attack Narration ──
 
 const MELEE_HIT: Record<string, string[]> = {
