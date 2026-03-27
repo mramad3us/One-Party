@@ -84,6 +84,7 @@ import type { LocationType, LightingLevel } from '@/types/world';
 import type { NPC } from '@/types/npc';
 import { ShopScreen } from '@/ui/screens/ShopScreen';
 import { NPCInteraction } from '@/npc/NPCInteraction';
+import { spriteRenderer } from '@/grid/PixelSprites';
 
 // ── Lighting by location type ────────────────────────────────────
 
@@ -557,6 +558,9 @@ async function main(): Promise<void> {
 
   // 2. Initialize icon system
   await IconSystem.init();
+
+  // 2b. Preload PNG image sprites
+  await spriteRenderer.preloadImages();
 
   // 3. Initialize tooltip system
   TooltipSystem.init();

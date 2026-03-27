@@ -7,9 +7,22 @@
 // ── Types ────────────────────────────────────────────────────
 
 interface SpriteDefinition {
-  pixels: string[];                 // 16 rows of 16 chars, '.' = transparent
+  pixels: string[];                 // N rows of N chars, '.' = transparent
   palette: Record<string, string>;  // char → hex color
+  size?: number;                    // pixel dimensions (default 16)
 }
+
+interface ImageSpriteDefinition {
+  src: string; // path served from /public (e.g. '/sprites/naelia.png')
+}
+
+// ── Image Sprite Registry ─────────────────────────────────────
+// PNG sprites take priority over text-encoded sprites of the same ID.
+
+const IMAGE_SPRITE_REGISTRY: Record<string, ImageSpriteDefinition> = {
+  // PNG sprites can be added here — they take priority over text-encoded sprites.
+  // Example: naelia: { src: '/sprites/naelia.png' },
+};
 
 // ── Character Class Sprites ──────────────────────────────────
 
@@ -2827,47 +2840,54 @@ const AMBIENT_RAT: SpriteDefinition = {
 
 const NAELIA: SpriteDefinition = {
   palette: {
-    // Silver-white hair (3 shades)
-    H: '#e8e8f4', // hair highlight
-    h: '#c0c0d8', // hair mid
-    J: '#9898b8', // hair shadow
-    // White/silver gown (4 shades)
-    W: '#f0f0f8', // gown highlight
-    w: '#d8d8e8', // gown mid-light
-    R: '#b8b8d0', // gown mid-shadow
-    r: '#9898b0', // gown deep shadow
-    // Teal/blue belt + gem (3 shades)
-    T: '#60d8e8', // gem bright
-    t: '#3898b0', // belt mid
-    D: '#206878', // belt dark
-    // Skin (2 shades — pale, luminous)
-    S: '#f8e8e0', // skin lit
-    s: '#e0c8b8', // skin shadow
-    // Eyes — bright blue
-    E: '#40a8f0', // eye color
-    // Cloak lining — deep midnight blue
-    C: '#283858', // cloak dark
-    c: '#384868', // cloak mid
-    // Gold necklace accent
-    G: '#f0d060', // gold
+    // Silver hair (4 shades — strand texture via alternating bright/shadow)
+    A: '#e8e0f0', // hair brightest silver
+    H: '#c8c0d8', // hair mid silver
+    h: '#9890a8', // hair shadow
+    j: '#585080', // hair darkest edge
+    // White divine gown (3 shades)
+    W: '#f0e8f0', // gown highlight — divine white
+    w: '#d0c8d8', // gown mid
+    X: '#a8a0b0', // gown shadow / fold
+    // Dark cloak (3 shades)
+    C: '#4c5c78', // cloak highlight
+    c: '#283858', // cloak mid navy
+    D: '#1c2840', // cloak deepest
+    // Skin (2 shades)
+    S: '#f0c8a0', // skin lit
+    s: '#d0a078', // skin shadow
+    // Eyes
+    E: '#40c8d8', // iris cyan
+    B: '#182030', // brow / pupil
+    // Gold accents (2 shades)
+    G: '#f0c850', // gold bright
+    g: '#c09830', // gold shadow
+    // Gem
+    T: '#40d0e0', // gem bright cyan
+    // Belt
+    L: '#3c6480', // belt leather
+    // Lips
+    M: '#d08880', // mouth
+    // Shoes
+    P: '#c04030', // shoe red
   },
   pixels: [
-    '....hHHHHHh.....',
-    '...JhHHHHHhJ....',
-    '...JhWSSWHhJ....',
-    '....wSEsSEs.....',
-    '....JsSGSsJ.....',
-    '...RWWWWWWWR....',
-    '..rRWWtTtWWRr...',
-    '.CrRWDtTtDWRrC..',
-    '.CcrRWWWWWRrcC..',
-    '..CcRWWWWWRcC...',
-    '...CrWWWWWrC....',
-    '...CrWW.WWrC....',
-    '...crRW.WRrc....',
-    '...crRW.WRrc....',
-    '..ccrR...Rrcc...',
-    '................',
+    '................', // 00
+    '.....hHAHHh.....', // 01 hair top
+    '....hHAHAHAh....', // 02 hair wider
+    '...hhSSSSSShhh..', // 03 forehead, hair frames
+    '...hSSESSESSh...', // 04 eyes — cyan
+    '...hhSSSSSShh...', // 05 chin
+    '...h.sSSSs.h....', // 06 neck, hair drapes
+    '..hXwWWWWwXh....', // 07 shoulders, hair sides
+    '..hXWWWWWWwXh...', // 08 upper torso
+    '..hXgGTTGgXh....', // 09 belt with gems
+    '..hXWWWWWWwXh...', // 10 upper skirt
+    '...XwWWWWwwX....', // 11 mid skirt
+    '...XwWWWWwwX....', // 12 lower
+    '...XXwwwwXX.....', // 13 hem
+    '......Ss.sS.....', // 14 feet
+    '................', // 15
   ],
 };
 
@@ -3003,36 +3023,57 @@ function applyAutoOutline(data: Uint8ClampedArray, w: number, h: number): void {
 
 class SpriteRenderer {
   private cache = new Map<string, HTMLCanvasElement>();
+  private imageBitmapCache = new Map<string, ImageBitmap>();
 
-  /** Check if a sprite exists for the given ID. */
+  /** Check if a sprite exists for the given ID (text or image). */
   has(id: string): boolean {
-    return id in SPRITE_REGISTRY;
+    return id in IMAGE_SPRITE_REGISTRY || id in SPRITE_REGISTRY;
   }
 
-  /** Get or create the cached 16×16 canvas for a sprite (with auto-outline). */
+  /**
+   * Preload all PNG image sprites into ImageBitmap cache.
+   * Call once at game startup before any rendering occurs.
+   */
+  async preloadImages(): Promise<void> {
+    const loads = Object.entries(IMAGE_SPRITE_REGISTRY).map(async ([id, def]) => {
+      if (this.imageBitmapCache.has(id)) return;
+      try {
+        const resp = await fetch(def.src);
+        const blob = await resp.blob();
+        const bitmap = await createImageBitmap(blob);
+        this.imageBitmapCache.set(id, bitmap);
+      } catch {
+        // Silently skip — will fall back to text sprite if available
+      }
+    });
+    await Promise.all(loads);
+  }
+
+  /** Get or create the cached canvas for a text-encoded sprite (with auto-outline). */
   private getSpriteCanvas(id: string): HTMLCanvasElement | null {
     if (this.cache.has(id)) return this.cache.get(id)!;
 
     const def = SPRITE_REGISTRY[id];
     if (!def) return null;
 
+    const size = def.size ?? 16;
     const canvas = document.createElement('canvas');
-    canvas.width = 16;
-    canvas.height = 16;
+    canvas.width = size;
+    canvas.height = size;
     const ctx = canvas.getContext('2d')!;
-    const imageData = ctx.createImageData(16, 16);
+    const imageData = ctx.createImageData(size, size);
     const data = imageData.data;
 
     // Render sprite pixels
-    for (let y = 0; y < 16; y++) {
+    for (let y = 0; y < size; y++) {
       const row = def.pixels[y] ?? '';
-      for (let x = 0; x < 16; x++) {
+      for (let x = 0; x < size; x++) {
         const ch = row[x];
         if (!ch || ch === '.') continue;
         const color = def.palette[ch];
         if (!color) continue;
         const [r, g, b, a] = hexToRGBA(color);
-        const idx = (y * 16 + x) * 4;
+        const idx = (y * size + x) * 4;
         data[idx] = r;
         data[idx + 1] = g;
         data[idx + 2] = b;
@@ -3041,7 +3082,7 @@ class SpriteRenderer {
     }
 
     // Auto-generate outline
-    applyAutoOutline(data, 16, 16);
+    applyAutoOutline(data, size, size);
 
     ctx.putImageData(imageData, 0, 0);
     this.cache.set(id, canvas);
@@ -3050,7 +3091,8 @@ class SpriteRenderer {
 
   /**
    * Draw a sprite onto a canvas context, scaled to fill the target rect.
-   * Uses nearest-neighbor interpolation for crisp pixel art.
+   * PNG ImageBitmap sprites are drawn with smoothing (they're high-res).
+   * Text-encoded sprites use nearest-neighbor for crisp pixel art.
    */
   renderSprite(
     ctx: CanvasRenderingContext2D,
@@ -3060,6 +3102,17 @@ class SpriteRenderer {
     w: number,
     h: number,
   ): boolean {
+    // PNG image sprite takes priority — nearest-neighbor for pixel art look
+    const bitmap = this.imageBitmapCache.get(id);
+    if (bitmap) {
+      const prev = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(bitmap, x, y, w, h);
+      ctx.imageSmoothingEnabled = prev;
+      return true;
+    }
+
+    // Fall back to text-encoded sprite
     const src = this.getSpriteCanvas(id);
     if (!src) return false;
 
@@ -3097,9 +3150,6 @@ class SpriteRenderer {
    * Returns a canvas element sized to displaySize × displaySize with crisp pixel art.
    */
   createMiniCanvas(id: string, displaySize: number): HTMLCanvasElement | null {
-    const src = this.getSpriteCanvas(id);
-    if (!src) return null;
-
     const dpr = window.devicePixelRatio || 1;
     const canvas = document.createElement('canvas');
     canvas.width = displaySize * dpr;
@@ -3107,8 +3157,20 @@ class SpriteRenderer {
     canvas.style.width = `${displaySize}px`;
     canvas.style.height = `${displaySize}px`;
     canvas.style.imageRendering = 'pixelated';
-
     const ctx = canvas.getContext('2d')!;
+
+    // PNG image sprite — nearest-neighbor for pixel art look
+    const bitmap = this.imageBitmapCache.get(id);
+    if (bitmap) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      return canvas;
+    }
+
+    // Text-encoded sprite
+    const src = this.getSpriteCanvas(id);
+    if (!src) return null;
+
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
     return canvas;
@@ -3117,6 +3179,7 @@ class SpriteRenderer {
   /** Clear the cache (e.g. on theme change). */
   clearCache(): void {
     this.cache.clear();
+    // ImageBitmaps are permanent — no need to re-fetch on theme change
   }
 }
 
