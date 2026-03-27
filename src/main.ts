@@ -2577,9 +2577,9 @@ async function main(): Promise<void> {
       character.currentHp = Math.min(character.maxHp, character.currentHp + healAmount);
     }
 
-    // Check for level-ups after XP award
+    // Check for level-ups after XP award (skip for level-0 characters)
     const levelBefore = character.level;
-    if (result.victory) {
+    if (result.victory && character.level > 0) {
       checkAndApplyLevelUps(character, activeGameScreen, levelUpRules);
     }
     const levelsGained = character.level - levelBefore;
@@ -2622,18 +2622,19 @@ async function main(): Promise<void> {
       statsSection.appendChild(statsList);
       content.appendChild(statsSection);
 
-      // XP
-      const xpSection = el('div', { class: 'combat-summary-section combat-summary-xp' });
-      xpSection.appendChild(el('span', { class: 'combat-summary-xp-label' }, ['Experience Gained']));
-      xpSection.appendChild(el('span', { class: 'combat-summary-xp-value' }, [`+${xpEarned} XP`]));
-      content.appendChild(xpSection);
+      // XP + Level Up (hidden for level-0 characters like Naelia)
+      if (character.level > 0) {
+        const xpSection = el('div', { class: 'combat-summary-section combat-summary-xp' });
+        xpSection.appendChild(el('span', { class: 'combat-summary-xp-label' }, ['Experience Gained']));
+        xpSection.appendChild(el('span', { class: 'combat-summary-xp-value' }, [`+${xpEarned} XP`]));
+        content.appendChild(xpSection);
 
-      // Level Up
-      if (levelsGained > 0) {
-        const lvlSection = el('div', { class: 'combat-summary-section combat-summary-xp' });
-        lvlSection.appendChild(el('span', { class: 'combat-summary-xp-label' }, ['Level Up!']));
-        lvlSection.appendChild(el('span', { class: 'combat-summary-xp-value' }, [`Level ${character.level}`]));
-        content.appendChild(lvlSection);
+        if (levelsGained > 0) {
+          const lvlSection = el('div', { class: 'combat-summary-section combat-summary-xp' });
+          lvlSection.appendChild(el('span', { class: 'combat-summary-xp-label' }, ['Level Up!']));
+          lvlSection.appendChild(el('span', { class: 'combat-summary-xp-value' }, [`Level ${character.level}`]));
+          content.appendChild(lvlSection);
+        }
       }
 
       // Loot
@@ -2691,7 +2692,9 @@ async function main(): Promise<void> {
           if (result.victory) {
             // Add narrative after modal dismissed
             activeGameScreen?.addNarrative({
-              text: `Victory! The battle is won. You earn ${xpEarned} experience.`,
+              text: character.level > 0
+                ? `Victory! The battle is won. You earn ${xpEarned} experience.`
+                : 'Victory! The battle is won.',
               category: 'action',
             });
             for (const item of lootItems) {
@@ -5769,8 +5772,8 @@ function openRestMenu(
     }
     gameScreen.addNarrative({ text: narrativeParts.join(' '), category: 'system' });
 
-    // Check for any pending level-ups (safety net in case XP was awarded but level-up was missed)
-    checkAndApplyLevelUps(character, gameScreen, levelUpRules);
+    // Check for any pending level-ups (safety net — skip for level-0 characters)
+    if (character.level > 0) checkAndApplyLevelUps(character, gameScreen, levelUpRules);
 
     const transition = TimeNarrator.describeTimeTransition(timeBeforeRest, gameState.world.time);
     if (transition) {
