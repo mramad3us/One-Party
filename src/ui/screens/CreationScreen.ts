@@ -361,7 +361,7 @@ export class CreationScreen extends Component {
 
     const grid = el('div', { class: 'creation-grid' });
 
-    for (const race of SRD_RACES) {
+    for (const race of SRD_RACES.filter(r => r.id !== 'celestial')) {
       const option = el('div', {
         class: 'creation-option',
         'data-race': race.id,
@@ -438,7 +438,8 @@ export class CreationScreen extends Component {
         ? SRD_CLASSES.filter(c => CASTER_IDS.includes(c.id))
         : SRD_CLASSES;
 
-    const race = SRD_RACES[Math.floor(Math.random() * SRD_RACES.length)];
+    const playableRaces = SRD_RACES.filter(r => r.id !== 'celestial');
+    const race = playableRaces[Math.floor(Math.random() * playableRaces.length)];
     const cls = classPool[Math.floor(Math.random() * classPool.length)];
     const name = QUICK_NAMES[Math.floor(Math.random() * QUICK_NAMES.length)];
 
