@@ -366,6 +366,11 @@ export const SRD_RACES: RaceDefinition[] = [
         description:
           'Through the Gown of Power, you and Seraphine are the two faces of the same being — a being of unimaginable power, well past the threshold of greater godhood.',
       },
+      {
+        name: 'Darkvision',
+        description:
+          'You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.',
+      },
     ],
   },
 ];

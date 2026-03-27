@@ -1034,13 +1034,25 @@ export class ExplorationController implements GameSystem {
    */
   /** Get the effective ambient light at the player's current position. */
   private getEffectiveAmbient(): number {
-    const ambient = this.getAmbientLight();
+    let ambient = this.getAmbientLight();
     // Interior tiles (enclosed by walls) are always dark regardless of time of day
     if (this.playerPosition) {
       const interior = this.computeInteriorTiles();
-      if (interior.has(`${this.playerPosition.x},${this.playerPosition.y}`)) return 1;
+      if (interior.has(`${this.playerPosition.x},${this.playerPosition.y}`)) ambient = 1;
+    }
+    // Darkvision: treat dark as dim, dim as bright (D&D 5e rules)
+    if (this.hasDarkvision()) {
+      if (ambient <= 2) ambient = 5;
+      else if (ambient <= 5) ambient = 8;
     }
     return ambient;
+  }
+
+  /** Check if the player character has the Darkvision trait. */
+  private hasDarkvision(): boolean {
+    const character = this.getCharacter?.();
+    if (!character) return false;
+    return character.features.some(f => f.name === 'Darkvision');
   }
 
   private getVisionRange(): number {
