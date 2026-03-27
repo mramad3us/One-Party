@@ -3857,8 +3857,9 @@ async function main(): Promise<void> {
         new Resolver(templateRegistry, rng), rng,
       );
       const encounterDice = new DiceRoller(new SeededRNG(Date.now()));
-      // ~20% base chance, forced in dev mode
-      const encounterDC = isDevMode() ? 1 : 17;
+      // DC derived from location spawn density (dangerous areas = lower DC = more encounters)
+      const tileBiome = getTerrainBiome(tile.terrain);
+      const encounterDC = isDevMode() ? 1 : encounterResolver.getEncounterDC(dest, tileBiome);
       const encounterRoll = encounterDice.rollD20();
       const encounterTriggered = encounterRoll.total >= encounterDC;
 
@@ -3871,7 +3872,7 @@ async function main(): Promise<void> {
       await DiceDisplay.showRollQuick(document.body, encounterRollDisplay, engine);
 
       if (encounterTriggered) {
-        const encounter = encounterResolver.generateEncounter(dest, character.level, 1);
+        const encounter = encounterResolver.generateEncounter(dest, character.level, 1, tileBiome);
         if (encounter) {
           const encounterDesc = (encounter.resolvedData['description'] as string) ?? 'Enemies appear!';
           activeGameScreen.addNarrative({
@@ -4387,9 +4388,11 @@ async function main(): Promise<void> {
         new Resolver(templateRegistry, rng), rng,
       );
 
-      // Roll a d20 encounter check — show it to the player
+      // Roll a d20 encounter check — DC from spawn table density + travel distance bonus
       const encounterDice = new DiceRoller(new SeededRNG(Date.now() + i));
-      const encounterDC = isDevMode() ? 1 : Math.round(20 * (1 - (0.15 + Math.min(0.3, i * 0.05))));
+      const travelBiome = getTerrainBiome(tile.terrain);
+      const travelDistanceBonus = Math.min(0.15, i * 0.03);
+      const encounterDC = isDevMode() ? 1 : encounterResolver.getEncounterDC(dest, travelBiome, travelDistanceBonus);
       const encounterRoll = encounterDice.rollD20();
       const encounterTriggered = encounterRoll.total >= encounterDC;
 
@@ -4403,7 +4406,7 @@ async function main(): Promise<void> {
       await DiceDisplay.showRollQuick(document.body, encounterRollDisplay, engine);
 
       if (encounterTriggered && !fastTravelCancelled) {
-        const encounter = encounterResolver.generateEncounter(dest, character.level, 1);
+        const encounter = encounterResolver.generateEncounter(dest, character.level, 1, travelBiome);
         if (encounter) {
           // Pause travel — show ambush narrative
           const encounterDesc = (encounter.resolvedData['description'] as string) ?? 'Enemies appear!';

@@ -1,7 +1,8 @@
-import type { Location, ResolvedEvent } from '@/types';
+import type { Location, ResolvedEvent, BiomeType } from '@/types';
 import { Resolver } from './Resolver';
 import { SeededRNG } from '@/utils/SeededRNG';
-
+import { getSpawnPool, pickFromPool, densityToEncounterDC } from '@/data/spawnTables';
+import { getMonster } from '@/data/monsters';
 
 export class EncounterResolver {
   constructor(
@@ -9,14 +10,105 @@ export class EncounterResolver {
     private rng: SeededRNG,
   ) {}
 
+  /**
+   * Generate an encounter using location-based spawn tables.
+   * Picks thematic monsters from the spawn pool for this location/biome.
+   * Returns a ResolvedEvent compatible with CombatController.startEncounter().
+   */
   generateEncounter(
+    location: Location,
+    _partyLevel: number,
+    _partySize: number,
+    biome?: BiomeType,
+  ): ResolvedEvent | null {
+    const pool = getSpawnPool(location.locationType, location.tags, biome);
+    if (!pool || pool.entries.length === 0) {
+      // Fallback to template-based generation
+      return this.generateFromTemplates(location, _partyLevel, _partySize);
+    }
+
+    // Pick a monster from the weighted pool
+    const pick = pickFromPool(pool.entries, () => this.rng.next());
+    if (!pick) return null;
+
+    // Determine group size
+    const minCount = pick.minCount ?? 1;
+    const maxCount = pick.maxCount ?? 1;
+    const enemyCount = this.rng.nextInt(minCount, maxCount);
+
+    // Look up the monster for narrative info
+    const monster = getMonster(pick.monsterId);
+    const monsterName = monster?.name ?? 'enemies';
+    const plural = enemyCount > 1;
+
+    // Build encounter description
+    const descriptions = [
+      `${plural ? `A group of ${monsterName}s` : `A ${monsterName}`} blocks your path!`,
+      `You stumble upon ${plural ? `${enemyCount} ${monsterName}s` : `a ${monsterName}`}!`,
+      `${plural ? `${monsterName}s` : `A ${monsterName}`} ${plural ? 'emerge' : 'emerges'} from the shadows!`,
+      `An ambush! ${plural ? `${monsterName}s` : `A ${monsterName}`} ${plural ? 'attack' : 'attacks'}!`,
+    ];
+    const description = descriptions[this.rng.nextInt(0, descriptions.length - 1)];
+
+    // Construct ResolvedEvent matching the shape CombatController expects
+    const event: ResolvedEvent = {
+      templateId: `spawn_${pick.monsterId}`,
+      type: 'encounter',
+      timestamp: { totalRounds: 0 },
+      resolvedData: {
+        name: `${monsterName} Encounter`,
+        description,
+        monsterIds: [pick.monsterId],
+        actualEnemyCount: enemyCount,
+        encounterDifficulty: monster ? this.crToDifficulty(monster.cr) : 'medium',
+      },
+      narrativeHints: [],
+    };
+
+    return event;
+  }
+
+  /**
+   * Get the encounter DC for a location based on its spawn table density.
+   * Higher density → lower DC → more encounters.
+   * Returns 21 (impossible) if no spawn table exists for this location.
+   */
+  getEncounterDC(
+    location: Location,
+    biome?: BiomeType,
+    travelDistanceBonus?: number,
+  ): number {
+    const pool = getSpawnPool(location.locationType, location.tags, biome);
+    if (!pool) return 21; // No spawns possible
+
+    let density = pool.density;
+    // Travel distance increases encounter chance
+    if (travelDistanceBonus !== undefined && travelDistanceBonus > 0) {
+      density = Math.min(1, density + travelDistanceBonus);
+    }
+
+    return densityToEncounterDC(density);
+  }
+
+  /**
+   * Map monster CR to encounter difficulty label.
+   * This is based on the monster's threat, not the party's level.
+   */
+  private crToDifficulty(cr: number): 'easy' | 'medium' | 'hard' | 'deadly' {
+    if (cr <= 0.5) return 'easy';
+    if (cr <= 2) return 'medium';
+    if (cr <= 5) return 'hard';
+    return 'deadly';
+  }
+
+  // ── Legacy template-based fallback ──
+
+  /** Fallback: generate encounter from templates (for locations without spawn tables). */
+  private generateFromTemplates(
     location: Location,
     partyLevel: number,
     partySize: number,
   ): ResolvedEvent | null {
-    // Build state for template matching
-    // Encounter templates cap at ~10, so clamp high-level characters
-    // to ensure templates still match regardless of mode.
     const effectiveLevel = Math.min(partyLevel, 5);
     const state: Record<string, unknown> = {
       partyLevel: effectiveLevel,
@@ -26,26 +118,18 @@ export class EncounterResolver {
       totalRounds: 0,
     };
 
-    // Find eligible encounter templates
     const eligible = this.resolver.findEligibleTemplates('encounter', state);
-
     if (eligible.length === 0) return null;
 
-    // Filter by location tags
     const locationMatches = eligible.filter((t) =>
       t.tags.includes(location.locationType) || t.tags.includes('any'),
     );
-
     const pool = locationMatches.length > 0 ? locationMatches : eligible;
 
-    // Weighted random selection
     const weights = pool.map((t) => t.weight);
     const template = this.rng.weightedPick(pool, weights);
-
-    // Resolve the template
     const event = this.resolver.resolve(template, state);
 
-    // Determine actual enemy count from template data
     const minEnemies = (template.data['minEnemies'] as number) ?? 1;
     const maxEnemies = (template.data['maxEnemies'] as number) ?? 3;
     const enemyCount = this.rng.nextInt(
@@ -54,58 +138,8 @@ export class EncounterResolver {
     );
 
     event.resolvedData['actualEnemyCount'] = enemyCount;
-    event.resolvedData['encounterDifficulty'] = this.getEncounterDifficulty(partyLevel, partySize);
+    event.resolvedData['encounterDifficulty'] = 'medium';
 
     return event;
-  }
-
-  shouldEncounter(location: Location, travelDistance?: number): boolean {
-    // Base encounter chance varies by location type
-    let baseChance: number;
-    switch (location.locationType) {
-      case 'dungeon':
-      case 'cave':
-        baseChance = 0.35;
-        break;
-      case 'wilderness':
-      case 'ruins':
-        baseChance = 0.20;
-        break;
-      case 'village':
-      case 'town':
-      case 'city':
-        baseChance = 0.05;
-        break;
-      default:
-        baseChance = 0.15;
-    }
-
-    // Travel distance increases encounter chance
-    if (travelDistance !== undefined && travelDistance > 0) {
-      baseChance += Math.min(0.3, travelDistance * 0.05);
-    }
-
-    return this.rng.next() < baseChance;
-  }
-
-  getEncounterDifficulty(
-    partyLevel: number,
-    partySize: number,
-  ): 'easy' | 'medium' | 'hard' | 'deadly' {
-    // Weight toward medium encounters, with occasional easy/hard/deadly
-    const roll = this.rng.next();
-    const levelFactor = Math.min(1, partyLevel / 10);
-
-    // Higher level parties get harder encounters more often
-    const adjustedRoll = roll + levelFactor * 0.1;
-
-    // Smaller parties get easier encounters
-    const sizeAdjustment = partySize <= 1 ? -0.1 : (partySize >= 4 ? 0.1 : 0);
-    const finalRoll = adjustedRoll + sizeAdjustment;
-
-    if (finalRoll < 0.25) return 'easy';
-    if (finalRoll < 0.60) return 'medium';
-    if (finalRoll < 0.85) return 'hard';
-    return 'deadly';
   }
 }
