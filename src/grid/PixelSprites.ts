@@ -2891,6 +2891,544 @@ const NAELIA: SpriteDefinition = {
   ],
 };
 
+const SHADOW: SpriteDefinition = {
+  palette: {
+    D: '#404858', // shadow highlight
+    d: '#282838', // shadow mid
+    P: '#181820', // shadow deep
+    p: '#101018', // shadow darkest
+    E: '#8080c0', // ghostly eyes
+    G: '#303848', // wispy glow
+  },
+  pixels: [
+    '................', // 00
+    '......dDd.......', // 01 head wisp
+    '.....dDDDd......', // 02
+    '....pDEDEDp.....', // 03 eyes
+    '....pDDDDDp.....', // 04
+    '...GdDDDDDdG....', // 05 shoulders
+    '..GddDDDDDddG...', // 06 torso
+    '.GdddDDDDDdddG..', // 07 arms spread
+    '..pddDDDDDddp...', // 08
+    '...pdDDDDDdp....', // 09
+    '....dDDDDDd.....', // 10
+    '...pdDDDDDdp....', // 11 wispy bottom
+    '..pd..dDd..dp...', // 12
+    '.p.....d.....p..', // 13 tendrils
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const GIANT_BAT: SpriteDefinition = {
+  palette: {
+    B: '#685060', // body highlight
+    b: '#483848', // body shadow
+    W: '#786070', // wing membrane lit
+    w: '#584858', // wing membrane dark
+    F: '#382830', // wing frame
+    E: '#d03030', // red eyes
+    T: '#a08070', // ear/teeth
+  },
+  pixels: [
+    '................', // 00
+    '................', // 01
+    '......TbT.......', // 02 ears
+    '.....bBEEBb.....', // 03 head + eyes
+    '......bBBb......', // 04 face
+    '...FwWBBBWwF....', // 05 wing start
+    '..FwWWBBBWWwF...', // 06 wings spread
+    '.FwWWWBBBWWWwF..', // 07
+    'FwWWWwbbbwWWWwF.', // 08 full wingspan
+    '.wWWw..b..wWWw..', // 09 wing fold
+    '..Ww...b...wW...', // 10
+    '...F..bBb..F....', // 11 body
+    '......bBb.......', // 12
+    '.......b........', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const GIANT_FROG: SpriteDefinition = {
+  palette: {
+    G: '#60a848', // green highlight
+    g: '#408030', // green mid
+    D: '#286020', // green dark
+    d: '#184810', // green deepest
+    E: '#e8d830', // yellow eyes
+    B: '#90c870', // belly light
+    b: '#70a850', // belly mid
+    T: '#d04040', // tongue
+  },
+  pixels: [
+    '................', // 00
+    '................', // 01
+    '................', // 02
+    '.....EgggE......', // 03 eyes on top
+    '....gGGGGGg.....', // 04 wide head
+    '...gGGGGGGGg....', // 05
+    '...GGGTTGGGG....', // 06 mouth + tongue
+    '..dGBBBBBBGd....', // 07 body
+    '..dGBBBBBBGd....', // 08
+    '.dgGBBBBBBGgd...', // 09 wider body
+    '.dggGGGGGGggd...', // 10
+    '..d.gGGGGg.d...', // 11
+    '.dg..gGGg..gd..', // 12 legs
+    '.g....gg....g...', // 13 feet
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const DARKMANTLE: SpriteDefinition = {
+  palette: {
+    D: '#585068', // body highlight
+    d: '#383048', // body shadow
+    P: '#282030', // body deep
+    T: '#a08898', // tentacles lit
+    t: '#706070', // tentacles dark
+    E: '#c04040', // red eye
+    M: '#483858', // membrane
+  },
+  pixels: [
+    '................', // 00
+    '......DDD.......', // 01 top dome
+    '.....DDDDD......', // 02
+    '....DDDDDD......', // 03
+    '....DDEEDD......', // 04 eye
+    '...dDDDDDDd.....', // 05
+    '..dDDDDDDDDd....', // 06 mantle spread
+    '.MDDDDDDDDDDM..', // 07 wings
+    'MdDDDDDDDDDDdM..', // 08
+    '.dPdddddddPd....', // 09
+    '..Tt.tTTt.tT....', // 10 tentacles
+    '..t..tTTt..t....', // 11
+    '.t...t..t...t...', // 12
+    '..t..t..t..t....', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const GNOLL: SpriteDefinition = {
+  palette: {
+    F: '#c8a868', // fur highlight
+    f: '#a08848', // fur mid
+    B: '#806838', // fur shadow
+    b: '#604828', // fur deep
+    E: '#d0c020', // yellow eyes
+    N: '#503828', // nose
+    T: '#e0d8c0', // teeth/fangs
+    S: '#b09058', // skin
+    A: '#907058', // armor leather
+    a: '#684838', // armor dark
+    W: '#b0b0b8', // weapon metal
+    w: '#808088', // weapon dark
+  },
+  pixels: [
+    '................', // 00
+    '.....fFFf.......', // 01 head
+    '....fFEFEFf.....', // 02 eyes
+    '....BFNTNFB.....', // 03 snout + fangs
+    '.....fFFFf......', // 04
+    '....bAFFFAb.....', // 05 shoulders + armor
+    '...bAaFFFaAb....', // 06 torso
+    '..Wb.AAAAA.bW...', // 07 arms + spear
+    '..w..aAAAa..w...', // 08
+    '.....SAAAS......', // 09 waist
+    '....bS.f.Sb.....', // 10 legs
+    '....S..f..S.....', // 11
+    '....S.....S.....', // 12
+    '...bb.....bb....', // 13 feet
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const HOBGOBLIN: SpriteDefinition = {
+  palette: {
+    S: '#c87830', // orange skin lit
+    s: '#a05820', // orange skin mid
+    D: '#783810', // skin shadow
+    E: '#d0c020', // yellow eyes
+    A: '#707880', // armor steel
+    a: '#505860', // armor dark
+    H: '#384048', // helm
+    h: '#283038', // helm dark
+    W: '#c0c8d0', // sword blade
+    w: '#909098', // sword dark
+    R: '#a03020', // red cape
+    r: '#702010', // red dark
+    L: '#604030', // boot leather
+  },
+  pixels: [
+    '................', // 00
+    '.....HHhH.......', // 01 helm
+    '....HHHHHH......', // 02
+    '....hSESESh.....', // 03 face
+    '....hSSSSSD.....', // 04
+    '...RaAAAAaR.....', // 05 armor + cape
+    '..RraAAAAarR....', // 06
+    '.W.DaAAAAaD.....', // 07 sword arm
+    '.w..aAAAAa......', // 08
+    '....DaAAaD......', // 09 waist
+    '....Ds..sD......', // 10 legs
+    '....s....s......', // 11
+    '....L....L......', // 12 boots
+    '...LL....LL.....', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const LIZARDFOLK: SpriteDefinition = {
+  palette: {
+    G: '#60a048', // green scales lit
+    g: '#408028', // green mid
+    D: '#286018', // green dark
+    d: '#184010', // green deepest
+    E: '#d8c020', // yellow eyes
+    S: '#80b860', // belly scales
+    T: '#b0a070', // teeth
+    W: '#908070', // wood weapon
+    w: '#685848', // wood dark
+    L: '#507038', // leg dark
+  },
+  pixels: [
+    '................', // 00
+    '......gGg.......', // 01 head crest
+    '.....gGGGg......', // 02 head
+    '....gGEGEGg.....', // 03 eyes
+    '....DGTTTGD.....', // 04 jaw + teeth
+    '.....GSSSG......', // 05 neck
+    '...WdGSSSGd.....', // 06 shoulders + spear
+    '...w.GSSSG......', // 07 torso
+    '...w.gSSSg......', // 08
+    '.....gGGGg......', // 09 waist
+    '....Lg.g.gL.....', // 10 legs
+    '....g..D..g.....', // 11
+    '....L....Lg.....', // 12
+    '...LL....LLg....', // 13 feet + tail
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const DIRE_WOLF: SpriteDefinition = {
+  palette: {
+    F: '#a0a0a8', // fur highlight (gray)
+    f: '#787880', // fur mid
+    D: '#505058', // fur dark
+    d: '#383840', // fur deepest
+    E: '#d0c020', // yellow eyes
+    N: '#302828', // nose
+    T: '#e0d8d0', // teeth
+    B: '#c0c0c8', // belly light
+  },
+  pixels: [
+    '................', // 00
+    '................', // 01
+    '..df..........d.', // 02 ears
+    '..dFf........fd.', // 03
+    '...FFEf...fFFd..', // 04 head + eyes
+    '...FNTTFFFFF....', // 05 snout + body
+    '....fFFFFFFf....', // 06
+    '...dFBBBBBFFd...', // 07 body
+    '..dFFBBBBBFFfd..', // 08
+    '..dFfBBBBBfFFd..', // 09
+    '...Df.fff.fDffd.', // 10 legs + tail
+    '...D..fDf..D..d.', // 11
+    '..dD..fDf..Dd...', // 12
+    '..dd..ddd..dd...', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const BOAR: SpriteDefinition = {
+  palette: {
+    F: '#907058', // fur lit
+    f: '#705038', // fur mid
+    B: '#503828', // fur dark
+    b: '#382818', // fur deepest
+    S: '#b09070', // snout
+    E: '#302020', // eye
+    T: '#d0c8b0', // tusk
+    N: '#604838', // nose
+  },
+  pixels: [
+    '................', // 00
+    '................', // 01
+    '................', // 02
+    '......Ff........', // 03 ear
+    '.....FFEFf......', // 04 head
+    '....TSNNSF......', // 05 snout + tusks
+    '....fFFFFFf.....', // 06 neck
+    '...bFFFFFFFb....', // 07 body
+    '...BFFFFFFFF....', // 08
+    '...BfFFFFFfBb...', // 09
+    '...Bf.fff.fBb...', // 10 legs
+    '...B..fBf..Bb...', // 11
+    '..bb..bBb..bb...', // 12
+    '..bb..bbb..bb...', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const BROWN_BEAR: SpriteDefinition = {
+  palette: {
+    F: '#a07848', // fur highlight
+    f: '#806030', // fur mid
+    B: '#604820', // fur dark
+    b: '#483818', // fur deepest
+    S: '#c09868', // snout/muzzle
+    E: '#282020', // eye
+    N: '#403028', // nose
+    T: '#d0c8b0', // teeth
+    C: '#b08850', // chest patch
+  },
+  pixels: [
+    '................', // 00
+    '................', // 01
+    '....bfFFfb......', // 02 head
+    '...bFEFFEFb.....', // 03 eyes
+    '...bFSNNSFb.....', // 04 snout
+    '....FFTFF.......', // 05 mouth
+    '...bFFCCFFb.....', // 06 chest
+    '..bFFFCCFFFb....', // 07 body
+    '..BFFFFFFFFB....', // 08
+    '.bBfFFFFFfFBb...', // 09
+    '.bBf.fBf.fBBb..', // 10 legs
+    '.bB..fBf..BBb...', // 11
+    '..b..bBb..bb....', // 12
+    '..bb.bbb..bb....', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const HYENA: SpriteDefinition = {
+  palette: {
+    F: '#c8a868', // fur highlight (sandy)
+    f: '#a08848', // fur mid
+    B: '#806838', // fur dark
+    b: '#584828', // spots/deepest
+    S: '#d0b878', // belly
+    E: '#302020', // eye
+    N: '#403028', // nose
+    T: '#d8d0c0', // teeth
+  },
+  pixels: [
+    '................', // 00
+    '................', // 01
+    '..bf..........b.', // 02 ears
+    '..bFf.......fb..', // 03
+    '...FEFf..bfFB...', // 04 head + spotted back
+    '...FNTTFFBFFF....', // 05 snout
+    '....fFFFBFFf....', // 06 body with spots
+    '...bFSSSFBFfb...', // 07
+    '..bfFSSSSFFfb...', // 08
+    '...Bf.bfb.fBb...', // 09 legs
+    '...B..bBb..Bb...', // 10
+    '..bb..bBb..bb...', // 11
+    '..bb..bbb..bb...', // 12
+    '................', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const SCORPION: SpriteDefinition = {
+  palette: {
+    C: '#a08040', // carapace highlight
+    c: '#806030', // carapace mid
+    D: '#604820', // carapace dark
+    P: '#c09848', // pincers lit
+    p: '#907030', // pincers dark
+    T: '#d0a850', // tail/stinger
+    t: '#a08038', // tail dark
+    S: '#e0c040', // stinger tip
+  },
+  pixels: [
+    '................', // 00
+    '.........S......', // 01 stinger
+    '........Tt......', // 02 tail curve
+    '.......tT.......', // 03
+    '......Tt........', // 04
+    '.P...tCCCt...P..', // 05 pincers + body
+    'Pp..cCCCCCc..pP.', // 06
+    '.p.DCCCCCCcD.p..', // 07 body
+    '...DCCCCCCcD....', // 08
+    '...Dcc.c.ccD....', // 09 legs
+    '..Dc.c.c.c.cD..', // 10
+    '.Dc..c.c.c..cD.', // 11
+    '................', // 12
+    '................', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const GIANT_POISONOUS_SNAKE: SpriteDefinition = {
+  palette: {
+    G: '#40a030', // green scales bright
+    g: '#307820', // green mid
+    D: '#205810', // green dark
+    d: '#183808', // green deepest
+    Y: '#c8d040', // yellow belly
+    y: '#a0a830', // yellow dark
+    E: '#c03030', // red eyes
+    T: '#e0d8c0', // fangs
+  },
+  pixels: [
+    '................', // 00
+    '................', // 01
+    '....EgGgE.......', // 02 head + eyes
+    '....gGTTGg......', // 03 fangs
+    '.....gGGg.......', // 04 neck
+    '......gGGg......', // 05 coils
+    '.....gGYGGg.....', // 06
+    '....gGYYGGGg....', // 07 body coil
+    '...gGYYYGg.gG...', // 08
+    '...GgYYgG...Gg..', // 09
+    '....gGGg.....Gd.', // 10
+    '.....gGg....gd..', // 11
+    '......gGggggd...', // 12 tail
+    '.......ddddd....', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const CARRION_CRAWLER: SpriteDefinition = {
+  palette: {
+    C: '#a89870', // carapace lit
+    c: '#887858', // carapace mid
+    D: '#685840', // carapace dark
+    T: '#90a060', // tentacles
+    t: '#708048', // tentacles dark
+    E: '#d0c020', // eyes
+    S: '#c8b890', // segments
+    B: '#807060', // belly
+  },
+  pixels: [
+    '..TT............', // 00 tentacles
+    '..tT............', // 01
+    '.tTTgE.E........', // 02 head + eyes
+    '..tCCCCC........', // 03 head plate
+    '...CCCCCC.......', // 04
+    '...CSSSSCC......', // 05 segments
+    '...cBSSSSCc.....', // 06 body
+    '..DcBSSSSBcD....', // 07
+    '..D.BSSSSB.D....', // 08 legs
+    '.D..cSSSSc..D...', // 09
+    '.D..cBSSBc..D...', // 10
+    '..D.cBBBBc.D....', // 11
+    '...DcccccCD.....', // 12
+    '....DDDDdd......', // 13 tail
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const RUST_MONSTER: SpriteDefinition = {
+  palette: {
+    R: '#c07030', // rust orange
+    r: '#a05820', // rust mid
+    D: '#804018', // rust dark
+    d: '#602810', // rust deep
+    A: '#d09040', // antennae
+    a: '#a87030', // antennae dark
+    E: '#e0d030', // eyes
+    T: '#d8a850', // tail propeller
+  },
+  pixels: [
+    '..A.......A.....', // 00 antennae tips
+    '..a.......a.....', // 01
+    '...a.....a......', // 02
+    '....aEaEa.......', // 03 head + eyes
+    '....rRRRr.......', // 04
+    '...dRRRRRd......', // 05 body
+    '..dRRRRRRRd.....', // 06
+    '..DRRRRRRRDd..T.', // 07 body + tail
+    '..DrRRRRRrDd.Td.', // 08
+    '..D.r.r.r.Dd.d..', // 09 legs
+    '.D..r.r.r..Dd...', // 10
+    '.d..d.d.d..d....', // 11
+    '................', // 12
+    '................', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const ETTERCAP: SpriteDefinition = {
+  palette: {
+    G: '#607048', // green-gray body
+    g: '#485838', // body mid
+    D: '#304028', // body dark
+    E: '#c03030', // red eyes (multiple)
+    C: '#807060', // claws
+    c: '#605040', // claws dark
+    W: '#d0d0d8', // webbing
+    w: '#a0a0a8', // webbing dark
+    S: '#708058', // belly
+  },
+  pixels: [
+    '................', // 00
+    '.....gGGg.......', // 01 head
+    '....gEGEGg......', // 02 eyes
+    '....GGGGGG......', // 03
+    '...CgGGGGgC.....', // 04 claws
+    '..Cc.GGGG.cC....', // 05
+    '.C...GSSG...C...', // 06 body
+    '....gGSSGg......', // 07
+    '...DgGSSGgD.....', // 08
+    '..Dg.gGGg.gD...', // 09 legs
+    '.Dg..gDDg..gD..', // 10
+    '.g...g..g...g...', // 11
+    '..w..g..g..w....', // 12 webbing
+    '...ww....ww.....', // 13
+    '................', // 14
+    '................', // 15
+  ],
+};
+
+const ANIMATED_ARMOR: SpriteDefinition = {
+  palette: {
+    A: '#c0c8d0', // steel highlight
+    a: '#909098', // steel mid
+    B: '#606870', // steel shadow
+    b: '#404850', // steel deep
+    G: '#e8c848', // gold trim
+    g: '#b89830', // gold dark
+    P: '#4050a0', // purple glow (magic)
+    p: '#283070', // purple dark
+    W: '#d0d8e0', // sword blade
+    w: '#a0a8b0', // sword dark
+  },
+  pixels: [
+    '................', // 00
+    '.....bAAb.......', // 01 helm top
+    '....bAAAABb.....', // 02 helm
+    '....BPAAAPB.....', // 03 visor (purple glow)
+    '....bGAAGb......', // 04 chin guard
+    '...BaAAAAaB.....', // 05 shoulders
+    '..BaaGAAGaaB....', // 06 pauldrons
+    '.W.BaAAAAaB.....', // 07 arms + sword
+    '.w..aAAAAa......', // 08 torso
+    '.....gAAg.......', // 09 belt
+    '....BaAAaB......', // 10 tassets
+    '....Ba..aB......', // 11 legs
+    '....Ba..aB......', // 12
+    '...bBb..bBb.....', // 13 boots
+    '................', // 14
+    '................', // 15
+  ],
+};
+
 const HARPY: SpriteDefinition = {
   palette: {
     // Feathers (4 shades — dark purple-brown)
@@ -3006,6 +3544,23 @@ const SPRITE_REGISTRY: Record<string, SpriteDefinition> = {
   monster_worg:             WORG,
   monster_orc:              ORC,
   monster_harpy:            HARPY,
+  monster_shadow:           SHADOW,
+  monster_giant_bat:        GIANT_BAT,
+  monster_giant_frog:       GIANT_FROG,
+  monster_darkmantle:       DARKMANTLE,
+  monster_gnoll:            GNOLL,
+  monster_hobgoblin:        HOBGOBLIN,
+  monster_lizardfolk:       LIZARDFOLK,
+  monster_dire_wolf:        DIRE_WOLF,
+  monster_boar:             BOAR,
+  monster_brown_bear:       BROWN_BEAR,
+  monster_hyena:            HYENA,
+  monster_scorpion:         SCORPION,
+  monster_giant_poisonous_snake: GIANT_POISONOUS_SNAKE,
+  monster_carrion_crawler:  CARRION_CRAWLER,
+  monster_rust_monster:     RUST_MONSTER,
+  monster_ettercap:         ETTERCAP,
+  monster_animated_armor:   ANIMATED_ARMOR,
 };
 
 // ── Sprite Renderer ──────────────────────────────────────────
