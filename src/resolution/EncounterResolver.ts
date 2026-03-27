@@ -1,7 +1,7 @@
 import type { Location, ResolvedEvent } from '@/types';
 import { Resolver } from './Resolver';
 import { SeededRNG } from '@/utils/SeededRNG';
-import { isDevMode } from '@/utils/devmode';
+
 
 export class EncounterResolver {
   constructor(
@@ -15,9 +15,9 @@ export class EncounterResolver {
     partySize: number,
   ): ResolvedEvent | null {
     // Build state for template matching
-    // In dev mode the character is level 20, but encounter templates cap at ~10.
-    // Use a clamped level so templates still match.
-    const effectiveLevel = isDevMode() ? Math.min(partyLevel, 5) : partyLevel;
+    // Encounter templates cap at ~10, so clamp high-level characters
+    // to ensure templates still match regardless of mode.
+    const effectiveLevel = Math.min(partyLevel, 5);
     const state: Record<string, unknown> = {
       partyLevel: effectiveLevel,
       partySize,
