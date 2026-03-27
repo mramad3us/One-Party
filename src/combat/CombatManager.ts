@@ -33,94 +33,18 @@ import { CombatAI } from './CombatAI';
 import { getSpell } from '@/data/spells';
 import { CLASS_BONUS_ACTIONS, getBonusAction, type ClassBonusActionDef } from '@/data/bonusActions';
 
-// ── Combat Narration ──────────────────────────────────────────
-// DM-style one-liners. Narrative first, mechanics in parentheses.
-
-const SLAP_HIT = [
-  'Naelia\'s hand descends with the weight of divine judgment — necrotic energy crackles through the creature.',
-  'A casual, almost bored backhand. The creature\'s flesh blackens where divinity touches mortality.',
-  'Naelia barely glances at the creature as her palm connects. The air itself recoils.',
-  'With contemptuous grace, Naelia delivers a slap that echoes across planes of existence.',
-  'The goddess\'s hand moves faster than thought. Where it lands, life unravels.',
-];
-
-const SLAP_KILL = [
-  'The creature\'s eyes go wide — then dark. It crumples like a puppet with severed strings.',
-  'A shudder passes through the creature as the last spark of life is extinguished. It collapses, utterly still.',
-  'The necrotic energy devours what remains. The creature simply... ceases.',
-  'One moment it stood. The next, it is nothing. The goddess has spoken.',
-];
-
-const SLAP_SURVIVE = [
-  'Impossibly, the creature still draws breath — though every fiber of its being screams to stop.',
-  'The creature staggers but holds. A stubborn will clings to the mortal coil.',
-  'Against all odds, the creature endures the touch of a god. For now.',
-];
-
-const MELEE_HIT: Record<string, string[]> = {
-  slashing: [
-    'The blade bites deep, carving a vicious wound.',
-    'Steel sings through the air and finds flesh.',
-    'A clean strike opens a gash across the target.',
-  ],
-  piercing: [
-    'The point drives home with lethal precision.',
-    'A thrust finds the gap between defenses.',
-    'The weapon punches through, drawing blood.',
-  ],
-  bludgeoning: [
-    'The blow lands with a sickening crunch.',
-    'A bone-jarring impact staggers the target.',
-    'The strike connects solidly, rattling teeth.',
-  ],
-  necrotic: [
-    'Dark energy crackles through the strike, withering flesh on contact.',
-    'The wound blackens and spreads, life itself draining away.',
-  ],
-  radiant: [
-    'Holy light erupts from the strike, searing the target.',
-    'The blow blazes with divine radiance.',
-  ],
-  fire: [
-    'Flames lick along the wound, searing flesh.',
-    'The strike leaves scorched, smoking flesh in its wake.',
-  ],
-  default: [
-    'The attack strikes true, drawing blood.',
-    'A solid hit finds its mark.',
-    'The blow connects with punishing force.',
-  ],
-};
-
-const MELEE_MISS = [
-  'The strike goes wide — the target narrowly evades.',
-  'A near miss. Steel whistles past, finding only air.',
-  'The attack glances off harmlessly.',
-  'The target twists away at the last instant.',
-  'A swing that finds nothing but empty space.',
-];
-
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function narrateAttack(attackName: string, hit: boolean, damage: number, damageType: string, roll: number, ac: number): string {
-  if (attackName === 'Slap' && hit) {
-    return `${pick(SLAP_HIT)} ${damage} necrotic. (${roll} vs AC ${ac})`;
-  }
-  if (!hit) {
-    return `${pick(MELEE_MISS)} (${roll} vs AC ${ac})`;
-  }
-  const pool = MELEE_HIT[damageType] ?? MELEE_HIT['default'];
-  return `${pick(pool)} ${damage} ${damageType}. (${roll} vs AC ${ac})`;
-}
-
-function narrateSlapSave(saved: boolean, saveTotal: number): string {
-  if (!saved) {
-    return ` ${pick(SLAP_KILL)} (CON save ${saveTotal} vs DC 64)`;
-  }
-  return ` ${pick(SLAP_SURVIVE)} (CON save ${saveTotal} vs DC 64)`;
-}
+import {
+  narrateAttack,
+  narrateSlapSave,
+  narrateSpellSave,
+  narrateSpellAttack,
+  narrateSpellAutoHit,
+  narrateHealing,
+  narrateBuff,
+  narrateOpportunityAttack,
+  narrateUnarmedStrike,
+  narrateFeatureHealing,
+} from './CombatNarration';
 
 /** Everything needed to add a participant to combat. */
 export interface CombatParticipant {
@@ -600,9 +524,7 @@ export class CombatManager {
         targetId,
         damage: hit ? damage : undefined,
         damageType: hit ? 'bludgeoning' : undefined,
-        description: hit
-          ? `A bare-fisted blow lands, dealing ${damage} bludgeoning damage. (${rollResult.total} vs AC ${ac})`
-          : `The unarmed strike fails to connect. (${rollResult.total} vs AC ${ac})`,
+        description: narrateUnarmedStrike(hit, damage, rollResult.total, ac),
         rolls: [rollResult],
       };
 
@@ -718,9 +640,7 @@ export class CombatManager {
         }
       }
 
-      description = saved
-        ? `${spell.name} crashes against the target's will — they resist the brunt of it${totalDamage > 0 ? `, but still take ${totalDamage} ${damageType} damage` : ''}. (save ${saveRoll.total} vs DC ${spellSaveDC})`
-        : `${spell.name} tears through the target's defenses — ${totalDamage} ${damageType} damage rips through them! (save ${saveRoll.total} vs DC ${spellSaveDC})`;
+      description = narrateSpellSave(spell.name, saved, totalDamage, damageType ?? 'magical', saveRoll.total, spellSaveDC);
 
     } else if (isAutoHit) {
       // Magic Missile — auto-hit, roll each dart
@@ -732,7 +652,7 @@ export class CombatManager {
           damageType = effect.damage.type;
         }
       }
-      description = `Bolts of ${spell.name.toLowerCase()} streak unerringly toward the target — ${totalDamage} ${damageType} damage, impossible to evade.`;
+      description = narrateSpellAutoHit(spell.name, totalDamage, damageType ?? 'force');
 
     } else if (hasDamage && primaryTarget) {
       // Spell attack roll (Fire Bolt, Ray of Frost, Scorching Ray)
@@ -761,9 +681,7 @@ export class CombatManager {
         }
       }
 
-      description = hit
-        ? `${spell.name} arcs through the air and strikes true — ${totalDamage} ${damageType} damage! (${attackRoll.total} vs AC ${ac})`
-        : `${spell.name} hurtles toward the target but goes wide, dissipating harmlessly. (${attackRoll.total} vs AC ${ac})`;
+      description = narrateSpellAttack(spell.name, hit, totalDamage, damageType ?? 'magical', attackRoll.total, ac);
 
     } else if (hasHealing) {
       // Healing spell (Cure Wounds, Healing Word)
@@ -774,11 +692,11 @@ export class CombatManager {
           totalHealing += Math.max(0, healResult.total + castMod);
         }
       }
-      description = `Warm light flows from ${spell.name.toLowerCase()}, knitting flesh and mending bone — ${totalHealing} hit points restored.`;
+      description = narrateHealing(spell.name, totalHealing);
 
     } else {
       // Utility / buff spell (Bless, Shield)
-      description = `The air shimmers as ${spell.name.toLowerCase()} weaves into reality, its power settling over the battlefield.`;
+      description = narrateBuff(spell.name);
     }
 
     const result: ActionResult = {
@@ -1087,7 +1005,7 @@ export class CombatManager {
       type: 'class_feature',
       actorId: entityId,
       healing: actualHealing,
-      description: `${def.name} surges with restorative power — ${actualHealing} hit points of damage fade away.`,
+      description: narrateFeatureHealing(def.name, actualHealing),
       rolls: [rollResult],
     };
 
@@ -1412,9 +1330,7 @@ export class CombatManager {
         targetId: entityId,
         damage: hit ? damage : undefined,
         damageType: hit ? attack.damage.type : undefined,
-        description: hit
-          ? `Seizing the opening — a vicious ${attack.name.toLowerCase()} catches them off-guard for ${damage} damage!`
-          : `A retaliatory swing lashes out as they flee, but the blow goes wide.`,
+        description: narrateOpportunityAttack(attack.name, hit, damage),
         rolls: [rollResult],
       };
 
