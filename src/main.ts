@@ -85,6 +85,8 @@ import type { NPC } from '@/types/npc';
 import { ShopScreen } from '@/ui/screens/ShopScreen';
 import { NPCInteraction } from '@/npc/NPCInteraction';
 import { spriteRenderer } from '@/grid/PixelSprites';
+import { getSpawnPool, pickFromPool } from '@/data/spawnTables';
+import { getMonster } from '@/data/monsters';
 
 // ── Lighting by location type ────────────────────────────────────
 
@@ -1124,6 +1126,9 @@ async function main(): Promise<void> {
     // Place NPCs on the exploration grid for settlements
     placeExplorationNPCs(grid, location, state, screen, character);
 
+    // Place hostile monsters based on spawn tables
+    placeExplorationMonsters(grid, location, state, screen, character, region.biome);
+
     // Spawn ambient creatures in settlements
     const isSettlement = ['village', 'town', 'city'].includes(location.locationType);
     if (isSettlement) {
@@ -1340,6 +1345,192 @@ async function main(): Promise<void> {
     }
 
     // Update all entities on the grid
+    screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
+  }
+
+  // ── Monster Placement on Exploration Maps ──────────────────────
+
+  /** Tracking list of hostile NPCs placed on the current exploration map. */
+  let explorationMonsters: NPC[] = [];
+
+  /**
+   * Place hostile monsters on an exploration map based on spawn tables.
+   * Monsters are placed away from the player and on passable cells.
+   * They become entities on the grid that the player can encounter.
+   */
+  function placeExplorationMonsters(
+    grid: Grid,
+    location: import('@/types/world').Location,
+    state: GameState,
+    screen: GameScreen,
+    character: Character,
+    biome?: import('@/types/world').BiomeType,
+  ): void {
+    // Clear previous monsters
+    for (const monster of explorationMonsters) {
+      try { grid.removeEntity(monster.id); } catch { /* already removed */ }
+      engine.entities.remove(monster.id);
+    }
+    explorationMonsters = [];
+
+    // Get spawn pool for this location
+    const pool = getSpawnPool(location.locationType, location.tags, biome);
+    if (!pool || pool.entries.length === 0) return;
+
+    // Calculate monster count from density and map size
+    const gridDef = grid.getDefinition();
+    const mapArea = gridDef.width * gridDef.height;
+    // Scale factor: ~1 monster per 200 cells at density 1.0
+    const scaleFactor = 0.005;
+    const expectedCount = Math.round(pool.density * mapArea * scaleFactor);
+    if (expectedCount <= 0) return;
+
+    // Use deterministic RNG so monsters are consistent per map visit
+    const seed = location.id.length * 7919 + (location.coordinates?.x ?? 0) * 31 + (location.coordinates?.y ?? 0) * 37;
+    const monsterRng = new SeededRNG(seed);
+
+    // Collect passable cells that are far enough from the player
+    const playerPos = grid.getEntityPosition(character.id);
+    const MIN_DISTANCE = 8; // Monsters spawn at least 8 tiles from player
+
+    const passableCells: Coordinate[] = [];
+    for (let y = 1; y < gridDef.height - 1; y++) {
+      for (let x = 1; x < gridDef.width - 1; x++) {
+        if (!grid.isPassable(x, y)) continue;
+        if (grid.getEntityAt({ x, y })) continue;
+        if (playerPos) {
+          const dist = Math.abs(x - playerPos.x) + Math.abs(y - playerPos.y);
+          if (dist < MIN_DISTANCE) continue;
+        }
+        passableCells.push({ x, y });
+      }
+    }
+
+    if (passableCells.length === 0) return;
+
+    // Shuffle passable cells
+    for (let i = passableCells.length - 1; i > 0; i--) {
+      const j = monsterRng.nextInt(0, i);
+      [passableCells[i], passableCells[j]] = [passableCells[j], passableCells[i]];
+    }
+
+    // Spawn monsters
+    let cellIdx = 0;
+    const placements = new Map<string, import('@/types/grid').GridEntityPlacement>();
+    const entityInfos = new Map<string, EntityRenderInfo>();
+
+    // Include player in entity map
+    if (playerPos) {
+      placements.set(character.id, { entityId: character.id, position: playerPos, size: 1 });
+      entityInfos.set(character.id, {
+        name: character.name, color: '#2a2520', symbol: '@',
+        hp: character.currentHp, maxHp: character.maxHp,
+        isPlayer: true, isAlly: false, size: 1,
+        conditions: character.conditions.map(c => c.type),
+        spriteId: character.class,
+      });
+    }
+
+    // Include existing NPCs
+    for (const npcId of location.npcs) {
+      const npc = state.getNPC(npcId);
+      if (!npc?.position) continue;
+      const pos = grid.getEntityPosition(npc.id);
+      if (!pos) continue;
+      placements.set(npc.id, { entityId: npc.id, position: pos, size: 1 });
+      entityInfos.set(npc.id, {
+        name: npc.name,
+        color: '#7a7a6a',
+        symbol: npc.name.charAt(0).toUpperCase(),
+        hp: npc.stats.currentHp, maxHp: npc.stats.maxHp,
+        isPlayer: false, isAlly: true, size: 1,
+        conditions: [],
+        spriteId: `npc_${npc.role}`,
+      });
+    }
+
+    for (let m = 0; m < expectedCount && cellIdx < passableCells.length; m++) {
+      const pick = pickFromPool(pool.entries, () => monsterRng.next());
+      if (!pick) continue;
+
+      const monsterDef = getMonster(pick.monsterId);
+      if (!monsterDef) continue;
+
+      // Determine group size for this spawn
+      const minCount = pick.minCount ?? 1;
+      const maxCount = pick.maxCount ?? 1;
+      const groupSize = monsterRng.nextInt(minCount, maxCount);
+
+      for (let g = 0; g < groupSize && cellIdx < passableCells.length; g++) {
+        const pos = passableCells[cellIdx++];
+
+        // Create hostile NPC entity
+        const monsterId = `expl_monster_${monsterDef.id}_${m}_${g}_${monsterRng.nextInt(1000, 9999)}`;
+        const npc: NPC = {
+          id: monsterId,
+          type: 'npc',
+          templateId: monsterDef.id,
+          name: monsterDef.name,
+          role: 'hostile',
+          locationId: location.id,
+          isAwakened: false,
+          stats: {
+            ...monsterDef.stats,
+            currentHp: monsterDef.stats.maxHp,
+            conditions: [],
+            features: [...monsterDef.stats.features],
+            attacks: monsterDef.stats.attacks.map(a => ({ ...a, damage: { ...a.damage } })),
+          },
+          companion: null,
+          merchantInventory: null,
+          position: pos,
+          initiative: null,
+        };
+
+        engine.entities.add(npc as unknown as Entity);
+        explorationMonsters.push(npc);
+
+        try {
+          grid.placeEntity(monsterId, pos, 1);
+        } catch {
+          continue;
+        }
+
+        placements.set(monsterId, { entityId: monsterId, position: pos, size: 1 });
+
+        // Monster render info — red-tinted for hostiles
+        const MONSTER_COLORS: Record<string, string> = {
+          beast: '#6a8a3a',
+          humanoid: '#9a4a3a',
+          undead: '#5a6a7a',
+          monstrosity: '#7a3a6a',
+          construct: '#6a6a7a',
+          elemental: '#3a7a9a',
+          aberration: '#6a3a8a',
+          dragon: '#9a3a3a',
+          fey: '#3a9a5a',
+          ooze: '#5a8a3a',
+          plant: '#3a7a3a',
+          fiend: '#8a2a2a',
+          celestial: '#8a8a3a',
+        };
+
+        entityInfos.set(monsterId, {
+          name: monsterDef.name,
+          color: MONSTER_COLORS[monsterDef.type] ?? '#8a3a3a',
+          symbol: monsterDef.name.charAt(0).toUpperCase(),
+          hp: monsterDef.stats.maxHp,
+          maxHp: monsterDef.stats.maxHp,
+          isPlayer: false,
+          isAlly: false,
+          size: monsterDef.size === 'large' ? 2 : monsterDef.size === 'huge' ? 3 : 1,
+          conditions: [],
+          spriteId: `monster_${monsterDef.type}`,
+        });
+      }
+    }
+
+    // Update all entities on the grid (player + NPCs + monsters)
     screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
   }
 
@@ -3977,6 +4168,9 @@ async function main(): Promise<void> {
       // Place NPCs on the exploration grid for settlements
       placeExplorationNPCs(grid, dest, activeGameState, activeGameScreen, character);
 
+      // Place hostile monsters based on spawn tables
+      placeExplorationMonsters(grid, dest, activeGameState, activeGameScreen, character, getTerrainBiome(tile.terrain));
+
       // Spawn ambient creatures in settlements
       const isSettlement = ['village', 'town', 'city'].includes(dest.locationType);
       if (isSettlement) {
@@ -4529,6 +4723,9 @@ async function main(): Promise<void> {
 
       // Place NPCs on the exploration grid for settlements
       placeExplorationNPCs(grid, dest, activeGameState, activeGameScreen, character);
+
+      // Place hostile monsters based on spawn tables
+      placeExplorationMonsters(grid, dest, activeGameState, activeGameScreen, character, getTerrainBiome(tile.terrain));
 
       // Spawn ambient creatures in settlements
       const isSettlement = ['village', 'town', 'city'].includes(dest.locationType);
