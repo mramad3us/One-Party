@@ -2891,6 +2891,50 @@ const NAELIA: SpriteDefinition = {
   ],
 };
 
+const HARPY: SpriteDefinition = {
+  palette: {
+    // Feathers (4 shades — dark purple-brown)
+    F: '#8a6878', // feather highlight
+    f: '#6a4858', // feather mid
+    P: '#4a3040', // feather shadow
+    p: '#302028', // feather deepest
+    // Wing membrane (2 shades)
+    W: '#7a5868', // wing lit
+    w: '#5a3848', // wing dark
+    // Skin — pale sickly (2 shades)
+    S: '#e0c8b8', // skin lit
+    s: '#c0a090', // skin shadow
+    // Eyes — piercing yellow
+    E: '#e8d030', // eye
+    // Hair — wild dark
+    H: '#483038', // hair dark
+    h: '#6a4858', // hair mid
+    // Talons — yellow (2 shades)
+    T: '#d8b040', // talon bright
+    t: '#a88828', // talon dark
+    // Beak / mouth
+    K: '#b89030', // beak
+  },
+  pixels: [
+    '................', // 00
+    '.....HhHhH......', // 01 wild hair
+    '....hHhHhHh.....', // 02 hair wider
+    '....hSSSSsh.....', // 03 forehead
+    '....SESSESS.....', // 04 eyes
+    '....sSSKSSs.....', // 05 beak/mouth
+    '...WfSSSSsfW....', // 06 neck + wing start
+    '..WffFFFFFffW...', // 07 torso + wings
+    '.WwfFFFFFFfwW...', // 08 wings spread
+    'WwwfFfSSfFfwwW..', // 09 wide wings + arms
+    '.wwPfFFFFFfPww..', // 10 wings fold
+    '....pfFFFfp.....', // 11 lower body
+    '.....pFFFp......', // 12 legs
+    '.....TfsfT......', // 13 talons
+    '....Tt...tT.....', // 14 talons spread
+    '................', // 15
+  ],
+};
+
 // ── Sprite Registry ──────────────────────────────────────────
 
 const SPRITE_REGISTRY: Record<string, SpriteDefinition> = {
@@ -2961,6 +3005,7 @@ const SPRITE_REGISTRY: Record<string, SpriteDefinition> = {
   monster_crocodile:        CROCODILE,
   monster_worg:             WORG,
   monster_orc:              ORC,
+  monster_harpy:            HARPY,
 };
 
 // ── Sprite Renderer ──────────────────────────────────────────
