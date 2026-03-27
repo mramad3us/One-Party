@@ -300,6 +300,102 @@ const SPELL_NARRATION: Record<string, NarrationEntry> = {
   'Prayer of Healing': {
     heal: ['A soft prayer carries through the air like a warm breeze, and wounds begin to knit closed.'],
   },
+
+  // ── Condition Spells ──
+  'Hold Person': {
+    fail: ['Invisible chains of arcane force seize the target — their body locks rigid, unable to move or speak.'],
+    save: ['Magical force attempts to bind the target in place, but they wrench free through sheer force of will.'],
+  },
+  'Hold Monster': {
+    fail: ['Overwhelming magical force crushes down on the creature — it freezes mid-motion, utterly paralyzed.'],
+    save: ['The binding spell strains against the creature\'s will, but it breaks free with a defiant snarl.'],
+  },
+  'Blindness/Deafness': {
+    fail: ['The target\'s vision clouds over — darkness swallows their sight as the curse takes hold.'],
+    save: ['Dark magic claws at the target\'s senses, but they blink hard and their vision holds.'],
+  },
+  'Fear': {
+    fail: ['A wave of supernatural dread washes over the target — their face twists in primal terror, legs already turning to flee.'],
+    save: ['Dread reaches for the target\'s heart, but they steel themselves, jaw clenched against the fear.'],
+  },
+  'Cause Fear': {
+    fail: ['An unnatural terror grips the target — they stagger back, wide-eyed and trembling.'],
+    save: ['Fear claws at the target\'s mind, but courage holds the darkness at bay.'],
+  },
+  'Entangle': {
+    fail: ['Grasping vines and roots erupt from the ground, coiling around the target\'s legs and dragging them to a halt.'],
+    save: ['Vegetation surges upward but the target tears free, roots snapping as they wrench away.'],
+  },
+  'Web': {
+    fail: ['Thick, sticky webs shoot outward, entangling the target in a cocoon of glistening silk.'],
+    save: ['Webs spray outward, but the target dodges through the gaps, avoiding the worst of the entanglement.'],
+  },
+  'Command': {
+    fail: ['A single word of authority rings out — the target\'s body obeys before their mind can resist.'],
+    save: ['The commanding word echoes with power, but the target\'s will holds firm against the compulsion.'],
+  },
+  'Charm Person': {
+    fail: ['A warm, persuasive magic settles over the target — their hostility melts away, replaced by inexplicable fondness.'],
+    save: ['Enchanting magic reaches for the target\'s mind, but suspicion flares and they shake off the charm.'],
+  },
+  'Suggestion': {
+    fail: ['Honeyed words carry an irresistible magical compulsion — the target nods along, the suggestion taking root.'],
+    save: ['The magical suggestion whispers temptingly, but the target recognizes the manipulation and resists.'],
+  },
+  'Sleep': {
+    auto: ['A wave of magical drowsiness sweeps outward — eyelids grow heavy, and the weakest succumb to enchanted slumber.'],
+  },
+  'Invisibility': {
+    buff: ['Light bends and shifts — the target\'s form shimmers and fades from sight, leaving only empty air.'],
+  },
+  'Greater Invisibility': {
+    buff: ['Powerful magic wraps around the target like a cloak — they vanish completely, invisible even while attacking.'],
+  },
+  'Mage Armor': {
+    buff: ['A shimmering field of magical force envelops the target, an invisible suit of ethereal armor.'],
+  },
+  'Shield': {
+    buff: ['An invisible barrier of magical force springs into existence, deflecting the incoming blow at the last instant.'],
+  },
+  'Shield of Faith': {
+    buff: ['A shimmering field of divine light surrounds the target, bolstering their defenses.'],
+  },
+  'Bless': {
+    buff: ['Holy light descends on the blessed — they feel sharper, more focused, guided by divine providence.'],
+  },
+  'Mirror Image': {
+    buff: ['Three illusory duplicates spring into existence, mimicking every movement — which is the real one?'],
+  },
+  'Stoneskin': {
+    buff: ['The target\'s skin takes on the hardness of granite, a rocky sheen spreading across their body.'],
+  },
+  'Haste': {
+    buff: ['Time itself seems to bend around the target — their movements blur with supernatural speed.'],
+  },
+  'Slow': {
+    fail: ['Time thickens around the target like amber — every motion becomes labored, agonizingly sluggish.'],
+    save: ['Reality warps around the target, but they push through the temporal distortion.'],
+  },
+  'Polymorph': {
+    fail: ['The target\'s body twists and reshapes — bones crack and reform as they transform into a new creature entirely.'],
+    save: ['Transmutation magic surges toward the target, but their essence resists the transformation.'],
+  },
+  'Banishment': {
+    fail: ['Reality tears open briefly — the target is wrenched from this plane, vanishing with a crack of displaced air.'],
+    save: ['The planar rift tugs at the target, but they anchor themselves to this reality and remain.'],
+  },
+  'Counterspell': {
+    auto: ['A sharp gesture cuts through the air — the enemy\'s spell unravels mid-casting, its magic dissipating to nothing.'],
+  },
+  'Dispel Magic': {
+    auto: ['With a wave of the hand, lingering enchantments shatter and fade, their magic snuffed out.'],
+  },
+  'Misty Step': {
+    buff: ['A swirl of silvery mist engulfs the caster — they vanish and reappear in a nearby space in an instant.'],
+  },
+  'Dimension Door': {
+    buff: ['A doorway of shimmering energy opens and closes in a heartbeat — the caster steps through to a distant point.'],
+  },
 };
 
 // ── Melee Attack Narration ──

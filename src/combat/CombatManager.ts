@@ -105,6 +105,21 @@ export class CombatManager {
   /** Entities that have taken the Dodge action (lasts until the start of their next turn). */
   private dodgingEntities: Set<EntityId> = new Set();
 
+  /** Concentration spell remaining duration in rounds. Decremented each turn start. */
+  private concentrationDurations: Map<EntityId, number> = new Map();
+
+  /** Apply a condition to a combat participant's stats (bypasses Entity type requirement). */
+  private applyConditionToParticipant(
+    target: CombatParticipant,
+    condition: import('@/types').ConditionType,
+    duration: number,
+    source: EntityId,
+  ): void {
+    const existing = target.stats.conditions.find(c => c.type === condition);
+    if (existing) return; // Don't stack same condition
+    target.stats.conditions.push({ type: condition, duration, source });
+  }
+
   /** When true, combat events are queued instead of emitted immediately. */
   deferEvents = false;
   private deferredEventQueue: GameEvent[] = [];
@@ -164,6 +179,7 @@ export class CombatManager {
     this.participants.clear();
     this.casualties = [];
     this.dodgingEntities.clear();
+    this.concentrationDurations.clear();
 
     for (const p of participants) {
       this.participants.set(p.entityId, p);
@@ -578,6 +594,11 @@ export class CombatManager {
         this.breakConcentration(entityId);
       }
       p.stats.spellcasting.concentration = spellId;
+      // Track concentration duration (rounds) so it expires naturally
+      if (spell.duration.value) {
+        const durationRounds = spell.duration.value;
+        this.concentrationDurations.set(entityId, durationRounds);
+      }
     }
 
     // Determine affected entities
@@ -591,11 +612,50 @@ export class CombatManager {
       if (eid) affectedEntities.push(eid);
     }
 
-    // Determine if this is a spell attack, saving throw, or auto-hit spell
-    const hasSavingThrow = spell.effects.some(e => e.savingThrow);
-    const hasDamage = spell.effects.some(e => e.damage);
-    const hasHealing = spell.effects.some(e => e.healing);
-    const isAutoHit = spell.id === 'spell_magic_missile'; // Magic Missile always hits
+    // ── Compute caster stats ──
+    const castingAbility = p.stats.spellcasting?.ability ?? 'intelligence';
+    const castMod = abilityModifier(p.stats.abilityScores[castingAbility]);
+    const prof = Math.floor((p.stats.level - 1) / 4) + 2;
+    const spellSaveDC = 8 + prof + castMod;
+
+    // ── Higher-level scaling ──
+    // Clone effects and scale damage/effects for upcasting
+    let scaledEffects = [...spell.effects];
+    const levelDiff = slotLevel - spell.level;
+    if (levelDiff > 0 && spell.higherLevelScaling) {
+      const scaling = spell.higherLevelScaling;
+      if (scaling.extraDicePerLevel) {
+        // Add extra dice to the first damage/healing effect
+        scaledEffects = scaledEffects.map((eff, i) => {
+          if (i === 0 && eff.damage) {
+            return { ...eff, damage: { ...eff.damage, count: eff.damage.count + (scaling.extraDicePerLevel! * levelDiff) } };
+          }
+          if (i === 0 && eff.healing) {
+            return { ...eff, healing: { ...eff.healing, count: eff.healing.count + (scaling.extraDicePerLevel! * levelDiff) } };
+          }
+          return eff;
+        });
+      }
+      if (scaling.extraEffectsPerLevel) {
+        // Duplicate the first effect N times (Magic Missile darts, Scorching Ray rays)
+        const template = scaledEffects[0];
+        if (template) {
+          for (let i = 0; i < scaling.extraEffectsPerLevel * levelDiff; i++) {
+            scaledEffects.push({ ...template });
+          }
+        }
+      }
+    }
+
+    // ── Determine spell category ──
+    const hasSavingThrow = scaledEffects.some(e => e.savingThrow);
+    const hasDamage = scaledEffects.some(e => e.damage);
+    const hasHealing = scaledEffects.some(e => e.healing);
+    const hasCondition = scaledEffects.some(e => e.condition);
+    const isAutoHit = spell.id === 'spell_magic_missile' || spell.id === 'spell_guardian_of_faith';
+    const isAreaSpell = spell.targetType === 'area' || spell.targetType === 'cone' ||
+      spell.targetType === 'line' || spell.targetType === 'cube' ||
+      spell.targetType === 'sphere' || spell.targetType === 'cylinder';
 
     const rolls: ActionResult['rolls'] = [];
     let totalDamage = 0;
@@ -603,48 +663,92 @@ export class CombatManager {
     let damageType: string | undefined;
     let hit = true;
     let description = '';
-
-    // Compute caster's spell attack bonus and save DC
-    const castingAbility = p.stats.spellcasting?.ability ?? 'intelligence';
-    const castMod = abilityModifier(p.stats.abilityScores[castingAbility]);
-    const prof = Math.floor((p.stats.level - 1) / 4) + 2;
-    const spellSaveDC = 8 + prof + castMod;
+    const conditionsApplied: string[] = [];
 
     const primaryTarget = affectedEntities[0] ? this.participants.get(affectedEntities[0]) : null;
 
-    if (hasSavingThrow && primaryTarget) {
-      // Saving throw spell (Sacred Flame, Thunderwave, Fireball)
-      const saveEffect = spell.effects.find(e => e.savingThrow)!;
+    if (hasSavingThrow && (primaryTarget || isAreaSpell)) {
+      // ── Saving throw spell ──
+      // Per-entity saves for area spells (D&D 5e: each creature rolls individually)
+      const saveEffect = scaledEffects.find(e => e.savingThrow)!;
       const saveAbility = saveEffect.savingThrow!.ability;
-      const targetMod = abilityModifier(primaryTarget.stats.abilityScores[saveAbility]);
 
-      // Compute advantage/disadvantage on the saving throw from conditions
-      const { advantage: saveAdv, disadvantage: saveDisadv } =
-        this.computeSaveAdvantage(primaryTarget, saveAbility);
-      const saveRoll = this.dice.rollD20({
-        modifier: targetMod,
-        advantage: saveAdv,
-        disadvantage: saveDisadv,
-      });
-      rolls.push(saveRoll);
-      const saved = saveRoll.total >= spellSaveDC;
-
-      // Roll damage
-      for (const effect of spell.effects) {
+      // Roll damage once (shared across all targets)
+      let baseDamage = 0;
+      for (const effect of scaledEffects) {
         if (effect.damage) {
           const dmgResult = this.combatRules.rollDamage(effect.damage, false);
           rolls.push(dmgResult);
-          const dmg = Math.max(0, dmgResult.total);
-          totalDamage += saved ? Math.floor(dmg / 2) : dmg;
+          baseDamage += Math.max(0, dmgResult.total);
           damageType = effect.damage.type;
         }
       }
 
-      description = narrateSpellSave(spell.name, saved, totalDamage, damageType ?? 'magical', saveRoll.total, spellSaveDC);
+      // Each entity rolls their own save
+      const perEntityResults: { id: EntityId; saved: boolean; damage: number; saveTotal: number }[] = [];
+      for (const targetId of affectedEntities) {
+        const target = this.participants.get(targetId);
+        if (!target) continue;
+
+        const targetMod = abilityModifier(target.stats.abilityScores[saveAbility]);
+        // Add saving throw proficiency if applicable
+        let saveProfBonus = 0;
+        if (target.savingThrowProficiencies?.includes(saveAbility)) {
+          saveProfBonus = Math.floor((target.stats.level - 1) / 4) + 2;
+        }
+
+        const { advantage: saveAdv, disadvantage: saveDisadv } =
+          this.computeSaveAdvantage(target, saveAbility);
+        const saveRoll = this.dice.rollD20({
+          modifier: targetMod + saveProfBonus,
+          advantage: saveAdv,
+          disadvantage: saveDisadv,
+        });
+        // Only push the first save roll to avoid UI clutter
+        if (perEntityResults.length === 0) rolls.push(saveRoll);
+        const saved = saveRoll.total >= spellSaveDC;
+        const entityDamage = saved ? Math.floor(baseDamage / 2) : baseDamage;
+
+        perEntityResults.push({ id: targetId, saved, damage: entityDamage, saveTotal: saveRoll.total });
+
+        // Apply conditions on failed save
+        if (!saved && hasCondition) {
+          for (const effect of scaledEffects) {
+            if (effect.condition) {
+              const condDuration = spell.duration.value ?? 10; // Default 10 rounds for concentration
+              this.applyConditionToParticipant(target, effect.condition, condDuration, entityId);
+              conditionsApplied.push(effect.condition);
+            }
+          }
+        }
+      }
+
+      // Compute total damage (sum across entities for display)
+      totalDamage = perEntityResults.length === 1
+        ? perEntityResults[0].damage
+        : baseDamage; // Show base damage for area spells
+
+      // Apply damage per-entity
+      for (const er of perEntityResults) {
+        if (er.damage > 0) {
+          this.applyDamageToParticipant(er.id, er.damage, damageType ?? 'force');
+        }
+      }
+
+      // Narrate based on primary target's result
+      const primary = perEntityResults[0];
+      if (primary) {
+        description = narrateSpellSave(spell.name, primary.saved, primary.damage, damageType ?? 'magical', primary.saveTotal, spellSaveDC);
+        if (conditionsApplied.length > 0 && !primary.saved) {
+          description += ` (${conditionsApplied.join(', ')} applied)`;
+        }
+      } else {
+        description = narrateBuff(spell.name);
+      }
 
     } else if (isAutoHit) {
-      // Magic Missile — auto-hit, roll each dart
-      for (const effect of spell.effects) {
+      // ── Auto-hit spell (Magic Missile, Guardian of Faith) ──
+      for (const effect of scaledEffects) {
         if (effect.damage) {
           const dmgResult = this.combatRules.rollDamage(effect.damage, false);
           rolls.push(dmgResult);
@@ -655,11 +759,10 @@ export class CombatManager {
       description = narrateSpellAutoHit(spell.name, totalDamage, damageType ?? 'force');
 
     } else if (hasDamage && primaryTarget) {
-      // Spell attack roll (Fire Bolt, Ray of Frost, Scorching Ray)
+      // ── Spell attack roll (Fire Bolt, Ray of Frost, Scorching Ray) ──
       const attackBonus = castMod + prof;
       const ac = primaryTarget.stats.armorClass;
 
-      // Compute advantage/disadvantage for spell attacks (same rules as weapon attacks)
       const { advantage: spellAdv, disadvantage: spellDisadv } =
         this.computeAttackAdvantage(p, primaryTarget, /* isMelee */ false);
       const attackRoll = this.dice.rollD20({
@@ -671,7 +774,7 @@ export class CombatManager {
       hit = attackRoll.isCritical || (!attackRoll.isFumble && attackRoll.total >= ac);
 
       if (hit) {
-        for (const effect of spell.effects) {
+        for (const effect of scaledEffects) {
           if (effect.damage) {
             const dmgResult = this.combatRules.rollDamage(effect.damage, attackRoll.isCritical);
             rolls.push(dmgResult);
@@ -679,13 +782,26 @@ export class CombatManager {
             damageType = effect.damage.type;
           }
         }
+        // Apply conditions on hit (spell attacks that also apply conditions)
+        if (hasCondition) {
+          for (const effect of scaledEffects) {
+            if (effect.condition) {
+              const condDuration = spell.duration.value ?? 1;
+              this.applyConditionToParticipant(primaryTarget, effect.condition, condDuration, entityId);
+              conditionsApplied.push(effect.condition);
+            }
+          }
+        }
       }
 
       description = narrateSpellAttack(spell.name, hit, totalDamage, damageType ?? 'magical', attackRoll.total, ac);
+      if (hit && conditionsApplied.length > 0) {
+        description += ` (${conditionsApplied.join(', ')} applied)`;
+      }
 
     } else if (hasHealing) {
-      // Healing spell (Cure Wounds, Healing Word)
-      for (const effect of spell.effects) {
+      // ── Healing spell (Cure Wounds, Healing Word) ──
+      for (const effect of scaledEffects) {
         if (effect.healing) {
           const healResult = this.dice.rollDamage(effect.healing);
           rolls.push(healResult);
@@ -694,8 +810,56 @@ export class CombatManager {
       }
       description = narrateHealing(spell.name, totalHealing);
 
+    } else if (hasCondition) {
+      // ── Condition-only spell with saving throw (Hold Person, Blindness) ──
+      // These have conditions but no damage
+      const saveEffect = scaledEffects.find(e => e.savingThrow);
+      if (saveEffect && primaryTarget) {
+        const saveAbility = saveEffect.savingThrow!.ability;
+        const targetMod = abilityModifier(primaryTarget.stats.abilityScores[saveAbility]);
+        const { advantage: saveAdv, disadvantage: saveDisadv } =
+          this.computeSaveAdvantage(primaryTarget, saveAbility);
+        const saveRoll = this.dice.rollD20({
+          modifier: targetMod,
+          advantage: saveAdv,
+          disadvantage: saveDisadv,
+        });
+        rolls.push(saveRoll);
+        const saved = saveRoll.total >= spellSaveDC;
+
+        if (!saved) {
+          for (const effect of scaledEffects) {
+            if (effect.condition) {
+              const condDuration = spell.duration.value ?? 10;
+              this.applyConditionToParticipant(primaryTarget, effect.condition, condDuration, entityId);
+              conditionsApplied.push(effect.condition);
+            }
+          }
+        }
+
+        description = narrateSpellSave(spell.name, saved, 0, 'magical', saveRoll.total, spellSaveDC);
+        if (!saved && conditionsApplied.length > 0) {
+          description += ` (${conditionsApplied.join(', ')} applied)`;
+        }
+        hit = !saved;
+      } else {
+        // No save — apply conditions directly (buffs like Invisibility on self)
+        const target = primaryTarget ?? p;
+        for (const effect of scaledEffects) {
+          if (effect.condition) {
+            const condDuration = spell.duration.value ?? 10;
+            this.applyConditionToParticipant(target, effect.condition, condDuration, entityId);
+            conditionsApplied.push(effect.condition);
+          }
+        }
+        description = narrateBuff(spell.name);
+        if (conditionsApplied.length > 0) {
+          description += ` (${conditionsApplied.join(', ')} applied)`;
+        }
+      }
+
     } else {
-      // Utility / buff spell (Bless, Shield)
+      // ── Utility / buff spell (Bless, Shield, Mage Armor) ──
       description = narrateBuff(spell.name);
     }
 
@@ -712,7 +876,6 @@ export class CombatManager {
     };
 
     // Emit spell event BEFORE applying damage so narrative order is correct
-    // (spell log appears before "X falls!" from kill)
     this.emitOrDefer({
       type: 'combat:spell',
       category: 'combat',
@@ -725,8 +888,8 @@ export class CombatManager {
       data: { result },
     });
 
-    // Apply damage to all affected enemies (may trigger combat:kill)
-    if (hit && totalDamage > 0) {
+    // Apply damage for auto-hit and spell attacks (save spells already applied above)
+    if (!hasSavingThrow && hit && totalDamage > 0) {
       for (const targetId of affectedEntities) {
         this.applyDamageToParticipant(targetId, totalDamage, damageType ?? 'force');
       }
@@ -1402,6 +1565,30 @@ export class CombatManager {
 
     // Dodge expires at the start of the dodging creature's next turn
     this.dodgingEntities.delete(current.entityId);
+
+    // Tick concentration duration — break if expired
+    const concDuration = this.concentrationDurations.get(current.entityId);
+    if (concDuration !== undefined) {
+      const remaining = concDuration - 1;
+      if (remaining <= 0) {
+        this.concentrationDurations.delete(current.entityId);
+        this.breakConcentration(current.entityId);
+      } else {
+        this.concentrationDurations.set(current.entityId, remaining);
+      }
+    }
+
+    // Tick conditions (decrement durations, remove expired)
+    const conditions = p.stats.conditions;
+    for (let i = conditions.length - 1; i >= 0; i--) {
+      const cond = conditions[i];
+      if (cond.duration !== undefined) {
+        cond.duration--;
+        if (cond.duration <= 0) {
+          conditions.splice(i, 1);
+        }
+      }
+    }
 
     // Set max attacks based on Extra Attack feature
     const hasExtraAttack = p.stats.features.some(f => f.id === 'feature_extra_attack');
