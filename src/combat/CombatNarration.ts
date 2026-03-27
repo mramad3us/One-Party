@@ -396,6 +396,184 @@ const SPELL_NARRATION: Record<string, NarrationEntry> = {
   'Dimension Door': {
     buff: ['A doorway of shimmering energy opens and closes in a heartbeat — the caster steps through to a distant point.'],
   },
+
+  // ── Damage + Save spells ──
+  'Fireball': {
+    fail: ['A tiny bead of light streaks from the caster\'s finger and detonates in a massive explosion of flame — everything in the blast is engulfed.'],
+    save: ['Fire erupts in a roaring sphere — those quick enough dive to the edges, singed but alive.'],
+  },
+  'Lightning Bolt': {
+    fail: ['A bolt of lightning streaks in a searing line from the caster\'s outstretched hand — everything in its path is scorched.'],
+    save: ['Lightning crackles in a blinding line. Those in its path throw themselves flat, catching only a glancing shock.'],
+  },
+  'Chain Lightning': {
+    fail: ['A bolt of lightning arcs from the caster to the target, then leaps to the next — chaining destruction through their ranks.'],
+    save: ['Lightning arcs wildly between targets — some manage to ground the worst of it, but none escape unscathed.'],
+  },
+  'Cone of Cold': {
+    fail: ['A blast of arctic cold erupts in a wide cone — frost forms instantly on everything in its path, flesh and stone alike.'],
+    save: ['A wave of killing cold sweeps outward. Those on the edges brace against it, teeth chattering but standing.'],
+  },
+  'Ice Storm': {
+    fail: ['Hail and sleet hammer down in a devastating barrage — chunks of ice shatter against armor and bone alike.'],
+    save: ['A storm of ice and hail descends. Some duck behind cover, taking only glancing blows from the frozen barrage.'],
+  },
+  'Disintegrate': {
+    fail: ['A thin green ray shoots from the caster\'s finger — where it strikes, matter simply ceases to exist, leaving a fine gray dust.'],
+    save: ['The green ray of annihilation streaks toward the target, but they wrench aside at the last instant — the beam scorches past.'],
+  },
+  'Circle of Death': {
+    fail: ['A sphere of negative energy ripples outward — the wave of death saps vitality from everything it touches.'],
+    save: ['Necrotic energy pulses outward in a dark wave. The hardiest steel themselves against the wash of death.'],
+  },
+  'Delayed Blast Fireball': {
+    fail: ['The glowing bead finally detonates — the delayed fireball erupts with devastating, amplified force.'],
+    save: ['The stored fireball erupts in a titanic explosion. Those at the edge dive clear of the worst of it.'],
+  },
+  'Flame Strike': {
+    fail: ['A vertical column of divine fire roars down from above, bathing the target in holy flames and radiant light.'],
+    save: ['Heavenly fire crashes down in a pillar of flame. The target rolls clear but catches the edge of the inferno.'],
+  },
+  'Flaming Sphere': {
+    fail: ['A rolling ball of fire barrels into the target, searing flesh on contact before rolling away for its next victim.'],
+    save: ['The flaming sphere rolls close — the target jumps back, singed by the heat but avoiding a direct hit.'],
+  },
+  'Insect Plague': {
+    fail: ['A writhing cloud of biting locusts descends, stripping flesh and clothing alike in a frenzy of mandibles.'],
+    save: ['Swarming insects fill the air. The target covers their face and pushes through, bitten but not overwhelmed.'],
+  },
+  'Spirit Guardians': {
+    fail: ['Spectral warriors materialize around the caster, lashing out at the intruder with ghostly weapons.'],
+    save: ['The spirit guardians swipe at the target, but they weave between the phantasmal blows.'],
+  },
+  'Wall of Fire': {
+    fail: ['A curtain of roaring flame springs into existence — those on the wrong side are engulfed immediately.'],
+    save: ['A wall of fire erupts upward. The target recoils from the heat, seared but not consumed.'],
+  },
+  'Wall of Thorns': {
+    fail: ['A thick wall of razor-sharp thorns erupts from the ground — anyone caught in it is lacerated from all sides.'],
+    save: ['Thorny vines burst upward in a tangled wall. The target fights free, bloodied but not ensnared.'],
+  },
+  'Cordon of Arrows': {
+    fail: ['Buried arrows spring from the ground and launch themselves at the intruder, striking with unerring aim.'],
+    save: ['Arrows spring from concealment — the target throws up a guard and deflects some, but not all.'],
+  },
+  'Shatter': {
+    fail: ['A painfully intense ringing noise erupts — the sonic shockwave cracks stone and shakes bone to the marrow.'],
+    save: ['Thunder detonates in a concussive blast. The target claps hands over ears and endures, rattled but standing.'],
+  },
+  'Word of Radiance': {
+    fail: ['A burst of divine radiance erupts from the caster, searing all unholy things nearby.'],
+    save: ['Holy light flares outward, but the target averts their gaze and weathers the brilliance.'],
+  },
+  'Feeblemind': {
+    fail: ['Psychic energy shatters the target\'s intellect — their eyes go blank, mind reduced to that of a beast.'],
+    save: ['A devastating psychic assault batters the target\'s mind, but their will holds the shattered pieces together.'],
+  },
+  'Sunbeam': {
+    fail: ['A beam of brilliant white light lances from the caster\'s hand — the radiance sears and blinds everything in its path.'],
+    save: ['Blinding radiance sweeps across the area. The target shields their eyes, taking the heat but keeping their sight.'],
+  },
+  'Sunburst': {
+    fail: ['The area erupts in a blinding flash of pure sunlight — every shadow is banished, every undead creature screams.'],
+    save: ['A nova of sunlight explodes outward. Some manage to turn away in time, seared but not blinded.'],
+  },
+
+  // ── Condition spells ──
+  'Crown of Madness': {
+    fail: ['A twisted crown of jagged iron materializes on the target\'s head — their eyes glaze as madness takes hold.'],
+    save: ['A spectral crown flickers into existence above the target, but they shake off the encroaching insanity.'],
+  },
+  'Dominate Beast': {
+    fail: ['The caster\'s will washes over the beast — its eyes dim as it falls completely under magical control.'],
+    save: ['The beast snarls and shakes its head, throwing off the dominating influence with animal fury.'],
+  },
+  'Dominate Person': {
+    fail: ['An irresistible compulsion seizes the target\'s mind — they stand slack-jawed, awaiting commands.'],
+    save: ['Magical control claws at the target\'s psyche, but their sense of self blazes strong enough to resist.'],
+  },
+  'Dominate Monster': {
+    fail: ['The caster\'s will crashes over the creature like a tidal wave — resistance crumbles, obedience takes its place.'],
+    save: ['The domination spell strains against the creature\'s alien mind, but it tears free with a defiant roar.'],
+  },
+  'Ensnaring Strike': {
+    fail: ['Thorny vines erupt from the weapon\'s point of impact, wrapping around the target and dragging them to a halt.'],
+    save: ['Grasping vines spring from the wound, but the target tears free before they can take hold.'],
+  },
+  'Eyebite': {
+    fail: ['The caster\'s gaze falls upon the target with terrible weight — they crumble under the evil eye\'s power.'],
+    save: ['A malevolent gaze locks onto the target, but they meet it with iron will and refuse to yield.'],
+  },
+  'Flesh to Stone': {
+    fail: ['The target\'s skin begins to harden and grey — petrification creeps through their body like a spreading curse.'],
+    save: ['Stone begins to spread across the target\'s skin, but they wrench free of the transmutation\'s grip.'],
+  },
+  'Grease': {
+    fail: ['The ground becomes slick with conjured grease — the target\'s feet slip from under them and they crash down.'],
+    save: ['Grease slicks the ground, but the target finds their footing and stays upright through careful balance.'],
+  },
+  'Hypnotic Pattern': {
+    fail: ['Swirling colors fill the air in a mesmerizing display — the target\'s eyes lock onto the pattern, utterly entranced.'],
+    save: ['Kaleidoscopic light dances before the target, but they avert their gaze before the pattern can take hold.'],
+  },
+  'Animal Friendship': {
+    fail: ['A wave of calming magic washes over the beast — hostility fades, replaced by an unnatural docility.'],
+    save: ['The soothing magic reaches for the beast, but its wild nature resists the unnatural calm.'],
+  },
+  'Geas': {
+    fail: ['A magical command burrows into the target\'s mind, taking root as an irresistible compulsion that will endure for days.'],
+    save: ['The binding words of the geas echo in the target\'s mind, but their will proves too strong to be chained.'],
+  },
+  'Mass Suggestion': {
+    fail: ['Honeyed words laced with enchantment wash over the group — one by one, heads nod in agreement.'],
+    save: ['The magical suggestion ripples through the crowd, but some see through the manipulation and resist.'],
+  },
+  'Modify Memory': {
+    fail: ['The caster reaches into the target\'s mind and reshapes their recollections — what was real becomes uncertain.'],
+    save: ['Fingers of enchantment probe the target\'s memories, but the mind is a fortress that refuses entry.'],
+  },
+  'Color Spray': {
+    auto: ['A dazzling spray of clashing colors erupts from the caster\'s hands — the weakest targets are blinded by the kaleidoscope.'],
+  },
+  'Power Word Stun': {
+    auto: ['A single word of power reverberates through the air — the target\'s body locks rigid, stunned by the sheer force of the utterance.'],
+  },
+  'Contagion': {
+    hit: ['A diseased hand grasps the target — virulent plague seeps into their body through the wound, poisoning them from within.'],
+    miss: ['The plague-bearing hand reaches out but the target recoils, avoiding the diseased touch.'],
+  },
+
+  // ── Healing spells ──
+  'Aid': {
+    heal: ['A bolstering prayer fortifies the body — hit point maximum and current health both increase.'],
+  },
+  'Aura of Vitality': {
+    heal: ['A warm, restorative aura radiates from the caster, healing energy flowing to those nearby.'],
+  },
+  'False Life': {
+    heal: ['Necromantic vitality surges through the caster — a shield of false life bolsters them against harm.'],
+  },
+  'Goodberry': {
+    heal: ['Small, luminous berries materialize in the caster\'s palm — each one pulses with restorative magic.'],
+  },
+  'Revivify': {
+    heal: ['Diamond dust shimmers as it\'s scattered over the fallen — a spark of life returns to dead eyes.'],
+  },
+  'Raise Dead': {
+    heal: ['Ancient words of power echo as life is called back from beyond the veil — the dead stirs once more.'],
+  },
+  'Resurrection': {
+    heal: ['Blinding divine light engulfs the fallen — the soul is pulled back from the afterlife by sheer holy power.'],
+  },
+  'True Resurrection': {
+    heal: ['Reality itself bends as the most powerful resurrection magic known is invoked — even dust reforms into flesh.'],
+  },
+  'Regenerate': {
+    heal: ['Restorative energy floods through the target — wounds close, bones knit, and even severed limbs begin to regrow.'],
+  },
+  'Mass Heal': {
+    heal: ['A surge of overwhelming positive energy erupts outward — every wound in the area begins to close simultaneously.'],
+  },
 };
 
 // ── Melee Attack Narration ──

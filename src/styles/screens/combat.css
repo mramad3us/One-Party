@@ -811,10 +811,23 @@
 }
 
 .spell-selector-icon {
-  font-size: var(--text-sm);
   flex-shrink: 0;
   width: 20px;
-  text-align: center;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+.spell-selector-btn:hover .spell-selector-icon {
+  opacity: 0.8;
+}
+
+.spell-selector-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .spell-selector-info {
@@ -848,15 +861,24 @@
 
 /* Spell tags (BA, Concentration, Healing, CC) */
 .spell-tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-mono);
   font-size: 9px;
-  padding: 0 4px;
+  padding: 1px 4px;
   margin-left: 4px;
   border-radius: 2px;
   vertical-align: middle;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  line-height: 1;
+  min-height: 14px;
+}
+
+.spell-tag svg {
+  width: 10px;
+  height: 10px;
 }
 
 .spell-tag--ba {

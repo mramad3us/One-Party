@@ -2224,6 +2224,17 @@ export class CombatManager {
         'spell_slow', 'spell_bestow_curse', 'spell_sleep', 'spell_color_spray'].includes(spell.id);
       if (!hasCombatEffect && !isBuffSpell && !isKnownBuff) continue;
 
+      // Skip spells that aren't verified to work in combat
+      const DISABLED_SPELLS = new Set([
+        'spell_maze', 'spell_mislead', 'spell_dominate_beast', 'spell_dominate_person',
+        'spell_dominate_monster', 'spell_geas', 'spell_modify_memory',
+        'spell_raise_dead', 'spell_resurrection', 'spell_true_resurrection',
+        'spell_revivify', 'spell_goodberry', 'spell_mass_suggestion',
+        'spell_animal_friendship', 'spell_crown_of_madness', 'spell_eyebite',
+        'spell_flesh_to_stone',
+      ]);
+      if (DISABLED_SPELLS.has(spell.id)) continue;
+
       const isCantrip = spell.level === 0;
       const isBonusAction = spell.castingTime === '1 bonus action';
 

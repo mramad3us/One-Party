@@ -2893,10 +2893,16 @@ async function main(): Promise<void> {
       });
     };
 
-    // School icons
+    // School icons (inline SVG for crisp rendering)
     const SCHOOL_ICONS: Record<string, string> = {
-      abjuration: '🛡', conjuration: '✦', divination: '👁', enchantment: '💫',
-      evocation: '🔥', illusion: '🌀', necromancy: '💀', transmutation: '⚗',
+      abjuration:    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L12 4v4c0 2.5-2.2 4.5-5 5.5-2.8-1-5-3-5-5.5V4L7 1z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>',
+      conjuration:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M7 1v2M7 11v2M1 7h2M11 7h2M3 3l1.5 1.5M9.5 9.5L11 11M3 11l1.5-1.5M9.5 4.5L11 3" stroke="currentColor" stroke-width="1"/></svg>',
+      divination:    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="6" r="4" stroke="currentColor" stroke-width="1.2"/><circle cx="7" cy="6" r="1.5" fill="currentColor"/><path d="M7 10v3" stroke="currentColor" stroke-width="1.2"/></svg>',
+      enchantment:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2c1.5 0 3 1 3 3s-3 4-3 6c0-2-3-3-3-6s1.5-3 3-3z" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 8.5l1.5 1 1.5-1" stroke="currentColor" stroke-width="1"/></svg>',
+      evocation:     '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2L4 7h2.5L5 12l5-6H7.5L9 2H7z" fill="currentColor"/></svg>',
+      illusion:      '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="7" r="3" stroke="currentColor" stroke-width="1" stroke-dasharray="2 1.5"/><circle cx="9" cy="7" r="3" stroke="currentColor" stroke-width="1" stroke-dasharray="2 1.5"/></svg>',
+      necromancy:    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.2"/><circle cx="5.8" cy="4.5" r="0.8" fill="currentColor"/><circle cx="8.2" cy="4.5" r="0.8" fill="currentColor"/><path d="M5.5 6.5h3M4 9l1.5 1.5v2.5M10 9l-1.5 1.5v2.5" stroke="currentColor" stroke-width="1"/></svg>',
+      transmutation: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 3l3 4-3 4M10 3l-3 4 3 4" stroke="currentColor" stroke-width="1.2"/></svg>',
     };
 
     // Group spells by level
@@ -2957,10 +2963,10 @@ async function main(): Promise<void> {
 
         const rangeStr = spell.range > 0 ? `${spell.range}ft` : spell.range === 0 ? 'self' : 'touch';
         const tags: string[] = [];
-        if (isBonusAction) tags.push('<span class="spell-tag spell-tag--ba">BA</span>');
-        if (spell.duration.type === 'concentration') tags.push('<span class="spell-tag spell-tag--conc">C</span>');
-        if (hasHealing) tags.push('<span class="spell-tag spell-tag--heal">♥</span>');
-        if (hasCondition) tags.push('<span class="spell-tag spell-tag--cc">CC</span>');
+        if (isBonusAction) tags.push('<span class="spell-tag spell-tag--ba" data-tooltip="Bonus Action">BA</span>');
+        if (spell.duration.type === 'concentration') tags.push('<span class="spell-tag spell-tag--conc" data-tooltip="Concentration"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="5" cy="5" r="1" fill="currentColor"/></svg></span>');
+        if (hasHealing) tags.push('<span class="spell-tag spell-tag--heal" data-tooltip="Healing"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 2C3.5 2 2 3 2 4.5 2 7 5 8.5 5 8.5S8 7 8 4.5C8 3 6.5 2 5 2z" fill="currentColor"/></svg></span>');
+        if (hasCondition) tags.push('<span class="spell-tag spell-tag--cc" data-tooltip="Crowd Control"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5h6M5 2v6" stroke="currentColor" stroke-width="1.5"/></svg></span>');
 
         // Can this spell be upcast?
         const canUpcast = !isCantrip && spellOpt.maxSlotLevel > spellOpt.minSlotLevel;
