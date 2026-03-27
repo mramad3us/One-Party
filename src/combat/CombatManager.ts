@@ -795,12 +795,14 @@ export class CombatManager {
       const scaling = spell.higherLevelScaling;
       if (scaling.extraDicePerLevel) {
         // Add extra dice to the first damage/healing effect
+        const step = scaling.levelsPerExtraDie ?? 1;
+        const extraDice = scaling.extraDicePerLevel * Math.floor(levelDiff / step);
         scaledEffects = scaledEffects.map((eff, i) => {
           if (i === 0 && eff.damage) {
-            return { ...eff, damage: { ...eff.damage, count: eff.damage.count + (scaling.extraDicePerLevel! * levelDiff) } };
+            return { ...eff, damage: { ...eff.damage, count: eff.damage.count + extraDice } };
           }
           if (i === 0 && eff.healing) {
-            return { ...eff, healing: { ...eff.healing, count: eff.healing.count + (scaling.extraDicePerLevel! * levelDiff) } };
+            return { ...eff, healing: { ...eff.healing, count: eff.healing.count + extraDice } };
           }
           return eff;
         });
@@ -844,7 +846,7 @@ export class CombatManager {
       const dieFace = isSleep ? 8 : 10;
       const baseDice = isSleep ? 5 : 6;
       const extraDice = spell.higherLevelScaling?.extraDicePerLevel
-        ? spell.higherLevelScaling.extraDicePerLevel * Math.max(0, slotLevel - spell.level)
+        ? spell.higherLevelScaling.extraDicePerLevel * Math.floor(Math.max(0, slotLevel - spell.level) / (spell.higherLevelScaling.levelsPerExtraDie ?? 1))
         : 0;
       const totalDice = baseDice + extraDice;
 
@@ -2251,14 +2253,22 @@ export class CombatManager {
         'spell_foresight', 'spell_true_strike'].includes(spell.id);
       if (!hasCombatEffect && !isKnownBuff) continue;
 
-      // Skip spells that aren't verified to work in combat
+      // Skip spells that aren't verified to work in combat or need unimplemented mechanics
       const DISABLED_SPELLS = new Set([
+        // Need complex AI/control mechanics
         'spell_maze', 'spell_mislead', 'spell_dominate_beast', 'spell_dominate_person',
         'spell_dominate_monster', 'spell_geas', 'spell_modify_memory',
+        'spell_mass_suggestion', 'spell_animal_friendship', 'spell_crown_of_madness',
+        'spell_eyebite', 'spell_flesh_to_stone',
+        // Need resurrection/death system
         'spell_raise_dead', 'spell_resurrection', 'spell_true_resurrection',
-        'spell_revivify', 'spell_goodberry', 'spell_mass_suggestion',
-        'spell_animal_friendship', 'spell_crown_of_madness', 'spell_eyebite',
-        'spell_flesh_to_stone',
+        'spell_revivify', 'spell_goodberry',
+        // Need temp HP system (effects data is wrong — these are buffs, not direct damage/healing)
+        'spell_armor_of_agathys', 'spell_false_life',
+        // Need instant-kill mechanic (not damage-based)
+        'spell_power_word_kill', 'spell_power_word_stun',
+        // Reactive/sustained damage needs per-turn trigger system
+        'spell_fire_shield', 'spell_storm_of_vengeance',
       ]);
       if (DISABLED_SPELLS.has(spell.id)) continue;
 

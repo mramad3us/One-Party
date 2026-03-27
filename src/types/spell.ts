@@ -51,6 +51,8 @@ export type HigherLevelScaling = {
   extraDicePerLevel?: number;
   /** Extra copies of the first effect added per slot level above base (Magic Missile darts, Scorching Ray rays) */
   extraEffectsPerLevel?: number;
+  /** How many slot levels above base per extra die (default 1). E.g., 2 = one extra die per 2 slot levels. */
+  levelsPerExtraDie?: number;
 };
 
 /** A spell definition from the SRD */

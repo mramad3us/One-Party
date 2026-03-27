@@ -2952,12 +2952,22 @@ async function main(): Promise<void> {
         const isCantrip = spell.level === 0;
         const schoolIcon = SCHOOL_ICONS[spell.school] ?? '✧';
 
-        // Effect summary
+        // Effect summary — combine multiple damage types (e.g. "2d8 bludgeoning + 4d6 cold")
         let effectStr = '';
+        const dmgParts: string[] = [];
         for (const eff of spell.effects) {
-          if (eff.damage) { effectStr = `${eff.damage.count}d${eff.damage.die} ${eff.damage.type}`; break; }
-          if (eff.healing) { effectStr = `${eff.healing.count}d${eff.healing.die} heal`; break; }
-          if (eff.condition) { effectStr = eff.condition; break; }
+          if (eff.damage) {
+            const d = eff.damage;
+            dmgParts.push(d.count > 0 ? `${d.count}d${d.die}${d.bonus ? `+${d.bonus}` : ''} ${d.type}` : `${d.bonus ?? 0} ${d.type}`);
+          }
+        }
+        if (dmgParts.length > 0) {
+          effectStr = dmgParts.join(' + ');
+        } else {
+          for (const eff of spell.effects) {
+            if (eff.healing) { effectStr = `${eff.healing.count}d${eff.healing.die} heal`; break; }
+            if (eff.condition) { effectStr = eff.condition; break; }
+          }
         }
         if (!effectStr && spell.duration.type === 'concentration') effectStr = 'buff';
 
