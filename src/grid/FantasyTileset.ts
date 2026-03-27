@@ -1200,6 +1200,48 @@ export class FantasyTileset implements Tileset {
       case 'bench':
         pattern = makeChairPattern(colors.primary, colors.secondary);
         break;
+      case 'wardrobe':
+      case 'cabinet':
+        pattern = makeShelfPattern(colors.primary, colors.secondary);
+        break;
+      case 'mirror':
+      case 'painting':
+        pattern = makeBannerPattern(colors.primary, colors.secondary);
+        break;
+      case 'tapestry':
+      case 'curtain':
+        pattern = makeBannerPattern(colors.primary, colors.secondary);
+        break;
+      case 'cauldron':
+        pattern = makeBarrelPattern(colors.primary, colors.secondary);
+        break;
+      case 'hay_pile':
+      case 'sack':
+        pattern = makeCratePattern(colors.primary, colors.secondary);
+        break;
+      case 'tombstone':
+      case 'statue':
+        pattern = makePillarPattern(colors.primary, colors.secondary);
+        break;
+      case 'planter':
+        pattern = makeBarrelPattern(colors.primary, colors.secondary);
+        break;
+      case 'ladder':
+        pattern = makeBannerPattern(colors.primary, colors.secondary);
+        break;
+      case 'fence':
+        pattern = makeCounterPattern(colors.primary, colors.secondary);
+        break;
+      case 'woodpile':
+      case 'cart':
+        pattern = makeCratePattern(colors.primary, colors.secondary);
+        break;
+      case 'cage':
+        pattern = makePillarPattern(colors.primary, colors.secondary);
+        break;
+      case 'throne':
+        pattern = makeChairPattern(colors.primary, colors.secondary);
+        break;
     }
 
     if (pattern) {

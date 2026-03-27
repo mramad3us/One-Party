@@ -1804,6 +1804,57 @@ const NPC_COMMONER: SpriteDefinition = {
   ],
 };
 
+const NPC_BANKER: SpriteDefinition = {
+  palette: {
+    // Hair (2 shades — neat, graying)
+    H: '#787070', // hair lit
+    h: '#585050', // hair shadow
+    // Skin (2 shades)
+    S: '#f0d0a8', // skin lit
+    s: '#c8a070', // skin shadow
+    // Eyes / spectacles
+    E: '#1c2838', // dark eye
+    O: '#c8b890', // spectacles gold frame
+    // Coat (4 shades — dark formal navy)
+    C: '#384868', // coat highlight
+    c: '#283850', // coat mid
+    D: '#182838', // coat shadow
+    d: '#101820', // coat deepest
+    // Vest/waistcoat (3 shades — rich burgundy)
+    V: '#983838', // vest highlight
+    v: '#782828', // vest mid
+    W: '#581818', // vest shadow
+    // Gold chain / coins (3 shades)
+    G: '#f8d868', // gold highlight
+    g: '#c8a838', // gold mid
+    Y: '#907828', // gold shadow
+    // Pants (2 shades — dark)
+    P: '#383838', // pants lit
+    p: '#282828', // pants shadow
+    // Boots (2 shades — polished)
+    L: '#302020', // boot lit
+    l: '#201010', // boot shadow
+  },
+  pixels: [
+    '................',
+    '....hhHHHhh.....',
+    '....hHHHHHh.....',
+    '....sSSSSSSs....',
+    '....sOEsOESs....',
+    '......sSs.......',
+    '....DcCVCcD.....',
+    '...s.CVGVCc.....',
+    '...s.CVgVCc.....',
+    '.....cCYCcD.....',
+    '....DcCCCcD.....',
+    '....pPC.CPp.....',
+    '....pP...Pp.....',
+    '....lL...Ll.....',
+    '....lL...Ll.....',
+    '................',
+  ],
+};
+
 const NPC_NOBLE: SpriteDefinition = {
   palette: {
     // Hair (2 shades)
@@ -2651,6 +2702,127 @@ const YOUNG_GREEN_DRAGON: SpriteDefinition = {
   ],
 };
 
+// ── Ambient Creature Sprites ─────────────────────────────────
+
+const AMBIENT_CAT: SpriteDefinition = {
+  palette: {
+    B: '#584838', // body dark
+    b: '#786858', // body mid
+    F: '#a09080', // body light/belly
+    E: '#40c840', // eye green
+    N: '#382820', // nose/mouth
+    T: '#584838', // tail
+    W: '#c8c0b0', // whisker
+  },
+  pixels: [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '......Bb.bB.....',
+    '......BEEB......',
+    '.......NF.......',
+    '......WbFW......',
+    '.....BbbFbB.....',
+    '......bFFb......',
+    '......b..b......',
+    '.....T..........',
+    '................',
+    '................',
+    '................',
+  ],
+};
+
+const AMBIENT_DOG: SpriteDefinition = {
+  palette: {
+    B: '#8a6a40', // body golden
+    b: '#6a5030', // body shadow
+    F: '#c8a870', // belly/chest light
+    E: '#201810', // eye dark
+    N: '#302018', // nose
+    T: '#8a6a40', // tail
+    R: '#604020', // ear
+  },
+  pixels: [
+    '................',
+    '................',
+    '................',
+    '................',
+    '.....Rb..bR.....',
+    '.....RBBBR......',
+    '......BEEB......',
+    '.......N........',
+    '......BFFB......',
+    '.....BbFFbB.....',
+    '.....bBFFBb.....',
+    '......b..b......',
+    '......b..b......',
+    '.........T......',
+    '................',
+    '................',
+  ],
+};
+
+const AMBIENT_CHICKEN: SpriteDefinition = {
+  palette: {
+    B: '#c8b890', // body cream
+    b: '#a09070', // body shadow
+    W: '#e8e0d0', // wing white
+    R: '#c83020', // comb red
+    Y: '#d8a830', // beak yellow
+    E: '#181010', // eye
+    L: '#c87828', // legs orange
+  },
+  pixels: [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '.......R........',
+    '......BRB.......',
+    '......BEB.......',
+    '.......Y........',
+    '......bWb.......',
+    '.....bBWBb......',
+    '......b.b.......',
+    '......L.L.......',
+    '................',
+    '................',
+  ],
+};
+
+const AMBIENT_RAT: SpriteDefinition = {
+  palette: {
+    B: '#585048', // body grey-brown
+    b: '#403830', // body dark
+    F: '#787068', // belly
+    E: '#100808', // eye
+    N: '#c88888', // nose pink
+    T: '#c8a8a0', // tail pink
+  },
+  pixels: [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '.......bBb......',
+    '......bBEB......',
+    '.......NF.......',
+    '......bFFb......',
+    '......b..b......',
+    '...........T....',
+    '................',
+    '................',
+  ],
+};
+
 // ── Sprite Registry ──────────────────────────────────────────
 
 const SPRITE_REGISTRY: Record<string, SpriteDefinition> = {
@@ -2675,6 +2847,12 @@ const SPRITE_REGISTRY: Record<string, SpriteDefinition> = {
   npc_guard:        NPC_GUARD,
   npc_commoner:     NPC_COMMONER,
   npc_noble:        NPC_NOBLE,
+  npc_banker:       NPC_BANKER,
+  // Ambient creatures
+  ambient_cat:      AMBIENT_CAT,
+  ambient_dog:      AMBIENT_DOG,
+  ambient_chicken:  AMBIENT_CHICKEN,
+  ambient_rat:      AMBIENT_RAT,
   // Monsters
   monster_goblin:       GOBLIN,
   monster_skeleton:     SKELETON,

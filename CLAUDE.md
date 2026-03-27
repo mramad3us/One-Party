@@ -162,9 +162,37 @@ Rules live in `src/rules/` as stateless classes/functions:
 
 NPCs have roles (`merchant`, `innkeeper`, `blacksmith`, `priest`, `guard`, etc.) that determine interaction options. The `NPCInteraction` class maps roles to available actions.
 
+### NPC Placement
+
+NPCs are placed on exploration maps using **anchor-based placement** (in `placeExplorationNPCs` in main.ts). Each role maps to anchor features:
+
+| Role | Anchor Features |
+|------|----------------|
+| innkeeper | counter, hearth |
+| merchant | counter, shelf |
+| blacksmith | anvil, hearth |
+| priest | altar, fountain |
+| guard | weapon_rack, banner |
+
+The algorithm: scan the grid for anchor features, place NPCs in passable cells adjacent to their role's anchor. Fallback: random indoor cell, then outdoor. Handcrafted NPCs use stored `npc.position` from universe data.
+
+### Merchant Stock
+
+Stock tables in `src/npc/MerchantSystem.ts` map roles to item IDs:
+- **merchant** -- adventuring gear, tools, ammunition, containers
+- **blacksmith** -- all SRD weapons & armor
+- **innkeeper** -- food, drink, rations
+- **priest** -- potions, alchemical supplies, holy items
+
+Biome extras add context-appropriate items (desert: waterskin; mountain: climbing gear; etc.). Difficulty tiers filter expensive items at low levels.
+
 Innkeeper special actions:
 - `short_rest` (buy a meal, 2sp) -- 1 hour, spend hit dice
 - `rest` (rent a room, 5sp) -- 8 hours, full long rest with TimeActivity animation
+
+### Adding Items
+
+Add items to `src/data/items.ts` in the `SRD_ITEMS` array. Each item needs: `id`, `type: 'item'`, `name`, `itemType`, `rarity`, `weight`, `value`, `description`, `stackable`, `requiresAttunement`, and type-specific `properties`. Then add the item ID to the appropriate stock table in `MerchantSystem.ts`.
 
 ## Event Patterns
 

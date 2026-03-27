@@ -1098,6 +1098,12 @@ async function main(): Promise<void> {
     // Place NPCs on the exploration grid for settlements
     placeExplorationNPCs(grid, location, state, screen, character);
 
+    // Spawn ambient creatures in settlements
+    const isSettlement = ['village', 'town', 'city'].includes(location.locationType);
+    if (isSettlement) {
+      spawnAmbientCreatures(grid, screen, character);
+    }
+
     // Switch keyboard input to exploration mode
     keyboardInput.setContext('exploration');
 
@@ -1131,19 +1137,55 @@ async function main(): Promise<void> {
       });
     }
 
-    // Pre-scan: find all indoor floor cells (passable cells adjacent to a wall)
-    // These are ideal NPC placement spots — inside buildings, not in the street
+    // ── Role-to-anchor feature mapping ──────────────────────────────
+    // Each role has anchor features that identify its workplace.
+    // We scan the grid once and collect passable cells adjacent to each anchor.
+    const ROLE_ANCHORS: Record<string, import('@/types/grid').CellFeature[]> = {
+      innkeeper: ['counter', 'hearth'],       // behind a counter or near the hearth (tavern)
+      merchant: ['counter', 'shelf'],          // behind a counter or near shelves (shop)
+      blacksmith: ['anvil', 'hearth'],         // near the anvil or forge
+      priest: ['altar', 'fountain'],           // near the altar
+      guard: ['weapon_rack', 'banner'],        // near weapon racks or banners (barracks)
+    };
+
+    // Scan grid once: build anchor positions and fallback indoor/outdoor pools
     const gridDef = grid.getDefinition();
+    const anchorCells = new Map<string, import('@/types').Coordinate[]>(); // feature -> passable neighbors
     const indoorCells: import('@/types').Coordinate[] = [];
     const outdoorCells: import('@/types').Coordinate[] = [];
+
+    // Collect all anchor feature types we need
+    const allAnchorFeatures = new Set<string>();
+    for (const feats of Object.values(ROLE_ANCHORS)) {
+      for (const f of feats) allAnchorFeatures.add(f);
+    }
+
     for (let y = 1; y < gridDef.height - 1; y++) {
       for (let x = 1; x < gridDef.width - 1; x++) {
+        const cell = grid.getCell(x, y);
+        if (!cell) continue;
+
+        // Check if this cell IS an anchor feature — find passable neighbors for NPC placement
+        for (const feat of cell.features) {
+          if (allAnchorFeatures.has(feat)) {
+            if (!anchorCells.has(feat)) anchorCells.set(feat, []);
+            // Add all passable neighbors as candidate NPC positions
+            for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+              const nx = x + dx, ny = y + dy;
+              if (nx >= 0 && nx < gridDef.width && ny >= 0 && ny < gridDef.height) {
+                if (grid.isPassable(nx, ny)) {
+                  anchorCells.get(feat)!.push({ x: nx, y: ny });
+                }
+              }
+            }
+          }
+        }
+
+        // Build indoor/outdoor pools for fallback placement
         if (!grid.isPassable(x, y)) continue;
-        if (grid.getEntityAt({ x, y })) continue;
-        // Check if any neighbor is a wall (movementCost === Infinity)
         const hasWallNeighbor = [[-1,0],[1,0],[0,-1],[0,1]].some(([dx,dy]) => {
-          const cell = grid.getCell(x+dx!, y+dy!);
-          return cell && cell.movementCost === Infinity;
+          const nc = grid.getCell(x+dx!, y+dy!);
+          return nc && nc.movementCost === Infinity;
         });
         if (hasWallNeighbor) {
           indoorCells.push({ x, y });
@@ -1152,48 +1194,90 @@ async function main(): Promise<void> {
         }
       }
     }
-    // Shuffle so NPCs spread across different buildings
+
+    // Shuffle fallback pools
     for (let i = indoorCells.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [indoorCells[i], indoorCells[j]] = [indoorCells[j], indoorCells[i]];
     }
     let indoorIdx = 0;
     let outdoorIdx = 0;
+    // Track used positions to avoid stacking
+    const usedPositions = new Set<string>();
+    if (playerPos) usedPositions.add(`${playerPos.x},${playerPos.y}`);
+
+    /** Try to claim an unoccupied position from anchor cells for a role */
+    function findAnchorPosition(role: string): import('@/types').Coordinate | null {
+      const anchors = ROLE_ANCHORS[role];
+      if (!anchors) return null;
+      for (const feat of anchors) {
+        const candidates = anchorCells.get(feat);
+        if (!candidates) continue;
+        for (const pos of candidates) {
+          const key = `${pos.x},${pos.y}`;
+          if (!usedPositions.has(key) && !grid.getEntityAt(pos)) {
+            usedPositions.add(key);
+            return pos;
+          }
+        }
+      }
+      return null;
+    }
+
+    /** Find an unoccupied position from the fallback indoor/outdoor pools */
+    function findFallbackPosition(): import('@/types').Coordinate | null {
+      while (indoorIdx < indoorCells.length) {
+        const candidate = indoorCells[indoorIdx++];
+        const key = `${candidate.x},${candidate.y}`;
+        if (!usedPositions.has(key) && !grid.getEntityAt(candidate)) {
+          usedPositions.add(key);
+          return candidate;
+        }
+      }
+      // Fallback: outdoor passable cells near center
+      if (outdoorIdx === 0) {
+        const cx = Math.floor(gridDef.width / 2);
+        const cy = Math.floor(gridDef.height / 2);
+        outdoorCells.sort((a, b) =>
+          Math.abs(a.x - cx) + Math.abs(a.y - cy) - Math.abs(b.x - cx) - Math.abs(b.y - cy)
+        );
+      }
+      while (outdoorIdx < outdoorCells.length) {
+        const candidate = outdoorCells[outdoorIdx++];
+        const key = `${candidate.x},${candidate.y}`;
+        if (!usedPositions.has(key) && !grid.getEntityAt(candidate)) {
+          usedPositions.add(key);
+          return candidate;
+        }
+      }
+      return null;
+    }
 
     // Place each NPC
     for (const npcId of location.npcs) {
       const npc = state.getNPC(npcId);
       if (!npc) continue;
 
-      // Try to place NPC at their stored position, or find a suitable spot
+      // 1. Use stored position if available (from previous visit or handcrafted data)
       let npcPos = npc.position;
+      if (npcPos) {
+        const key = `${npcPos.x},${npcPos.y}`;
+        if (usedPositions.has(key) || grid.getEntityAt(npcPos)) {
+          // Stored position is taken — need to find a new one
+          npcPos = null;
+        } else {
+          usedPositions.add(key);
+        }
+      }
+
+      // 2. Try anchor-based placement: match role to appropriate feature
       if (!npcPos) {
-        // Prefer indoor cells for most NPCs, outdoor for guards/commoners overflow
-        while (indoorIdx < indoorCells.length) {
-          const candidate = indoorCells[indoorIdx++];
-          if (!grid.getEntityAt(candidate)) {
-            npcPos = candidate;
-            break;
-          }
-        }
-        // Fallback: outdoor passable cells near center
-        if (!npcPos) {
-          const cx = Math.floor(gridDef.width / 2);
-          const cy = Math.floor(gridDef.height / 2);
-          // Sort outdoor cells by distance to center
-          if (outdoorIdx === 0) {
-            outdoorCells.sort((a, b) =>
-              Math.abs(a.x - cx) + Math.abs(a.y - cy) - Math.abs(b.x - cx) - Math.abs(b.y - cy)
-            );
-          }
-          while (outdoorIdx < outdoorCells.length) {
-            const candidate = outdoorCells[outdoorIdx++];
-            if (!grid.getEntityAt(candidate)) {
-              npcPos = candidate;
-              break;
-            }
-          }
-        }
+        npcPos = findAnchorPosition(npc.role);
+      }
+
+      // 3. Fallback: any indoor cell, then outdoor
+      if (!npcPos) {
+        npcPos = findFallbackPosition();
       }
 
       if (!npcPos) continue;
@@ -1205,7 +1289,6 @@ async function main(): Promise<void> {
       try {
         grid.placeEntity(npc.id, npcPos, 1);
       } catch {
-        // Position occupied — skip this NPC
         continue;
       }
 
@@ -1232,6 +1315,258 @@ async function main(): Promise<void> {
 
     // Update all entities on the grid
     screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
+  }
+
+  // ── Ambient Life System ──────────────────────────────────────
+
+  type AmbientCreature = {
+    entityId: string;
+    kind: 'cat' | 'dog' | 'chicken' | 'rat';
+    position: Coordinate;
+    anchorPosition: Coordinate; // spawn point — creature stays within wanderRadius
+    wanderRadius: number;
+    moveCounter: number; // counts player moves until next creature move
+  };
+
+  /** All ambient creatures currently on the grid */
+  let ambientCreatures: AmbientCreature[] = [];
+  /** NPC anchor positions for idle wandering (npcId -> original position) */
+  let npcAnchors = new Map<string, Coordinate>();
+  /** Moves since last NPC idle shuffle */
+  let npcIdleCounter = 0;
+
+  const CREATURE_COLORS: Record<string, string> = {
+    cat: '#a09080', dog: '#8a6a40', chicken: '#c8b890', rat: '#585048',
+  };
+  const CREATURE_SYMBOLS: Record<string, string> = {
+    cat: 'c', dog: 'd', chicken: 'k', rat: 'r',
+  };
+  const SETTLEMENT_CREATURES: Record<string, { kinds: AmbientCreature['kind'][]; count: [number, number] }> = {
+    village: { kinds: ['cat', 'dog', 'chicken', 'chicken', 'chicken'], count: [3, 6] },
+    town:    { kinds: ['cat', 'cat', 'dog', 'dog', 'chicken', 'rat'], count: [4, 8] },
+    city:    { kinds: ['cat', 'cat', 'dog', 'rat', 'rat', 'rat'], count: [5, 10] },
+  };
+
+  function spawnAmbientCreatures(
+    grid: Grid,
+    screen: GameScreen,
+    character: Character,
+  ): void {
+    ambientCreatures = [];
+    npcAnchors = new Map();
+    npcIdleCounter = 0;
+
+    const gridDef = grid.getDefinition();
+    const config = SETTLEMENT_CREATURES[activeGameState?.getCurrentLocation().locationType ?? ''];
+    if (!config) return;
+
+    // Collect passable outdoor cells (no wall neighbor = outdoors)
+    const outdoorCells: Coordinate[] = [];
+    for (let y = 2; y < gridDef.height - 2; y++) {
+      for (let x = 2; x < gridDef.width - 2; x++) {
+        if (!grid.isPassable(x, y)) continue;
+        if (grid.getEntityAt({ x, y })) continue;
+        const hasWallNeighbor = [[-1,0],[1,0],[0,-1],[0,1]].some(([dx,dy]) => {
+          const c = grid.getCell(x+dx!, y+dy!);
+          return c && c.movementCost === Infinity;
+        });
+        if (!hasWallNeighbor) outdoorCells.push({ x, y });
+      }
+    }
+
+    // Shuffle
+    for (let i = outdoorCells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [outdoorCells[i], outdoorCells[j]] = [outdoorCells[j], outdoorCells[i]];
+    }
+
+    const count = config.count[0] + Math.floor(Math.random() * (config.count[1] - config.count[0] + 1));
+    const placements = new Map<string, import('@/types/grid').GridEntityPlacement>();
+    const entityInfos = new Map<string, EntityRenderInfo>();
+
+    // Include player
+    const playerPos = grid.getEntityPosition(character.id);
+    if (playerPos) {
+      placements.set(character.id, { entityId: character.id, position: playerPos, size: 1 });
+    }
+
+    // Include existing entities (NPCs)
+    for (const [id, placement] of grid.getAllEntityPlacements()) {
+      placements.set(id, placement);
+    }
+
+    let cellIdx = 0;
+    for (let i = 0; i < count && cellIdx < outdoorCells.length; i++) {
+      const pos = outdoorCells[cellIdx++];
+      const kind = config.kinds[Math.floor(Math.random() * config.kinds.length)];
+      const entityId = `ambient_${kind}_${i}_${Date.now()}`;
+
+      try {
+        grid.placeEntity(entityId, pos, 1);
+      } catch {
+        continue;
+      }
+
+      const creature: AmbientCreature = {
+        entityId,
+        kind,
+        position: { ...pos },
+        anchorPosition: { ...pos },
+        wanderRadius: 6 + Math.floor(Math.random() * 5),
+        moveCounter: 3 + Math.floor(Math.random() * 6),
+      };
+      ambientCreatures.push(creature);
+
+      placements.set(entityId, { entityId, position: pos, size: 1 });
+      entityInfos.set(entityId, {
+        name: kind,
+        color: CREATURE_COLORS[kind],
+        symbol: CREATURE_SYMBOLS[kind],
+        hp: 1, maxHp: 1,
+        isPlayer: false, isAlly: true, size: 1,
+        conditions: [],
+        spriteId: `ambient_${kind}`,
+      });
+    }
+
+    // Store NPC anchors for idle wandering
+    if (activeGameState) {
+      const location = activeGameState.getCurrentLocation();
+      for (const npcId of location.npcs) {
+        const npc = activeGameState.getNPC(npcId);
+        if (npc?.position) {
+          npcAnchors.set(npcId, { ...npc.position });
+        }
+      }
+    }
+
+    // Update display with new entities
+    screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
+  }
+
+  /** Move ambient creatures + NPCs on a tick (called from exploration:moved handler) */
+  function tickAmbientLife(grid: Grid, screen: GameScreen, character: Character): void {
+    if (ambientCreatures.length === 0 && npcAnchors.size === 0) return;
+
+    const gridDef = grid.getDefinition();
+    let anyMoved = false;
+
+    // Tick ambient creatures
+    for (const creature of ambientCreatures) {
+      creature.moveCounter--;
+      if (creature.moveCounter > 0) continue;
+      creature.moveCounter = 4 + Math.floor(Math.random() * 8); // 4-11 moves between shuffles
+
+      // Pick random adjacent cell
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      const dir = dirs[Math.floor(Math.random() * dirs.length)];
+      const nx = creature.position.x + dir[0];
+      const ny = creature.position.y + dir[1];
+
+      // Validate: in bounds, passable, not occupied, within wander radius
+      if (nx < 0 || nx >= gridDef.width || ny < 0 || ny >= gridDef.height) continue;
+      if (!grid.isPassable(nx, ny)) continue;
+      if (grid.getEntityAt({ x: nx, y: ny })) continue;
+      const dist = Math.abs(nx - creature.anchorPosition.x) + Math.abs(ny - creature.anchorPosition.y);
+      if (dist > creature.wanderRadius) continue;
+
+      try {
+        grid.moveEntity(creature.entityId, { x: nx, y: ny });
+        creature.position = { x: nx, y: ny };
+        anyMoved = true;
+      } catch { /* occupied — skip */ }
+    }
+
+    // Tick NPC idle movement (every 8-15 player moves)
+    npcIdleCounter++;
+    if (npcIdleCounter >= 8 + Math.floor(Math.random() * 8) && activeGameState) {
+      npcIdleCounter = 0;
+      const location = activeGameState.getCurrentLocation();
+      for (const npcId of location.npcs) {
+        if (Math.random() > 0.3) continue; // only 30% chance per NPC per tick
+        const npc = activeGameState.getNPC(npcId);
+        if (!npc?.position) continue;
+        const anchor = npcAnchors.get(npcId);
+        if (!anchor) continue;
+
+        const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        const dir = dirs[Math.floor(Math.random() * dirs.length)];
+        const nx = npc.position.x + dir[0];
+        const ny = npc.position.y + dir[1];
+
+        if (nx < 0 || nx >= gridDef.width || ny < 0 || ny >= gridDef.height) continue;
+        if (!grid.isPassable(nx, ny)) continue;
+        if (grid.getEntityAt({ x: nx, y: ny })) continue;
+        // NPCs stay within 2 cells of their anchor
+        const dist = Math.abs(nx - anchor.x) + Math.abs(ny - anchor.y);
+        if (dist > 2) continue;
+
+        try {
+          grid.moveEntity(npcId, { x: nx, y: ny });
+          npc.position = { x: nx, y: ny };
+          anyMoved = true;
+        } catch { /* occupied */ }
+      }
+    }
+
+    if (anyMoved) {
+      // Refresh entity display
+      const placements = new Map<string, import('@/types/grid').GridEntityPlacement>();
+      const entityInfos = new Map<string, EntityRenderInfo>();
+
+      // Player
+      const playerPos = grid.getEntityPosition(character.id);
+      if (playerPos) {
+        placements.set(character.id, { entityId: character.id, position: playerPos, size: 1 });
+        entityInfos.set(character.id, {
+          name: character.name, color: '#2a2520', symbol: '@',
+          hp: character.currentHp, maxHp: character.maxHp,
+          isPlayer: true, isAlly: false, size: 1,
+          conditions: character.conditions.map(c => c.type),
+          spriteId: character.class,
+        });
+      }
+
+      // NPCs
+      if (activeGameState) {
+        const location = activeGameState.getCurrentLocation();
+        const NPC_COLORS: Record<string, string> = {
+          innkeeper: '#c4943a', merchant: '#3a9c5a', blacksmith: '#8a5a3a',
+          priest: '#d4b85a', guard: '#5a7a9a', commoner: '#8a7a6a', noble: '#9a4a8a',
+        };
+        for (const npcId of location.npcs) {
+          const npc = activeGameState.getNPC(npcId);
+          if (!npc?.position) continue;
+          const pos = npc.position;
+          placements.set(npcId, { entityId: npcId, position: pos, size: 1 });
+          entityInfos.set(npcId, {
+            name: npc.name,
+            color: NPC_COLORS[npc.role] ?? '#7a7a6a',
+            symbol: npc.name.charAt(0).toUpperCase(),
+            hp: npc.stats.currentHp, maxHp: npc.stats.maxHp,
+            isPlayer: false, isAlly: true, size: 1,
+            conditions: [],
+            spriteId: `npc_${npc.role}`,
+          });
+        }
+      }
+
+      // Ambient creatures
+      for (const creature of ambientCreatures) {
+        placements.set(creature.entityId, { entityId: creature.entityId, position: creature.position, size: 1 });
+        entityInfos.set(creature.entityId, {
+          name: creature.kind,
+          color: CREATURE_COLORS[creature.kind],
+          symbol: CREATURE_SYMBOLS[creature.kind],
+          hp: 1, maxHp: 1,
+          isPlayer: false, isAlly: true, size: 1,
+          conditions: [],
+          spriteId: `ambient_${creature.kind}`,
+        });
+      }
+
+      screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
+    }
   }
 
   function buildExplorationActions(
@@ -1703,6 +2038,12 @@ async function main(): Promise<void> {
 
         activeGameScreen.setCharacter(character);
         activeGameScreen.updateTime(activeGameState.world.time);
+      }
+
+      // Tick ambient creature + NPC idle movement
+      const ambientGrid = explorationController.getGrid();
+      if (ambientGrid) {
+        tickAmbientLife(ambientGrid, activeGameScreen, character);
       }
     }
   });
@@ -3091,55 +3432,166 @@ async function main(): Promise<void> {
   }
 
   function getNPCDialogue(npc: NPC): string[] {
-    switch (npc.role) {
-      case 'innkeeper': return [
-        'The road\'s been quiet lately. Too quiet, if you ask me.',
-        'Try the stew — it\'s my grandmother\'s recipe. Secret ingredient? Don\'t ask.',
-        'We had adventurers through here last tenday. Left quite a mess, they did.',
-        'If you\'re looking for trouble, head east. If you\'re running from it, you\'re in the right place.',
-      ];
-      case 'merchant': return [
-        'Business has been slow, but I\'ve got quality goods. Have a look!',
-        'I source my wares from all across the realm. Only the finest for my customers.',
-        'Careful on the roads — bandits have been getting bolder.',
-        'I can offer you a fair price on anything you\'ve looted. I mean, acquired.',
-      ];
-      case 'blacksmith': return [
-        'I can put an edge on that blade that\'ll split a hair. Interested?',
-        'Good steel\'s hard to come by these days. Everything I forge is the real thing.',
-        'Had a soldier come through wanting dragon-scale armor. Told him to bring the scales first.',
-        'The forge doesn\'t sleep and neither do I. Well, almost.',
-      ];
-      case 'priest': return [
-        'The light guides all who seek its warmth. Even in the darkest places.',
-        'I sense weariness in you, traveler. Rest here and let your burdens ease.',
-        'Dark omens have troubled my meditations of late. Be careful out there.',
-        'A prayer costs nothing and may save everything.',
-      ];
-      case 'guard': return [
-        'Keep your weapons sheathed within the walls, adventurer.',
-        'We\'ve had reports of monsters in the surrounding lands. Stay vigilant.',
-        'I stand watch so others may sleep in peace. It\'s honest work.',
-        'If you see anything suspicious, report it to the captain.',
-      ];
-      case 'banker': return [
-        'Every copper has its place. Let me show you where yours belong.',
-        'The exchange rate is fair — one gold for ten silver, ten silver for a hundred copper. Simple mathematics.',
-        'I\'ve counted more coin than most people will see in a lifetime. It never gets old.',
-        'A heavy purse is a dangerous thing on the road. Let me lighten it for you — figuratively speaking.',
-      ];
-      case 'noble': return [
-        'This settlement was founded by my ancestors, you know. A proud lineage.',
-        'I\'ve no time for idle chatter. Speak your business.',
-        'The common folk need strong leadership. That is our burden to bear.',
-      ];
-      default: return [
-        'Nice weather we\'re having, isn\'t it?',
-        'Just going about my day. Nothing exciting, but that\'s how I like it.',
-        'You look like an adventurer. Be careful out there.',
-        'Have you tried the tavern? Best ale in three villages.',
-      ];
+    // Determine time-of-day for context-aware lines
+    let timeOfDay: 'morning' | 'day' | 'evening' | 'night' = 'day';
+    if (activeGameState) {
+      const cal = gameTimeToCalendar(activeGameState.world.time);
+      const h = cal.hour;
+      if (h >= 5 && h < 9) timeOfDay = 'morning';
+      else if (h >= 9 && h < 17) timeOfDay = 'day';
+      else if (h >= 17 && h < 21) timeOfDay = 'evening';
+      else timeOfDay = 'night';
     }
+
+    // Base role lines (always available)
+    const base: string[] = [];
+
+    switch (npc.role) {
+      case 'innkeeper':
+        base.push(
+          'The road\'s been quiet lately. Too quiet, if you ask me.',
+          'Try the stew — it\'s my grandmother\'s recipe. Secret ingredient? Don\'t ask.',
+          'We had adventurers through here last tenday. Left quite a mess, they did.',
+          'If you\'re looking for trouble, head east. If you\'re running from it, you\'re in the right place.',
+          'I\'ve poured ale for kings and cutthroats alike. Makes no difference to me, so long as they pay.',
+          'The cellar\'s fully stocked. I brewed extra this season — had a feeling we\'d need it.',
+        );
+        if (timeOfDay === 'morning') base.push(
+          'Up early, are you? Porridge is on the fire. It\'s plain, but it\'ll stick to your ribs.',
+          'The dawn light\'s a fine thing through these windows. Almost makes you forget the troubles outside.',
+        );
+        if (timeOfDay === 'evening') base.push(
+          'Evening\'s the best time for stories. Pull up a chair — I\'ve a tale or two worth hearing.',
+          'The supper crowd\'ll be in soon. Best grab a seat while you can.',
+        );
+        if (timeOfDay === 'night') base.push(
+          'Still up at this hour? Can\'t sleep, or won\'t?',
+          'I\'ve left a candle burning in the hallway. Mind the last step — it creaks something fierce.',
+          'The night watch just came in for their ale. They look spooked. Don\'t know what they saw out there.',
+        );
+        break;
+
+      case 'merchant':
+        base.push(
+          'Business has been slow, but I\'ve got quality goods. Have a look!',
+          'I source my wares from all across the realm. Only the finest for my customers.',
+          'Careful on the roads — bandits have been getting bolder.',
+          'I can offer you a fair price on anything you\'ve looted. I mean, acquired.',
+          'Every item has a story. This dagger? Belonged to a knight of the Silver Order. Or so I was told.',
+          'I once traded a sack of salt for a gemstone the size of my thumb. The frontier\'s a strange market.',
+        );
+        if (timeOfDay === 'morning') base.push(
+          'Just opened up. The morning light\'s best for judging the quality of gems, you know.',
+          'Fresh shipment came in at dawn. You\'re the first to see it.',
+        );
+        if (timeOfDay === 'evening') base.push(
+          'I\'m closing up soon, but I can make a deal for you. Quick, before I lock the strongbox.',
+        );
+        if (timeOfDay === 'night') base.push(
+          'Most merchants would be closed by now. I\'m not most merchants.',
+        );
+        break;
+
+      case 'blacksmith':
+        base.push(
+          'I can put an edge on that blade that\'ll split a hair. Interested?',
+          'Good steel\'s hard to come by these days. Everything I forge is the real thing.',
+          'Had a soldier come through wanting dragon-scale armor. Told him to bring the scales first.',
+          'The forge doesn\'t sleep and neither do I. Well, almost.',
+          'Every weapon I make, I test myself. If it breaks on my anvil, it\'ll break on a skull. Can\'t have that.',
+          'My master taught me: the metal knows when you\'re afraid of it. You have to meet it with confidence.',
+        );
+        if (timeOfDay === 'morning') base.push(
+          'Best time to forge — the morning air keeps the heat from killing you.',
+          'I\'ve been at the anvil since before dawn. An order from the guard captain. Won\'t say what for.',
+        );
+        if (timeOfDay === 'night') base.push(
+          'The forge is banked for the night, but I can show you what\'s ready on the rack.',
+        );
+        break;
+
+      case 'priest':
+        base.push(
+          'The light guides all who seek its warmth. Even in the darkest places.',
+          'I sense weariness in you, traveler. Rest here and let your burdens ease.',
+          'Dark omens have troubled my meditations of late. Be careful out there.',
+          'A prayer costs nothing and may save everything.',
+          'I\'ve tended the wounded, the lost, and the dying. Each one teaches me something.',
+          'The altar was carved from a single stone, dragged here by the founders. It has endured much.',
+        );
+        if (timeOfDay === 'morning') base.push(
+          'The morning prayers are done. The day stretches ahead, full of possibility.',
+          'Dawn is a promise renewed. Whatever happened yesterday, today you begin again.',
+        );
+        if (timeOfDay === 'evening') base.push(
+          'The evening vespers will begin soon. You\'re welcome to join us.',
+        );
+        if (timeOfDay === 'night') base.push(
+          'The temple is quiet at this hour. A good time for reflection, I find.',
+          'Even the gods rest. Or so the old texts say. I wonder, sometimes.',
+        );
+        break;
+
+      case 'guard':
+        base.push(
+          'Keep your weapons sheathed within the walls, adventurer.',
+          'We\'ve had reports of monsters in the surrounding lands. Stay vigilant.',
+          'I stand watch so others may sleep in peace. It\'s honest work.',
+          'If you see anything suspicious, report it to the captain.',
+          'I\'ve served three years on this wall. You learn to read the wind after a while.',
+          'The eastern approach is the weakest point. Don\'t tell anyone I said that.',
+        );
+        if (timeOfDay === 'morning') base.push(
+          'Quiet night, thank the gods. My shift ends at noon.',
+        );
+        if (timeOfDay === 'night') base.push(
+          'The night watch is the loneliest duty. Every shadow looks like something.',
+          'Stay close to the lanterns after dark. I don\'t like what I\'ve heard moving out beyond the walls.',
+        );
+        break;
+
+      case 'banker':
+        base.push(
+          'Every copper has its place. Let me show you where yours belong.',
+          'The exchange rate is fair — one gold for ten silver, ten silver for a hundred copper. Simple mathematics.',
+          'I\'ve counted more coin than most people will see in a lifetime. It never gets old.',
+          'A heavy purse is a dangerous thing on the road. Let me lighten it for you — figuratively speaking.',
+          'I keep detailed ledgers. Every transaction, recorded in ink. Trust is built on transparency.',
+        );
+        break;
+
+      case 'noble':
+        base.push(
+          'This settlement was founded by my ancestors, you know. A proud lineage.',
+          'I\'ve no time for idle chatter. Speak your business.',
+          'The common folk need strong leadership. That is our burden to bear.',
+          'I received word from the capital last tenday. The political situation grows... complicated.',
+        );
+        break;
+
+      default:
+        base.push(
+          'Nice weather we\'re having, isn\'t it?',
+          'Just going about my day. Nothing exciting, but that\'s how I like it.',
+          'You look like an adventurer. Be careful out there.',
+          'Have you tried the tavern? Best ale in three villages.',
+          'My grandmother used to say, "trouble comes on horseback and leaves on foot." She was right.',
+          'I heard something howling last night. Could\'ve been wolves. Could\'ve been worse.',
+          'If you\'re heading out beyond the walls, watch for sinkholes after the rain.',
+        );
+        if (timeOfDay === 'morning') base.push(
+          'Morning! Early start today. The goats won\'t feed themselves.',
+        );
+        if (timeOfDay === 'evening') base.push(
+          'Heading home for supper. The wife\'s making something with turnips. Again.',
+        );
+        if (timeOfDay === 'night') base.push(
+          'Shouldn\'t you be resting? Nothing good happens after dark around here.',
+        );
+        break;
+    }
+
+    return base;
   }
 
   // Close shop screen when event fires
@@ -3438,6 +3890,15 @@ async function main(): Promise<void> {
         spriteId: character.class,
       });
       activeGameScreen.setCharacter(character);
+
+      // Place NPCs on the exploration grid for settlements
+      placeExplorationNPCs(grid, dest, activeGameState, activeGameScreen, character);
+
+      // Spawn ambient creatures in settlements
+      const isSettlement = ['village', 'town', 'city'].includes(dest.locationType);
+      if (isSettlement) {
+        spawnAmbientCreatures(grid, activeGameScreen, character);
+      }
     }
 
     // Update location name, time, and map
@@ -3980,6 +4441,16 @@ async function main(): Promise<void> {
         spriteId: character.class,
       });
       activeGameScreen.setCharacter(character);
+
+      // Place NPCs on the exploration grid for settlements
+      placeExplorationNPCs(grid, dest, activeGameState, activeGameScreen, character);
+
+      // Spawn ambient creatures in settlements
+      const isSettlement = ['village', 'town', 'city'].includes(dest.locationType);
+      if (isSettlement) {
+        spawnAmbientCreatures(grid, activeGameScreen, character);
+      }
+
       activeGameScreen.setLocationName(tileName);
       activeGameScreen.updateTime(activeGameState.world.time);
       activeGameScreen.setOverworldPosition(x, y);

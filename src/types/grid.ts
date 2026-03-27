@@ -50,7 +50,25 @@ export type CellFeature =
   | 'chandelier'
   | 'weapon_rack'
   | 'hearth'
-  | 'bench';
+  | 'bench'
+  | 'wardrobe'
+  | 'cabinet'
+  | 'mirror'
+  | 'painting'
+  | 'tapestry'
+  | 'cauldron'
+  | 'hay_pile'
+  | 'tombstone'
+  | 'statue'
+  | 'planter'
+  | 'ladder'
+  | 'curtain'
+  | 'fence'
+  | 'woodpile'
+  | 'cart'
+  | 'sack'
+  | 'cage'
+  | 'throne';
 
 // Re-export from centralized feature registry for backwards compatibility
 export { FEATURE_PHYSICS, LIGHT_SOURCE_RADIUS } from '@/data/features';

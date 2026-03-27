@@ -22,7 +22,9 @@ type CellTerrain = 'floor' | 'wall' | 'water' | 'lava' | 'pit' | 'grass' | 'ston
 type CellFeature = 'door' | 'door_locked' | 'trap' | 'chest' | 'fire' | 'altar' | 'stairs_up' | 'stairs_down'
   | 'fountain' | 'pillar' | 'tree' | 'rock' | 'running_water' | 'torch_wall' | 'torch_wall_spent' | 'brazier'
   | 'table' | 'chair' | 'bed' | 'shelf' | 'counter' | 'anvil' | 'barrel' | 'crate' | 'bookshelf' | 'rug'
-  | 'banner' | 'well' | 'market_stall' | 'sign' | 'candle' | 'chandelier' | 'weapon_rack' | 'hearth' | 'bench';
+  | 'banner' | 'well' | 'market_stall' | 'sign' | 'candle' | 'chandelier' | 'weapon_rack' | 'hearth' | 'bench'
+  | 'wardrobe' | 'cabinet' | 'mirror' | 'painting' | 'tapestry' | 'cauldron' | 'hay_pile' | 'tombstone'
+  | 'statue' | 'planter' | 'ladder' | 'curtain' | 'fence' | 'woodpile' | 'cart' | 'sack' | 'cage' | 'throne';
 type GridCell = { terrain: CellTerrain; movementCost: number; blocksLoS: boolean; elevation: number; features: CellFeature[] };
 
 /** Inline copy of physics — must match src/data/features.ts FEATURES registry */
@@ -36,6 +38,12 @@ const FEATURE_PHYSICS: Partial<Record<CellFeature, { blocks: boolean; blocksLoS:
   market_stall: { blocks: true, blocksLoS: true }, chest: { blocks: true, blocksLoS: false },
   hearth: { blocks: true, blocksLoS: false }, fountain: { blocks: true, blocksLoS: false },
   door_locked: { blocks: true, blocksLoS: true },
+  wardrobe: { blocks: true, blocksLoS: true }, cabinet: { blocks: true, blocksLoS: true },
+  curtain: { blocks: false, blocksLoS: true }, cauldron: { blocks: true, blocksLoS: false },
+  tombstone: { blocks: true, blocksLoS: false }, statue: { blocks: true, blocksLoS: true },
+  planter: { blocks: true, blocksLoS: false }, fence: { blocks: true, blocksLoS: false },
+  woodpile: { blocks: true, blocksLoS: true }, cart: { blocks: true, blocksLoS: false },
+  cage: { blocks: true, blocksLoS: false }, throne: { blocks: true, blocksLoS: false },
 };
 type Coordinate = { x: number; y: number };
 type BiomeType = 'forest' | 'mountain' | 'desert' | 'swamp' | 'plains' | 'coast' | 'tundra' | 'volcanic' | 'underdark' | 'urban';

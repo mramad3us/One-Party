@@ -50,7 +50,7 @@ export class POIMapGenerator extends LocalMapGenerator {
 
       switch (settlement) {
         case 'village': case 'town': case 'city':
-          this.placeVillagePOI(cells, w, h, ground, roadTerrain, settlement);
+          this.placeSettlement(cells, w, h, ground, roadTerrain, settlement);
           break;
         case 'ruins':
           this.placeRuinsPOI(cells, w, h, ground);
@@ -231,26 +231,41 @@ export class POIMapGenerator extends LocalMapGenerator {
 
   // ── Village / Town / City ──
 
-  private placeVillagePOI(
+  // ── Lot-Subdivision Settlement Generator ──
+
+  /** Building specs scaled for 200×200 POI maps */
+  private static readonly POI_BUILDING_SPECS: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
+    tavern:     { wMin: 8, wMax: 12, hMin: 7, hMax: 10 },
+    shop:       { wMin: 6, wMax: 9,  hMin: 6, hMax: 8 },
+    blacksmith: { wMin: 6, wMax: 9,  hMin: 6, hMax: 8 },
+    temple:     { wMin: 8, wMax: 12, hMin: 8, hMax: 11 },
+    house:      { wMin: 5, wMax: 8,  hMin: 5, hMax: 7 },
+    barracks:   { wMin: 8, wMax: 11, hMin: 7, hMax: 9 },
+  };
+
+  /** Quarter types with building mix weights */
+  private static readonly QUARTER_MIXES: Record<string, [string, number][]> = {
+    market:      [['shop', 40], ['tavern', 30], ['house', 30]],
+    temple:      [['temple', 25], ['house', 45], ['barracks', 30]],
+    noble:       [['house', 90], ['temple', 10]],
+    craftsmen:   [['blacksmith', 35], ['shop', 35], ['house', 30]],
+    residential: [['house', 75], ['tavern', 15], ['shop', 10]],
+  };
+
+  private placeSettlement(
     cells: GridCell[][],
     w: number, h: number,
     ground: CellTerrain, roadTerrain: CellTerrain,
     settlement: SettlementType,
   ): void {
-    const isCity = settlement === 'city';
-    const isTown = settlement === 'town';
+    const scale = settlement === 'city' ? 'city' : settlement === 'town' ? 'town' : 'village';
 
-    // Farmland ring
-    const farmInner = isCity ? 42 : isTown ? 47 : 53;
-    const farmOuter = isCity ? 75 : isTown ? 70 : 67;
-    this.placeFarmland(cells, w, h, farmInner, farmOuter, ground);
-
-    // Town core area
-    const coreSize = isCity ? 64 : isTown ? 54 : 40;
+    // ── Phase 1: Parameters ──
+    const coreSize = scale === 'city' ? 96 : scale === 'town' ? 74 : 48;
     const coreMin = CENTER - Math.floor(coreSize / 2);
     const coreMax = CENTER + Math.floor(coreSize / 2);
 
-    // Clear core area
+    // ── Phase 2: Clear core area ──
     for (let y = coreMin; y <= coreMax; y++) {
       for (let x = coreMin; x <= coreMax; x++) {
         if (x >= 0 && x < w && y >= 0 && y < h) {
@@ -259,158 +274,412 @@ export class POIMapGenerator extends LocalMapGenerator {
       }
     }
 
-    // Internal roads (cross pattern through core)
+    // ── Phase 3: Street network ──
+    // Main cross (extending approach roads through core)
+    const mainStreetW = scale === 'city' ? 3 : 2;
     for (let x = coreMin; x <= coreMax; x++) {
-      cells[CENTER][x] = floorCell(roadTerrain);
-      cells[CENTER - 1][x] = floorCell(roadTerrain);
+      for (let dy = 0; dy < mainStreetW; dy++) {
+        cells[CENTER - 1 + dy][x] = floorCell(roadTerrain);
+      }
     }
     for (let y = coreMin; y <= coreMax; y++) {
-      cells[y][CENTER] = floorCell(roadTerrain);
-      cells[y][CENTER + 1] = floorCell(roadTerrain);
+      for (let dx = 0; dx < mainStreetW; dx++) {
+        cells[y][CENTER + dx] = floorCell(roadTerrain);
+      }
     }
 
-    // Town square at center
-    const sqSize = isCity ? 10 : isTown ? 8 : 6;
-    for (let y = CENTER - sqSize; y <= CENTER + sqSize; y++) {
-      for (let x = CENTER - sqSize; x <= CENTER + sqSize; x++) {
+    // Collect street positions for block computation
+    // Streets stored as { pos, axis, width } where axis = 'h' (horizontal) or 'v' (vertical)
+    const hStreets: number[] = [CENTER - 1]; // Y positions of horizontal streets
+    const vStreets: number[] = [CENTER];     // X positions of vertical streets
+
+    {
+      // Secondary streets parallel to each axis
+      const streetCount = scale === 'city' ? 6 : scale === 'town' ? 3 : 1;
+      const spacing = Math.floor(coreSize / (streetCount + 1));
+
+      for (let i = 1; i <= streetCount; i++) {
+        const baseY = coreMin + spacing * i;
+        const jitterY = Math.floor(this.rng.next() * 5) - 2;
+        const sy = Math.max(coreMin + 4, Math.min(coreMax - 4, baseY + jitterY));
+        // Don't place too close to main street
+        if (Math.abs(sy - CENTER) > 5) {
+          hStreets.push(sy);
+          for (let x = coreMin; x <= coreMax; x++) {
+            cells[sy][x] = floorCell(roadTerrain);
+            cells[sy + 1][x] = floorCell(roadTerrain);
+          }
+        }
+
+        const baseX = coreMin + spacing * i;
+        const jitterX = Math.floor(this.rng.next() * 5) - 2;
+        const sx = Math.max(coreMin + 4, Math.min(coreMax - 4, baseX + jitterX));
+        if (Math.abs(sx - CENTER) > 5) {
+          vStreets.push(sx);
+          for (let y = coreMin; y <= coreMax; y++) {
+            cells[y][sx] = floorCell(roadTerrain);
+            cells[y][sx + 1] = floorCell(roadTerrain);
+          }
+        }
+      }
+    }
+
+    // Sort street positions for block computation
+    hStreets.sort((a, b) => a - b);
+    vStreets.sort((a, b) => a - b);
+
+    // ── Phase 4: Central plaza ──
+    const plazaSize = scale === 'city' ? 8 : scale === 'town' ? 6 : 4;
+    for (let y = CENTER - plazaSize; y <= CENTER + plazaSize; y++) {
+      for (let x = CENTER - plazaSize; x <= CENTER + plazaSize; x++) {
         if (x >= 0 && x < w && y >= 0 && y < h) {
           cells[y][x] = floorCell(roadTerrain);
         }
       }
     }
-    cells[CENTER][CENTER] = makeCell(roadTerrain, 1, false, ['fountain']);
+    // Fountain at center
+    cells[CENTER][CENTER] = featureCell(roadTerrain, ['fountain']);
 
-    // Market stalls — 4 chests at offsets around the fountain
-    const stallOffsets = [[-5, -3], [5, -3], [-5, 3], [5, 3]];
-    for (const [dx, dy] of stallOffsets) {
-      const sx = CENTER + dx, sy = CENTER + dy;
-      if (sx >= 0 && sx < w && sy >= 0 && sy < h) {
-        cells[sy][sx] = makeCell(roadTerrain, 1, false, ['chest']);
+    // Market stalls around fountain
+    if (scale !== 'village') {
+      const stallDist = Math.floor(plazaSize * 0.5);
+      const stallPositions = [
+        [-stallDist, -stallDist], [stallDist, -stallDist],
+        [-stallDist, stallDist], [stallDist, stallDist],
+      ];
+      for (const [dx, dy] of stallPositions) {
+        const sx = CENTER + dx, sy = CENTER + dy;
+        if (sx >= 0 && sx < w && sy >= 0 && sy < h) {
+          cells[sy][sx] = featureCell(roadTerrain, ['market_stall']);
+        }
+      }
+      // Extra stalls for cities
+      if (scale === 'city') {
+        for (const [dx, dy] of [[-stallDist, 0], [stallDist, 0], [0, -stallDist], [0, stallDist]]) {
+          const sx = CENTER + dx, sy = CENTER + dy;
+          if (sx >= 0 && sx < w && sy >= 0 && sy < h && cells[sy][sx].features.length === 0) {
+            cells[sy][sx] = featureCell(roadTerrain, ['market_stall']);
+          }
+        }
       }
     }
-    // 4 corner pillars for the square
-    for (const [dx, dy] of [[-sqSize, -sqSize], [sqSize, -sqSize], [-sqSize, sqSize], [sqSize, sqSize]]) {
+    // Corner pillars
+    for (const [dx, dy] of [[-plazaSize, -plazaSize], [plazaSize, -plazaSize], [-plazaSize, plazaSize], [plazaSize, plazaSize]]) {
       const px = CENTER + dx, py = CENTER + dy;
       if (px >= 0 && px < w && py >= 0 && py < h) {
         cells[py][px] = makeCell(roadTerrain, Infinity, true, ['pillar']);
       }
     }
 
-    // Town wall (towns and cities) — build BEFORE buildings so we know the boundary
-    let wallMin = 0, wallMax = 0;
-    if (isTown || isCity) {
-      wallMin = coreMin - 1;
-      wallMax = coreMax + 1;
+    // ── Phase 5: Block identification ──
+    type Block = { x: number; y: number; w: number; h: number; quarter: string };
+    const blocks: Block[] = [];
 
-      const gates: Coordinate[] = [
-        { x: CENTER, y: wallMin }, { x: CENTER + 1, y: wallMin },
-        { x: CENTER, y: wallMax }, { x: CENTER + 1, y: wallMax },
-        { x: wallMin, y: CENTER }, { x: wallMin, y: CENTER - 1 },
-        { x: wallMax, y: CENTER }, { x: wallMax, y: CENTER - 1 },
-      ];
-      const gapSet = new Set(gates.map(g => `${g.x},${g.y}`));
+    // Add core boundaries as implicit streets
+    const allH = [coreMin - 1, ...hStreets, coreMax + 1];
+    const allV = [coreMin - 1, ...vStreets, coreMax + 1];
 
-      for (let x = wallMin; x <= wallMax; x++) {
-        if (!gapSet.has(`${x},${wallMin}`)) cells[wallMin][x] = wallCell();
-        if (!gapSet.has(`${x},${wallMax}`)) cells[wallMax][x] = wallCell();
-      }
-      for (let y = wallMin; y <= wallMax; y++) {
-        if (!gapSet.has(`${wallMin},${y}`)) cells[y][wallMin] = wallCell();
-        if (!gapSet.has(`${wallMax},${y}`)) cells[y][wallMax] = wallCell();
+    for (let hi = 0; hi < allH.length - 1; hi++) {
+      for (let vi = 0; vi < allV.length - 1; vi++) {
+        const y1 = allH[hi] + mainStreetW;     // skip street width
+        const y2 = allH[hi + 1];               // stop at next street
+        const x1 = allV[vi] + mainStreetW;
+        const x2 = allV[vi + 1];
+
+        const bw = x2 - x1;
+        const bh = y2 - y1;
+
+        // Skip blocks that overlap the central plaza
+        const blockCenterX = x1 + bw / 2;
+        const blockCenterY = y1 + bh / 2;
+        if (Math.abs(blockCenterX - CENTER) < plazaSize + 2 && Math.abs(blockCenterY - CENTER) < plazaSize + 2) {
+          continue;
+        }
+
+        if (bw >= 7 && bh >= 7) {
+          blocks.push({ x: x1, y: y1, w: bw, h: bh, quarter: 'residential' });
+        }
       }
     }
 
-    // Buildings — properly placed in core quadrants, avoiding roads and square
-    const buildingCount = isCity ? 16 + Math.floor(this.rng.next() * 6)
-      : isTown ? 10 + Math.floor(this.rng.next() * 4)
-      : 6 + Math.floor(this.rng.next() * 3);
+    // ── Phase 6: Quarter assignment ──
+    if (scale === 'city') {
+      for (const block of blocks) {
+        const cx = block.x + block.w / 2;
+        const cy = block.y + block.h / 2;
+        const dx = cx - CENTER;
+        const dy = cy - CENTER;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // Define the 4 quadrants buildings can occupy (avoiding road cross and town square)
-    const quadrants = [
-      { xMin: coreMin + 2, xMax: CENTER - sqSize - 2, yMin: coreMin + 2, yMax: CENTER - sqSize - 2 },
-      { xMin: CENTER + sqSize + 2, xMax: coreMax - 2, yMin: coreMin + 2, yMax: CENTER - sqSize - 2 },
-      { xMin: coreMin + 2, xMax: CENTER - sqSize - 2, yMin: CENTER + sqSize + 2, yMax: coreMax - 2 },
-      { xMin: CENTER + sqSize + 2, xMax: coreMax - 2, yMin: CENTER + sqSize + 2, yMax: coreMax - 2 },
-    ];
-
-    const placed: { x: number; y: number; bw: number; bh: number }[] = [];
-    const multiRoomCount = Math.ceil(buildingCount * 0.5); // first ~50% are multi-room
-
-    for (let attempt = 0; attempt < buildingCount * 20 && placed.length < buildingCount; attempt++) {
-      const q = quadrants[Math.floor(this.rng.next() * quadrants.length)];
-      const isMultiRoom = placed.length < multiRoomCount;
-      const bw = isMultiRoom
-        ? 14 + Math.floor(this.rng.next() * 8)  // 14-21
-        : 8 + Math.floor(this.rng.next() * 4);  // 8-11 (cottages/sheds)
-      const bh = isMultiRoom
-        ? 10 + Math.floor(this.rng.next() * 6)  // 10-15
-        : 6 + Math.floor(this.rng.next() * 3);  // 6-8
-      const availW = q.xMax - q.xMin - bw;
-      const availH = q.yMax - q.yMin - bh;
-      if (availW < 0 || availH < 0) continue;
-
-      const bx = q.xMin + Math.floor(this.rng.next() * (availW + 1));
-      const by = q.yMin + Math.floor(this.rng.next() * (availH + 1));
-
-      // Check overlap with existing buildings (2-cell gap)
-      let overlaps = false;
-      for (const p of placed) {
-        if (bx < p.x + p.bw + 2 && bx + bw + 2 > p.x &&
-            by < p.y + p.bh + 2 && by + bh + 2 > p.y) {
-          overlaps = true;
-          break;
+        if (dist < coreSize * 0.25) {
+          block.quarter = 'market';
+        } else if (dx > 0 && dy < 0) {
+          block.quarter = 'temple';
+        } else if (dx < 0 && dy < 0) {
+          block.quarter = 'noble';
+        } else if (dx > 0 && dy > 0) {
+          block.quarter = 'craftsmen';
+        } else {
+          block.quarter = 'residential';
         }
       }
-      if (overlaps) continue;
+    } else if (scale === 'town') {
+      // Town: closest to center = market, one = temple, rest = residential
+      const sorted = [...blocks].sort((a, b) => {
+        const da = Math.hypot(a.x + a.w / 2 - CENTER, a.y + a.h / 2 - CENTER);
+        const db = Math.hypot(b.x + b.w / 2 - CENTER, b.y + b.h / 2 - CENTER);
+        return da - db;
+      });
+      if (sorted.length > 0) sorted[0].quarter = 'market';
+      if (sorted.length > 1) sorted[1].quarter = 'craftsmen';
+      if (sorted.length > 2) sorted[2].quarter = 'temple';
+    }
+    // Village: all blocks stay 'residential' — building types assigned from fixed list
+
+    // ── Phase 7: Lot subdivision (BSP) ──
+    type Lot = { x: number; y: number; w: number; h: number; quarter: string };
+    const allLots: Lot[] = [];
+
+    for (const block of blocks) {
+      this.subdivideLots(allLots, block.x, block.y, block.w, block.h, block.quarter, 0);
+    }
+
+    // ── Phase 8: Building placement ──
+    // Village uses a fixed type list instead of quarter mixes
+    const villageBuildingTypes = ['tavern', 'shop', 'blacksmith', 'temple', 'house', 'house', 'house', 'house', 'house', 'house', 'house', 'house', 'house', 'house'];
+    let villageTypeIdx = 0;
+
+    const roadCells = new Set<string>();
+    // Collect road cells for door connections
+    for (let y = coreMin; y <= coreMax; y++) {
+      for (let x = coreMin; x <= coreMax; x++) {
+        if (cells[y][x].terrain === roadTerrain && cells[y][x].features.length === 0) {
+          roadCells.add(`${x},${y}`);
+        }
+      }
+    }
+
+    for (const lot of allLots) {
+      // Pick building type
+      let subType: string;
+      if (scale === 'village') {
+        subType = villageBuildingTypes[villageTypeIdx % villageBuildingTypes.length];
+        villageTypeIdx++;
+      } else {
+        subType = this.pickFromMix(POIMapGenerator.QUARTER_MIXES[lot.quarter] ?? POIMapGenerator.QUARTER_MIXES.residential);
+      }
+
+      // Get building specs
+      let spec = POIMapGenerator.POI_BUILDING_SPECS[subType] ?? POIMapGenerator.POI_BUILDING_SPECS.house;
+
+      // Size building to fit lot with 1-cell yard margin
+      let maxBw = Math.min(lot.w - 2, spec.wMax);
+      let maxBh = Math.min(lot.h - 2, spec.hMax);
+      // If lot is too small for the assigned type, fall back to a house
+      if (maxBw < spec.wMin || maxBh < spec.hMin) {
+        spec = POIMapGenerator.POI_BUILDING_SPECS.house;
+        maxBw = Math.min(lot.w - 2, spec.wMax);
+        maxBh = Math.min(lot.h - 2, spec.hMax);
+        if (maxBw < spec.wMin || maxBh < spec.hMin) continue;
+        subType = 'house';
+      }
+
+      const bw = spec.wMin + Math.floor(this.rng.next() * (maxBw - spec.wMin + 1));
+      const bh = spec.hMin + Math.floor(this.rng.next() * (maxBh - spec.hMin + 1));
+
+      // Position building within lot — align south edge near a street for door access
+      const bx = lot.x + 1 + Math.floor(this.rng.next() * Math.max(0, lot.w - bw - 2));
+      const by = lot.y + Math.max(0, lot.h - bh - 1); // push toward south (bottom) of lot
 
       // Bounds check
       if (bx < 1 || by < 1 || bx + bw >= w - 1 || by + bh >= h - 1) continue;
 
-      placed.push({ x: bx, y: by, bw, bh });
+      // Place the building with typed interior furnishing
+      const info = this.placeTypedBuilding(cells, w, h, bx, by, bw, bh, subType);
 
-      const bIdx = placed.length - 1;
-      if (isMultiRoom) {
-        // Multi-room buildings get room types based on building purpose
-        const roomTypes = bIdx === 0
-          ? ['common', 'kitchen', 'storage']      // Tavern
-          : bIdx === 1
-          ? ['common', 'armory', 'storage']        // Blacksmith
-          : bIdx === 2
-          ? ['shrine', 'common', 'storage']        // Temple
-          : ['common', 'bedroom', 'storage', 'kitchen'];
-        this.placeMultiRoomBuilding(cells, w, h, bx, by, bw, bh, roomTypes);
-      } else {
-        this.placeSolidBuilding(cells, w, h, bx, by, bw, bh);
+      // Connect door to road network
+      this.connectDoorToRoad(cells, w, h, info.doorPosition, roadCells, roadTerrain);
+    }
+
+    // ── Phase 9: Walls ──
+    if (scale === 'town' || scale === 'city') {
+      const wallMin = coreMin - 2;
+      const wallMax = coreMax + 2;
+
+      // Find gate positions: where approach roads cross the wall line
+      const gates = new Set<string>();
+      // Road crosses at CENTER for all 4 sides
+      for (let d = -1; d <= mainStreetW; d++) {
+        gates.add(`${CENTER + d},${wallMin}`);
+        gates.add(`${CENTER + d},${wallMax}`);
+        gates.add(`${wallMin},${CENTER + d}`);
+        gates.add(`${wallMax},${CENTER + d}`);
+      }
+
+      for (let x = wallMin; x <= wallMax; x++) {
+        if (!gates.has(`${x},${wallMin}`)) cells[wallMin][x] = wallCell();
+        if (!gates.has(`${x},${wallMax}`)) cells[wallMax][x] = wallCell();
+      }
+      for (let y = wallMin + 1; y < wallMax; y++) {
+        if (!gates.has(`${wallMin},${y}`)) cells[y][wallMin] = wallCell();
+        if (!gates.has(`${wallMax},${y}`)) cells[y][wallMax] = wallCell();
+      }
+
+      // City: gate towers (3×3 stone rooms at each gate)
+      if (scale === 'city') {
+        const gateCenters = [
+          { x: CENTER, y: wallMin },   // north gate
+          { x: CENTER, y: wallMax },   // south gate
+          { x: wallMin, y: CENTER },   // west gate
+          { x: wallMax, y: CENTER },   // east gate
+        ];
+        for (const gc of gateCenters) {
+          // Place flanking pillars
+          for (const [dx, dy] of [[-2, -1], [-2, 1], [2, -1], [2, 1]]) {
+            const px = gc.x + dx, py = gc.y + dy;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+              cells[py][px] = makeCell('stone', Infinity, true, ['pillar']);
+            }
+          }
+        }
       }
     }
 
-    // Outskirt cottages along roads between farm ring and town
-    const outskirtCount = 2 + Math.floor(this.rng.next() * 3);
+    // ── Phase 10: Decoration ──
+
+    // Farmland ring
+    const farmInner = scale === 'city' ? 50 : scale === 'town' ? 42 : 30;
+    const farmOuter = scale === 'city' ? 80 : scale === 'town' ? 72 : 60;
+    this.placeFarmland(cells, w, h, farmInner, farmOuter, ground);
+
+    // Outskirt cottages along approach roads
+    const outskirtCount = scale === 'city' ? 8 : scale === 'town' ? 5 : 3;
     for (let i = 0; i < outskirtCount; i++) {
       const side = Math.floor(this.rng.next() * 4);
       const dist = farmInner + Math.floor(this.rng.next() * (farmOuter - farmInner - 6));
       let cx: number, cy: number;
-      if (side === 0) { cx = CENTER + 5 + Math.floor(this.rng.next() * 6); cy = CENTER - dist; }
-      else if (side === 1) { cx = CENTER + 5 + Math.floor(this.rng.next() * 6); cy = CENTER + dist; }
-      else if (side === 2) { cx = CENTER - dist; cy = CENTER + 5 + Math.floor(this.rng.next() * 6); }
-      else { cx = CENTER + dist; cy = CENTER + 5 + Math.floor(this.rng.next() * 6); }
+      if (side === 0) { cx = CENTER + 4 + Math.floor(this.rng.next() * 6); cy = CENTER - dist; }
+      else if (side === 1) { cx = CENTER + 4 + Math.floor(this.rng.next() * 6); cy = CENTER + dist; }
+      else if (side === 2) { cx = CENTER - dist; cy = CENTER + 4 + Math.floor(this.rng.next() * 6); }
+      else { cx = CENTER + dist; cy = CENTER + 4 + Math.floor(this.rng.next() * 6); }
 
-      if (cx > 3 && cx < w - 14 && cy > 3 && cy < h - 12) {
-        const ocw = 8, och = 6;
-        // Check overlap with existing buildings (2-cell gap)
-        const ox1 = cx - 2, oy1 = cy - 2, ox2 = cx + ocw + 2, oy2 = cy + och + 2;
-        let outskirtOverlaps = false;
+      if (cx > 3 && cx < w - 12 && cy > 3 && cy < h - 10) {
+        const ocw = 7, och = 6;
+        let overlaps = false;
         for (const b of this.buildings) {
-          if (ox1 <= b.x2 && ox2 >= b.x1 && oy1 <= b.y2 && oy2 >= b.y1) {
-            outskirtOverlaps = true;
+          if (cx - 1 <= b.x2 && cx + ocw + 1 >= b.x1 && cy - 1 <= b.y2 && cy + och + 1 >= b.y1) {
+            overlaps = true;
             break;
           }
         }
-        if (!outskirtOverlaps) {
-          this.placeSolidBuilding(cells, w, h, cx, cy, ocw, och);
+        if (!overlaps) {
+          const info = this.placeTypedBuilding(cells, w, h, cx, cy, ocw, och, 'house');
+          this.connectDoorToRoad(cells, w, h, info.doorPosition, roadCells, roadTerrain);
         }
       }
     }
+
+    // Street furniture: braziers along main streets
+    for (let x = coreMin; x <= coreMax; x += 10 + Math.floor(this.rng.next() * 5)) {
+      for (const dy of [-2, mainStreetW + 1]) {
+        const fy = CENTER - 1 + dy;
+        if (fy >= 0 && fy < h && x >= 0 && x < w && cells[fy][x].features.length === 0 && cells[fy][x].movementCost < Infinity) {
+          cells[fy][x] = featureCell(ground, ['brazier']);
+        }
+      }
+    }
+    for (let y = coreMin; y <= coreMax; y += 10 + Math.floor(this.rng.next() * 5)) {
+      for (const dx of [-2, mainStreetW + 1]) {
+        const fx = CENTER + dx;
+        if (fx >= 0 && fx < w && y >= 0 && y < h && cells[y][fx].features.length === 0 && cells[y][fx].movementCost < Infinity) {
+          cells[y][fx] = featureCell(ground, ['brazier']);
+        }
+      }
+    }
+
+    // Trees ONLY in open ground, ≥2 cells from any building
+    const nearBuilding = new Set<string>();
+    for (const b of this.buildings) {
+      for (let y = b.y1 - 2; y <= b.y2 + 2; y++) {
+        for (let x = b.x1 - 2; x <= b.x2 + 2; x++) {
+          nearBuilding.add(`${x},${y}`);
+        }
+      }
+    }
+
+    for (let y = coreMin + 1; y < coreMax; y++) {
+      for (let x = coreMin + 1; x < coreMax; x++) {
+        if (nearBuilding.has(`${x},${y}`)) continue;
+        const cell = cells[y][x];
+        if (cell.terrain !== ground || cell.features.length > 0 || cell.movementCost !== 1) continue;
+        if (cell.terrain === roadTerrain) continue;
+        // Sparse scattering — only in open grass/ground cells
+        if (this.rng.next() < 0.02) {
+          cells[y][x] = treeCell(ground);
+        }
+      }
+    }
+
+    // Public space features in empty lots (lots where no building was placed)
+    // Already handled by the lots being left as open ground — they become yards/alleys
+  }
+
+  /** Recursively subdivide a block into buildable lots using BSP */
+  private subdivideLots(
+    lots: { x: number; y: number; w: number; h: number; quarter: string }[],
+    x: number, y: number, w: number, h: number,
+    quarter: string, depth: number,
+  ): void {
+    const minLotDim = 10; // minimum dimension before splitting
+    const maxDepth = 4;
+
+    if (depth >= maxDepth || (w < minLotDim && h < minLotDim)) {
+      if (w >= 7 && h >= 7) {
+        lots.push({ x, y, w, h, quarter });
+      }
+      return;
+    }
+
+    // Split along the longer dimension
+    const splitVertical = w > h || (w === h && this.rng.next() < 0.5);
+    const alley = 1; // 1-cell alley between lots
+
+    if (splitVertical && w >= minLotDim) {
+      const minSplit = 6;
+      const maxSplit = w - 6 - alley;
+      if (maxSplit < minSplit) {
+        lots.push({ x, y, w, h, quarter });
+        return;
+      }
+      const split = minSplit + Math.floor(this.rng.next() * (maxSplit - minSplit + 1));
+      this.subdivideLots(lots, x, y, split, h, quarter, depth + 1);
+      this.subdivideLots(lots, x + split + alley, y, w - split - alley, h, quarter, depth + 1);
+    } else if (h >= minLotDim) {
+      const minSplit = 6;
+      const maxSplit = h - 6 - alley;
+      if (maxSplit < minSplit) {
+        lots.push({ x, y, w, h, quarter });
+        return;
+      }
+      const split = minSplit + Math.floor(this.rng.next() * (maxSplit - minSplit + 1));
+      this.subdivideLots(lots, x, y, w, split, quarter, depth + 1);
+      this.subdivideLots(lots, x, y + split + alley, w, h - split - alley, quarter, depth + 1);
+    } else {
+      if (w >= 7 && h >= 7) {
+        lots.push({ x, y, w, h, quarter });
+      }
+    }
+  }
+
+  /** Pick a building type from a weighted mix */
+  private pickFromMix(mix: [string, number][]): string {
+    const total = mix.reduce((sum, [, w]) => sum + w, 0);
+    let roll = this.rng.next() * total;
+    for (const [type, weight] of mix) {
+      roll -= weight;
+      if (roll <= 0) return type;
+    }
+    return mix[mix.length - 1][0];
   }
 
   private placeFarmland(
@@ -1546,6 +1815,7 @@ export class POIMapGenerator extends LocalMapGenerator {
   ): void {
     const minorTypes = [
       'campfire', 'shrine', 'guard_post', 'well', 'hut', 'merchant',
+      'garden', 'graveyard', 'farm', 'market_square',
     ] as const;
 
     const count = 4 + Math.floor(this.rng.next() * 3); // 4-6 minor POIs
@@ -1793,6 +2063,182 @@ export class POIMapGenerator extends LocalMapGenerator {
           const px = cx + dx, py = cy + dy;
           if (px >= 0 && px < w && py >= 0 && py < h) {
             cells[py][px] = makeCell(roadTerrain, Infinity, true, ['pillar']);
+          }
+        }
+        break;
+      }
+
+      case 'garden': {
+        // Fenced garden with planters and a central fountain
+        // Fence perimeter (5×5 of fence posts)
+        for (let dx = -3; dx <= 3; dx++) {
+          for (const dy of [-3, 3]) {
+            const fx = cx + dx, fy = cy + dy;
+            if (fx >= 0 && fx < w && fy >= 0 && fy < h) {
+              cells[fy][fx] = featureCell(ground, ['fence']);
+            }
+          }
+        }
+        for (let dy = -2; dy <= 2; dy++) {
+          for (const dx of [-3, 3]) {
+            const fx = cx + dx, fy = cy + dy;
+            if (fx >= 0 && fx < w && fy >= 0 && fy < h) {
+              cells[fy][fx] = featureCell(ground, ['fence']);
+            }
+          }
+        }
+        // Gate opening on south side
+        if (cy + 3 < h) cells[cy + 3][cx] = floorCell(ground);
+        // Central fountain
+        cells[cy][cx] = featureCell('stone', ['fountain']);
+        // 4 planters in quadrants
+        for (const [dx, dy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+          const px = cx + dx, py = cy + dy;
+          if (px >= 0 && px < w && py >= 0 && py < h) {
+            cells[py][px] = featureCell(ground, ['planter']);
+          }
+        }
+        // Interior ground is cleared grass
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) continue; // skip center area
+            const px = cx + dx, py = cy + dy;
+            if (px >= 0 && px < w && py >= 0 && py < h && cells[py][px].features.length === 0) {
+              cells[py][px] = floorCell(ground);
+            }
+          }
+        }
+        break;
+      }
+
+      case 'graveyard': {
+        // Stone ground platform
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const px = cx + dx, py = cy + dy;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+              cells[py][px] = floorCell('stone');
+            }
+          }
+        }
+        // Rows of tombstones
+        for (let row = -2; row <= 2; row += 2) {
+          for (let col = -2; col <= 2; col++) {
+            const tx = cx + col, ty = cy + row;
+            if (tx >= 0 && tx < w && ty >= 0 && ty < h) {
+              cells[ty][tx] = featureCell('stone', ['tombstone']);
+            }
+          }
+        }
+        // Iron fence around perimeter
+        for (let dx = -3; dx <= 3; dx++) {
+          for (const dy of [-3, 3]) {
+            const fx = cx + dx, fy = cy + dy;
+            if (fx >= 0 && fx < w && fy >= 0 && fy < h) {
+              cells[fy][fx] = featureCell('stone', ['fence']);
+            }
+          }
+        }
+        for (let dy = -2; dy <= 2; dy++) {
+          for (const dx of [-3, 3]) {
+            const fx = cx + dx, fy = cy + dy;
+            if (fx >= 0 && fx < w && fy >= 0 && fy < h) {
+              cells[fy][fx] = featureCell('stone', ['fence']);
+            }
+          }
+        }
+        // Gate on south
+        if (cy + 3 < h) cells[cy + 3][cx] = floorCell('stone');
+        // Central statue or monument
+        cells[cy][cx] = featureCell('stone', ['statue']);
+        break;
+      }
+
+      case 'farm': {
+        // Cleared farmland with fence, haystacks, and crop rows
+        // Fence border
+        for (let dx = -3; dx <= 3; dx++) {
+          for (const dy of [-3, 3]) {
+            const fx = cx + dx, fy = cy + dy;
+            if (fx >= 0 && fx < w && fy >= 0 && fy < h) {
+              cells[fy][fx] = featureCell(ground, ['fence']);
+            }
+          }
+        }
+        for (let dy = -2; dy <= 2; dy++) {
+          for (const dx of [-3, 3]) {
+            const fx = cx + dx, fy = cy + dy;
+            if (fx >= 0 && fx < w && fy >= 0 && fy < h) {
+              cells[fy][fx] = featureCell(ground, ['fence']);
+            }
+          }
+        }
+        // Gate
+        if (cy + 3 < h) cells[cy + 3][cx] = floorCell(ground);
+        // Crop rows (alternating passable ground)
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const px = cx + dx, py = cy + dy;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+              cells[py][px] = floorCell(ground);
+            }
+          }
+        }
+        // Hay piles in corners
+        for (const [dx, dy] of [[-2,-2],[2,-2]]) {
+          const hx = cx + dx, hy = cy + dy;
+          if (hx >= 0 && hx < w && hy >= 0 && hy < h) {
+            cells[hy][hx] = featureCell(ground, ['hay_pile']);
+          }
+        }
+        // A cart and some sacks
+        if (cx + 2 < w && cy + 2 < h) {
+          cells[cy + 2][cx + 2] = featureCell(ground, ['cart']);
+        }
+        if (cx - 2 >= 0 && cy + 2 < h) {
+          cells[cy + 2][cx - 2] = featureCell(ground, ['sack']);
+        }
+        // Woodpile near the edge
+        if (cx + 2 < w && cy - 2 >= 0) {
+          cells[cy - 2][cx + 2] = featureCell(ground, ['woodpile']);
+        }
+        break;
+      }
+
+      case 'market_square': {
+        // Large 7×7 stone plaza
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const px = cx + dx, py = cy + dy;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+              cells[py][px] = floorCell('stone');
+            }
+          }
+        }
+        // Central fountain or well
+        cells[cy][cx] = featureCell('stone', ['fountain']);
+        // Market stalls — counters with shelves behind them
+        const stallPositions = [[-2, -2], [2, -2], [-2, 2], [2, 2]];
+        for (const [dx, dy] of stallPositions) {
+          const sx = cx + dx, sy = cy + dy;
+          if (sx >= 0 && sx < w && sy >= 0 && sy < h) {
+            cells[sy][sx] = featureCell('wood', ['counter']);
+          }
+          // Shelf behind each counter (toward center)
+          const shx = sx + (dx > 0 ? 1 : -1);
+          const shy = sy + (dy > 0 ? 1 : -1);
+          if (shx >= 0 && shx < w && shy >= 0 && shy < h) {
+            cells[shy][shx] = featureCell('wood', ['shelf']);
+          }
+        }
+        // Crates and barrels scattered
+        if (cx - 1 >= 0 && cy - 3 >= 0) cells[cy - 3][cx - 1] = featureCell('stone', ['barrel']);
+        if (cx + 1 < w && cy + 3 < h) cells[cy + 3][cx + 1] = featureCell('stone', ['crate']);
+        // Banner posts
+        for (const [dx, dy] of [[-3, 0], [3, 0]]) {
+          const bx = cx + dx, by = cy + dy;
+          if (bx >= 0 && bx < w && by >= 0 && by < h) {
+            cells[by][bx] = featureCell('stone', ['banner']);
           }
         }
         break;
@@ -2134,6 +2580,7 @@ export class POIMapGenerator extends LocalMapGenerator {
         }
       }
     }
+
   }
 
   /** Repair a single perimeter cell to be a wall, unless it's a door. */

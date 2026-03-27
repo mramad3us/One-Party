@@ -38,15 +38,14 @@ const BUMP_NARRATIVES: Record<string, string[]> = {
   ],
 };
 
-/** Movement flavor text, shown rarely for atmosphere */
-const MOVE_FLAVORS: string[] = [
+/** Generic dungeon/cave flavor — used in POI exploration */
+const DUNGEON_FLAVORS: string[] = [
   'A faint breeze carries the scent of damp stone and old earth.',
   'Something skitters away in the darkness beyond your sight.',
   'You pause for a heartbeat, listening. Only silence answers.',
   'The weight of the silence here is almost physical.',
   'A distant drip of water echoes through the stillness.',
   'The air changes — thicker, colder. You press on.',
-  'Your shadow stretches long before you, a dark companion on this road.',
   'The ground shifts underfoot, loose and treacherous.',
   'You catch the faintest whiff of smoke on the air. Old, cold smoke.',
   'For a moment, you could swear you heard voices. But there is nothing.',
@@ -56,6 +55,118 @@ const MOVE_FLAVORS: string[] = [
   'The oppressive quiet makes your own breathing sound thunderous.',
   'Cobwebs cling to your arms as you push through a narrow gap.',
 ];
+
+/** Settlement flavor by time of day */
+const SETTLEMENT_MORNING: string[] = [
+  'The first light of morning paints the rooftops in hues of amber and rose.',
+  'Shutters crack open along the lane. The settlement stirs to life.',
+  'A rooster crows somewhere nearby, heralding the day.',
+  'Smoke curls from chimneys as breakfast fires are stoked.',
+  'The cobblestones glisten with morning dew beneath your boots.',
+  'A baker\'s apprentice hurries past carrying flour-dusted trays.',
+  'The air is crisp and clean — the quiet before the bustle begins.',
+];
+
+const SETTLEMENT_DAY: string[] = [
+  'The hum of daily commerce fills the air around you.',
+  'Somewhere a hammer rings against an anvil, steady as a heartbeat.',
+  'The smell of fresh bread drifts from a nearby doorway.',
+  'Voices carry from an open window — laughter, argument, the rhythms of ordinary life.',
+  'A cart rumbles past, its wheels groaning under a load of timber.',
+  'Children chase each other between the buildings, shrieking with glee.',
+  'Laundry flutters on lines strung between the eaves like tattered pennants.',
+  'The settlement bustles around you, indifferent to your presence.',
+  'A woman leans from a window, beating dust from a rug.',
+  'The scent of woodsmoke mingles with something savoury from the tavern kitchen.',
+];
+
+const SETTLEMENT_EVENING: string[] = [
+  'Long shadows stretch across the lane as the sun sinks low.',
+  'Lanterns are being lit in doorways, one by one, like earthbound stars.',
+  'The settlement grows quieter as folk retreat indoors for supper.',
+  'The sky above the rooftops blazes with the last defiant light of day.',
+  'A fiddler strikes up a tune somewhere — muffled through stone walls, but warm.',
+  'The air cools rapidly. You pull your cloak a little tighter.',
+  'Smoke thickens above the chimneys as hearth fires are stoked for the night.',
+];
+
+const SETTLEMENT_NIGHT: string[] = [
+  'The settlement sleeps. Only your footsteps break the silence.',
+  'A dog barks once in the distance, then falls silent.',
+  'Moonlight silvers the rooftops and fills the alleys with deep shadow.',
+  'A watchman\'s lantern bobs in the darkness down a side street.',
+  'The windows are dark, the doors shut fast. You walk alone.',
+  'An owl calls from somewhere above — a low, mournful sound.',
+  'The cobblestones are cold beneath your feet. The world holds its breath.',
+  'Stars wheel overhead, ancient and indifferent above the sleeping houses.',
+];
+
+/** Biome-specific outdoor flavor */
+const BIOME_FLAVORS: Partial<Record<string, string[]>> = {
+  forest: [
+    'The canopy whispers overhead, leaves trembling in a wind you cannot feel.',
+    'Shafts of pale light pierce the forest ceiling, illuminating motes of dust and pollen.',
+    'The rich scent of loam and rotting bark fills your nostrils.',
+    'A woodpecker hammers somewhere high above, its rhythm echoing through the trees.',
+    'Moss-covered roots snake across the path like grasping fingers.',
+  ],
+  desert: [
+    'Heat shimmers off the sand in liquid waves, distorting the horizon.',
+    'The wind scours your face with fine grit. You shield your eyes.',
+    'Not a drop of moisture in the air. Your lips crack in the relentless dryness.',
+    'A vulture circles lazily overhead, patient and unhurried.',
+    'The dunes shift imperceptibly around you, reshaping the world grain by grain.',
+  ],
+  mountain: [
+    'The thin air burns in your lungs with each step upward.',
+    'Wind howls through the crags, carrying the bite of snow from distant peaks.',
+    'Loose scree skitters away beneath your boots, tumbling into silence below.',
+    'An eagle rides the thermals far above, wings barely moving.',
+    'The view stretches endlessly — a vast quilt of shadow and stone.',
+  ],
+  swamp: [
+    'The ground squelches beneath your feet, sucking at your boots with each step.',
+    'Clouds of gnats swirl around your head in maddening spirals.',
+    'The stench of stagnant water and decay clings to everything here.',
+    'Something slithers through the reeds nearby — you catch only a ripple.',
+    'Will-o\'-wisps flicker in the distance, cold lights dancing over dark water.',
+  ],
+  coast: [
+    'Salt spray kisses your face as waves crash against the rocks below.',
+    'Gulls wheel and cry overhead, their voices sharp against the wind.',
+    'The tide has left a lace of foam and kelp along the shore.',
+    'The vast grey-green expanse of the sea stretches to the edge of the world.',
+    'Sand crunches beneath your boots, littered with pale shells and driftwood.',
+  ],
+  tundra: [
+    'The wind cuts through your clothing like a blade of ice.',
+    'Nothing moves across the frozen expanse. The stillness is absolute.',
+    'Your breath crystallizes before your face in pale clouds.',
+    'The ground is iron-hard beneath a thin crust of frost.',
+    'A pale sun hangs low on the horizon, offering light but precious little warmth.',
+  ],
+  underdark: [
+    'Phosphorescent fungus casts sickly green light on the cavern walls.',
+    'The darkness beyond your light is absolute — a physical weight pressing in.',
+    'Strange echoes distort every sound, making distance impossible to judge.',
+    'A faint tremor runs through the stone beneath your feet.',
+    'The air tastes of minerals and deep water, ancient and untouched by sun.',
+  ],
+  plains: [
+    'Tall grass ripples in the wind like a golden sea.',
+    'The sky stretches vast and unbroken from horizon to horizon.',
+    'A hawk stoops suddenly, plunging into the grass after unseen prey.',
+    'The wind carries the sweet scent of wildflowers and sun-warmed earth.',
+    'You feel exposed beneath the open sky — there is nowhere to hide here.',
+  ],
+  hills: [
+    'The rolling terrain reveals new vistas with every crest you top.',
+    'Sheep graze on a distant hillside, white dots against the green.',
+    'The wind sighs through the heather, carrying the tang of wild thyme.',
+    'Ancient stones jut from the hilltops like broken teeth.',
+    'A stream glitters in the valley below, winding between the folds of earth.',
+  ],
+};
 
 // FEATURE_NARRATIVES imported from @/data/features (centralized registry)
 
@@ -344,10 +455,10 @@ export class ExplorationController implements GameSystem {
     // Update FOV + lighting
     this.refreshVision(target);
 
-    // Occasional movement flavor text
+    // Occasional movement flavor text (context-aware)
     this.movesSinceLastFlavor++;
     if (this.movesSinceLastFlavor >= 20 + Math.floor(Math.random() * 15)) {
-      this.emitNarrative(pick(MOVE_FLAVORS), 'description');
+      this.emitNarrative(this.pickContextualFlavor(), 'description');
       this.movesSinceLastFlavor = 0;
     }
 
@@ -813,6 +924,44 @@ export class ExplorationController implements GameSystem {
         this.emitNarrative(pick(narratives), 'description');
       }
     }
+  }
+
+  /**
+   * Pick a flavor text line appropriate for the current context:
+   * settlement (time-of-day aware), biome-specific, or generic dungeon.
+   */
+  private pickContextualFlavor(): string {
+    const location = this.gameState?.getCurrentLocation();
+    const locType = location?.locationType;
+    const isSettlement = locType === 'village' || locType === 'town' || locType === 'city';
+
+    if (isSettlement && this.gameState) {
+      const cal = gameTimeToCalendar(this.gameState.world.time);
+      const h = cal.hour;
+      let pool: string[];
+      if (h >= 5 && h < 9) pool = SETTLEMENT_MORNING;
+      else if (h >= 9 && h < 17) pool = SETTLEMENT_DAY;
+      else if (h >= 17 && h < 21) pool = SETTLEMENT_EVENING;
+      else pool = SETTLEMENT_NIGHT;
+
+      // 30% chance to mix in a biome flavor for variety
+      const biome = this.gameState.getCurrentRegion().biome;
+      const biomeFlavors = BIOME_FLAVORS[biome];
+      if (biomeFlavors && Math.random() < 0.3) {
+        return pick(biomeFlavors);
+      }
+      return pick(pool);
+    }
+
+    // Non-settlement: biome flavor (60%) or dungeon generic (40%)
+    if (this.gameState) {
+      const biome = this.gameState.getCurrentRegion().biome;
+      const biomeFlavors = BIOME_FLAVORS[biome];
+      if (biomeFlavors && Math.random() < 0.6) {
+        return pick(biomeFlavors);
+      }
+    }
+    return pick(DUNGEON_FLAVORS);
   }
 
   private emitNarrative(text: string, category: NarrativeBlock['category']): void {

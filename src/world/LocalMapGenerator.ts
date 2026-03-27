@@ -859,7 +859,7 @@ export class LocalMapGenerator {
   // ── Town (40x40) ──────────────────────────────────────────
 
   /** Building type specs: width range, height range */
-  private static readonly BUILDING_SPECS: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
+  protected static readonly BUILDING_SPECS: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
     tavern:     { wMin: 7, wMax: 9, hMin: 7, hMax: 9 },
     shop:       { wMin: 6, wMax: 8, hMin: 6, hMax: 7 },
     blacksmith: { wMin: 6, wMax: 8, hMin: 6, hMax: 7 },
@@ -869,7 +869,7 @@ export class LocalMapGenerator {
   };
 
   /** Default sub-location mix per settlement size */
-  private static readonly DEFAULT_SUBLOCS: Record<string, SubLocationType[]> = {
+  protected static readonly DEFAULT_SUBLOCS: Record<string, SubLocationType[]> = {
     village: ['tavern', 'shop', 'house', 'house'],
     town:    ['tavern', 'shop', 'blacksmith', 'temple', 'house', 'house', 'barracks'],
     city:    ['tavern', 'tavern', 'shop', 'shop', 'blacksmith', 'temple', 'house', 'house', 'house', 'barracks', 'market'],
@@ -1102,7 +1102,7 @@ export class LocalMapGenerator {
   /**
    * Place a building with type-specific interior furniture and return metadata.
    */
-  private placeTypedBuilding(
+  protected placeTypedBuilding(
     cells: GridCell[][],
     gridW: number, gridH: number,
     bx: number, by: number, bw: number, bh: number,
@@ -1171,7 +1171,7 @@ export class LocalMapGenerator {
    * Tavern/Inn: Main room with tables & chairs, counter/bar, hearth, candles.
    * NPC stands behind the counter.
    */
-  private furnishTavern(
+  protected furnishTavern(
     cells: GridCell[][], gw: number, gh: number,
     ix: number, iy: number, iw: number, ih: number,
   ): Coordinate {
@@ -1234,7 +1234,7 @@ export class LocalMapGenerator {
    * General Shop: Counter near door, shelves along walls, crates/barrels in back.
    * NPC stands behind the counter.
    */
-  private furnishShop(
+  protected furnishShop(
     cells: GridCell[][], gw: number, gh: number,
     ix: number, iy: number, iw: number, ih: number,
   ): Coordinate {
@@ -1291,7 +1291,7 @@ export class LocalMapGenerator {
    * Blacksmith: Anvil area, weapon rack, forge/hearth, barrels.
    * NPC stands near the anvil.
    */
-  private furnishBlacksmith(
+  protected furnishBlacksmith(
     cells: GridCell[][], gw: number, gh: number,
     ix: number, iy: number, iw: number, ih: number,
   ): Coordinate {
@@ -1345,7 +1345,7 @@ export class LocalMapGenerator {
    * Temple/Shrine: Central altar, pillar supports, candles, rug approach, fountain.
    * NPC stands near the altar.
    */
-  private furnishTemple(
+  protected furnishTemple(
     cells: GridCell[][], gw: number, gh: number,
     ix: number, iy: number, iw: number, ih: number,
   ): Coordinate {
@@ -1408,7 +1408,7 @@ export class LocalMapGenerator {
    * House: Bed area, table with chairs, chest for personal items.
    * NPC stands near the table.
    */
-  private furnishHouse(
+  protected furnishHouse(
     cells: GridCell[][], gw: number, gh: number,
     ix: number, iy: number, iw: number, ih: number,
   ): Coordinate {
@@ -1457,7 +1457,7 @@ export class LocalMapGenerator {
    * Guard Barracks: Multiple beds, weapon rack, table, chest.
    * NPC stands near the weapon rack.
    */
-  private furnishBarracks(
+  protected furnishBarracks(
     cells: GridCell[][], gw: number, gh: number,
     ix: number, iy: number, iw: number, ih: number,
   ): Coordinate {
@@ -1515,7 +1515,7 @@ export class LocalMapGenerator {
   /**
    * Market: Outdoor area with market stalls arranged in rows around the town square.
    */
-  private placeMarketArea(
+  protected placeMarketArea(
     cells: GridCell[][], gw: number, gh: number,
     midX: number, midY: number, sqSize: number,
     roadTerrain: CellTerrain,
@@ -1544,7 +1544,7 @@ export class LocalMapGenerator {
   /**
    * Connect a building door to the nearest road cell via a 1-cell walkway.
    */
-  private connectDoorToRoad(
+  protected connectDoorToRoad(
     cells: GridCell[][], gw: number, gh: number,
     door: Coordinate,
     roadCells: Set<string>,
