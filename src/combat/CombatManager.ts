@@ -470,8 +470,8 @@ export class CombatManager {
         damage: hit ? damage : undefined,
         damageType: hit ? attack.damage.type : undefined,
         description: hit
-          ? `${attack.name} hits for ${damage} ${attack.damage.type} damage.`
-          : `${attack.name} misses (${rollResult.total} vs AC ${ac}).`,
+          ? `The ${attack.name.toLowerCase()} connects, dealing ${damage} ${attack.damage.type} damage. (${rollResult.total} vs AC ${ac})`
+          : `The ${attack.name.toLowerCase()} swings wide, finding only air. (${rollResult.total} vs AC ${ac})`,
         rolls,
       };
 
@@ -489,9 +489,9 @@ export class CombatManager {
           if (!saved) {
             const overkill = target.stats.currentHp;
             this.applyDamageToParticipant(targetId, overkill, 'necrotic');
-            result.description += ` Target fails CON save (${saveRoll.total} vs DC 64) — reduced to 0 HP!`;
+            result.description += ` The divine force overwhelms the creature — its life snuffed out in an instant. (CON save ${saveRoll.total} vs DC 64)`;
           } else {
-            result.description += ` Target resists the divine force (CON ${saveRoll.total} vs DC 64).`;
+            result.description += ` The creature endures the divine force, clinging to life. (CON save ${saveRoll.total} vs DC 64)`;
           }
         }
       }
@@ -516,8 +516,8 @@ export class CombatManager {
         damage: hit ? damage : undefined,
         damageType: hit ? 'bludgeoning' : undefined,
         description: hit
-          ? `Unarmed strike hits for ${damage} bludgeoning damage.`
-          : `Unarmed strike misses (${rollResult.total} vs AC ${ac}).`,
+          ? `A bare-fisted blow lands, dealing ${damage} bludgeoning damage. (${rollResult.total} vs AC ${ac})`
+          : `The unarmed strike fails to connect. (${rollResult.total} vs AC ${ac})`,
         rolls: [rollResult],
       };
 
@@ -634,8 +634,8 @@ export class CombatManager {
       }
 
       description = saved
-        ? `${spell.name} — target saves (${saveRoll.total} vs DC ${spellSaveDC}), ${totalDamage > 0 ? `${totalDamage} ${damageType} damage (half).` : 'no effect.'}`
-        : `${spell.name} — target fails save (${saveRoll.total} vs DC ${spellSaveDC}), ${totalDamage} ${damageType} damage!`;
+        ? `${spell.name} washes over the target, who shrugs off the worst of it${totalDamage > 0 ? `, taking ${totalDamage} ${damageType} damage` : ''}. (save ${saveRoll.total} vs DC ${spellSaveDC})`
+        : `${spell.name} engulfs the target in ${damageType} energy, dealing ${totalDamage} damage! (save ${saveRoll.total} vs DC ${spellSaveDC})`;
 
     } else if (isAutoHit) {
       // Magic Missile — auto-hit, roll each dart
@@ -647,7 +647,7 @@ export class CombatManager {
           damageType = effect.damage.type;
         }
       }
-      description = `${spell.name} strikes for ${totalDamage} ${damageType} damage!`;
+      description = `${spell.name} unerringly finds its mark, dealing ${totalDamage} ${damageType} damage!`;
 
     } else if (hasDamage && primaryTarget) {
       // Spell attack roll (Fire Bolt, Ray of Frost, Scorching Ray)
@@ -677,8 +677,8 @@ export class CombatManager {
       }
 
       description = hit
-        ? `${spell.name} hits for ${totalDamage} ${damageType} damage!`
-        : `${spell.name} misses (${attackRoll.total} vs AC ${ac}).`;
+        ? `${spell.name} sears the target for ${totalDamage} ${damageType} damage! (${attackRoll.total} vs AC ${ac})`
+        : `${spell.name} streaks past the target, missing narrowly. (${attackRoll.total} vs AC ${ac})`;
 
     } else if (hasHealing) {
       // Healing spell (Cure Wounds, Healing Word)
@@ -689,11 +689,11 @@ export class CombatManager {
           totalHealing += Math.max(0, healResult.total + castMod);
         }
       }
-      description = `${spell.name} restores ${totalHealing} hit points.`;
+      description = `${spell.name} mends wounds, restoring ${totalHealing} hit points.`;
 
     } else {
       // Utility / buff spell (Bless, Shield)
-      description = `Casts ${spell.name}.`;
+      description = `${spell.name} takes effect, its magic shimmering into being.`;
     }
 
     const result: ActionResult = {
@@ -1002,7 +1002,7 @@ export class CombatManager {
       type: 'class_feature',
       actorId: entityId,
       healing: actualHealing,
-      description: `${def.name} restores ${actualHealing} hit points!`,
+      description: `${def.name} channels restorative energy, mending ${actualHealing} hit points of damage.`,
       rolls: [rollResult],
     };
 
@@ -1328,8 +1328,8 @@ export class CombatManager {
         damage: hit ? damage : undefined,
         damageType: hit ? attack.damage.type : undefined,
         description: hit
-          ? `Opportunity attack! ${attack.name} hits for ${damage} damage.`
-          : `Opportunity attack! ${attack.name} misses.`,
+          ? `Seizing the opening, ${attack.name.toLowerCase()} strikes true for ${damage} damage!`
+          : `A retaliatory swing lashes out, but misses the mark.`,
         rolls: [rollResult],
       };
 
