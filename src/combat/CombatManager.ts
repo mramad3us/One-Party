@@ -478,6 +478,21 @@ export class CombatManager {
       // Apply damage
       if (hit && damage > 0) {
         this.applyDamageToParticipant(targetId, damage, attack.damage.type);
+
+        // Slap save-or-die: DC 64 CON save or reduced to 0 HP
+        if (attack.name === 'Slap' && target.stats.currentHp > 0) {
+          const conMod = abilityModifier(target.stats.abilityScores.constitution);
+          const saveRoll = this.dice.rollD20({ modifier: conMod });
+          const saved = saveRoll.total >= 64;
+          if (!saved) {
+            const overkill = target.stats.currentHp;
+            this.applyDamageToParticipant(targetId, overkill, 'necrotic');
+            result.description += ` Target fails CON save (${saveRoll.total} vs DC 64) — reduced to 0 HP!`;
+          } else {
+            result.description += ` Target resists the divine force (CON ${saveRoll.total} vs DC 64).`;
+          }
+          result.rolls.push(saveRoll);
+        }
       }
     } else {
       // Unarmed strike fallback

@@ -700,14 +700,14 @@ export class CombatController implements GameSystem {
     }
 
     // Feature-based attacks (e.g. Naelia's Slap) — used when no weapon equipped
+    // Slap: +49 to hit, 1d4+23 necrotic, DC 64 CON save or reduced to 0 HP
     if (attacks.length === 0) {
       const slapFeature = character.features.find(f => f.id === 'slap');
       if (slapFeature) {
-        const dexMod = abilityModifier(character.abilityScores.dexterity);
         attacks.push({
           name: 'Slap',
-          toHitBonus: dexMod + character.proficiencyBonus,
-          damage: { count: 1, die: 4 as DieType, type: 'necrotic' as import('@/types').DamageType, bonus: Math.floor(dexMod / 2) },
+          toHitBonus: 49,
+          damage: { count: 1, die: 4 as DieType, type: 'necrotic' as import('@/types').DamageType, bonus: 23 },
           reach: 5,
         });
       }
