@@ -480,6 +480,8 @@ export class CombatManager {
         this.applyDamageToParticipant(targetId, damage, attack.damage.type);
 
         // Slap save-or-die: DC 64 CON save or reduced to 0 HP
+        // Note: save roll is NOT added to result.rolls to avoid triggering
+        // the player dice animation — it's the monster's save, shown in text only.
         if (attack.name === 'Slap' && target.stats.currentHp > 0) {
           const conMod = abilityModifier(target.stats.abilityScores.constitution);
           const saveRoll = this.dice.rollD20({ modifier: conMod });
@@ -491,7 +493,6 @@ export class CombatManager {
           } else {
             result.description += ` Target resists the divine force (CON ${saveRoll.total} vs DC 64).`;
           }
-          result.rolls.push(saveRoll);
         }
       }
     } else {
