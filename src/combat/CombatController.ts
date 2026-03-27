@@ -3,6 +3,7 @@ import type {
   Character,
   Coordinate,
   DiceRollResult,
+  DieType,
   EntityId,
   Item,
   ResolvedEvent,
@@ -694,6 +695,20 @@ export class CombatController implements GameSystem {
           reach: props.reach ?? 5,
           rangeNormal: props.rangeNormal,
           rangeLong: props.rangeLong,
+        });
+      }
+    }
+
+    // Feature-based attacks (e.g. Naelia's Slap) — used when no weapon equipped
+    if (attacks.length === 0) {
+      const slapFeature = character.features.find(f => f.id === 'slap');
+      if (slapFeature) {
+        const dexMod = abilityModifier(character.abilityScores.dexterity);
+        attacks.push({
+          name: 'Slap',
+          toHitBonus: dexMod + character.proficiencyBonus,
+          damage: { count: 1, die: 4 as DieType, type: 'necrotic' as import('@/types').DamageType, bonus: Math.floor(dexMod / 2) },
+          reach: 5,
         });
       }
     }
