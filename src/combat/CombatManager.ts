@@ -993,6 +993,7 @@ export class CombatManager {
           disadvantage: saveDisadv,
         });
         // Only push the first save roll to avoid UI clutter
+        saveRoll.rollerEntityId = targetId;
         if (perEntityResults.length === 0) rolls.push(saveRoll);
         const saved = saveRoll.total >= spellSaveDC;
         const entityDamage = saved ? Math.floor(baseDamage / 2) : baseDamage;
@@ -1122,6 +1123,7 @@ export class CombatManager {
           advantage: saveAdv,
           disadvantage: saveDisadv,
         });
+        saveRoll.rollerEntityId = affectedEntities[0];
         rolls.push(saveRoll);
         const saved = saveRoll.total >= spellSaveDC;
 
@@ -2237,14 +2239,17 @@ export class CombatManager {
       const spell = getSpell(spellId);
       if (!spell) continue;
 
-      // Skip non-combat spells (no damage, no healing, no conditions, no buff mechanics)
+      // Skip non-combat spells — must have mechanical effects or be a known combat buff
       const hasCombatEffect = spell.effects.some(e => e.damage || e.healing || e.condition);
-      // Also allow known buff spells (Bless, Shield, Haste, etc.) and spells with duration
-      const isBuffSpell = spell.duration.type === 'concentration' || spell.duration.type === 'rounds';
       const isKnownBuff = ['spell_bless', 'spell_bane', 'spell_shield', 'spell_shield_of_faith',
         'spell_mage_armor', 'spell_barkskin', 'spell_haste', 'spell_blur', 'spell_mirror_image',
-        'spell_slow', 'spell_bestow_curse', 'spell_sleep', 'spell_color_spray'].includes(spell.id);
-      if (!hasCombatEffect && !isBuffSpell && !isKnownBuff) continue;
+        'spell_slow', 'spell_bestow_curse', 'spell_sleep', 'spell_color_spray',
+        'spell_expeditious_retreat', 'spell_longstrider', 'spell_protection_from_evil_and_good',
+        'spell_sanctuary', 'spell_warding_bond', 'spell_spirit_guardians',
+        'spell_death_ward', 'spell_freedom_of_movement', 'spell_stoneskin',
+        'spell_true_seeing', 'spell_globe_of_invulnerability', 'spell_antimagic_field',
+        'spell_foresight', 'spell_true_strike'].includes(spell.id);
+      if (!hasCombatEffect && !isKnownBuff) continue;
 
       // Skip spells that aren't verified to work in combat
       const DISABLED_SPELLS = new Set([

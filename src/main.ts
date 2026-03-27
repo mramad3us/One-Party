@@ -2967,6 +2967,12 @@ async function main(): Promise<void> {
         if (spell.duration.type === 'concentration') tags.push('<span class="spell-tag spell-tag--conc" data-tooltip="Concentration"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="5" cy="5" r="1" fill="currentColor"/></svg></span>');
         if (hasHealing) tags.push('<span class="spell-tag spell-tag--heal" data-tooltip="Healing"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 2C3.5 2 2 3 2 4.5 2 7 5 8.5 5 8.5S8 7 8 4.5C8 3 6.5 2 5 2z" fill="currentColor"/></svg></span>');
         if (hasCondition) tags.push('<span class="spell-tag spell-tag--cc" data-tooltip="Crowd Control"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5h6M5 2v6" stroke="currentColor" stroke-width="1.5"/></svg></span>');
+        const isAoE = ['area', 'cone', 'line', 'cube', 'sphere', 'cylinder'].includes(spell.targetType);
+        if (isAoE) {
+          const areaSize = spell.effects.find(e => e.areaSize)?.areaSize;
+          const aoeLabel = areaSize ? `${areaSize}ft ${spell.targetType}` : spell.targetType;
+          tags.push(`<span class="spell-tag spell-tag--aoe" data-tooltip="Area of Effect: ${aoeLabel}"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1" fill="none" stroke-dasharray="2 1"/></svg></span>`);
+        }
 
         // Can this spell be upcast?
         const canUpcast = !isCantrip && spellOpt.maxSlotLevel > spellOpt.minSlotLevel;
@@ -2980,8 +2986,56 @@ async function main(): Promise<void> {
           + `</div>`
           + (canUpcast ? `<span class="spell-selector-upcast" data-tooltip="Click to upcast at higher level">▲</span>` : '');
 
+        // Spell description card on hover
+        let spellCard: HTMLElement | null = null;
+        const showSpellCard = () => {
+          if (spellCard) return;
+          spellCard = el('div', { class: 'spell-desc-card' });
+          const saveTxt = spell.effects.find(e => e.savingThrow)
+            ? `Save: ${spell.effects.find(e => e.savingThrow)!.savingThrow!.ability.toUpperCase()}`
+            : '';
+          const compStr = spell.components.join(', ') + (spell.materialComponent ? ` (${spell.materialComponent})` : '');
+          const durStr = spell.duration.type === 'instantaneous' ? 'Instantaneous'
+            : spell.duration.type === 'concentration' ? `Concentration, ${spell.duration.value} round${(spell.duration.value ?? 0) > 1 ? 's' : ''}`
+            : `${spell.duration.value} ${spell.duration.type}`;
+          spellCard.innerHTML =
+            `<div class="spell-desc-header">${spell.name}</div>`
+            + `<div class="spell-desc-meta">${spell.school} · Level ${spell.level === 0 ? 'cantrip' : spell.level} · ${durStr}</div>`
+            + `<div class="spell-desc-meta">${rangeStr} · ${compStr}${saveTxt ? ' · ' + saveTxt : ''}</div>`
+            + (isAoE ? `<div class="spell-desc-meta spell-desc-aoe">Area: ${spell.effects.find(e => e.areaSize)?.areaSize ?? '?'}ft ${spell.targetType}</div>` : '')
+            + `<div class="spell-desc-body">${spell.description}</div>`;
+          document.body.appendChild(spellCard);
+
+          // Position to the right of the button, or left if no room
+          const btnRect = btn.getBoundingClientRect();
+          spellCard.style.visibility = 'hidden';
+          spellCard.style.display = 'block';
+          const cardRect = spellCard.getBoundingClientRect();
+          const gap = 8;
+          let left = btnRect.right + gap;
+          let top = btnRect.top;
+          if (left + cardRect.width > window.innerWidth - 8) {
+            left = btnRect.left - cardRect.width - gap;
+          }
+          if (top + cardRect.height > window.innerHeight - 8) {
+            top = window.innerHeight - cardRect.height - 8;
+          }
+          if (top < 8) top = 8;
+          spellCard.style.left = `${left}px`;
+          spellCard.style.top = `${top}px`;
+          spellCard.style.visibility = '';
+        };
+        const hideSpellCard = () => {
+          if (spellCard) { spellCard.remove(); spellCard = null; }
+        };
+        btn.addEventListener('mouseenter', showSpellCard);
+        btn.addEventListener('mouseleave', hideSpellCard);
+        btn.addEventListener('focus', showSpellCard);
+        btn.addEventListener('blur', hideSpellCard);
+
         // Main click: cast at base level
         btn.addEventListener('click', (e) => {
+          hideSpellCard();
           // If upcast arrow clicked, show slot picker instead
           if ((e.target as HTMLElement).classList.contains('spell-selector-upcast')) {
             e.stopPropagation();

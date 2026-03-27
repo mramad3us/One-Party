@@ -901,6 +901,51 @@
   background: rgba(140, 80, 200, 0.12);
 }
 
+.spell-tag--aoe {
+  color: var(--orange, #e0a050);
+  background: rgba(224, 160, 80, 0.12);
+}
+
+/* ── Spell Description Card ── */
+.spell-desc-card {
+  position: fixed;
+  z-index: var(--z-modal, 1000);
+  max-width: 320px;
+  padding: 10px 12px;
+  background: var(--panel-bg, #1a1a2e);
+  border: 1px solid var(--gold-dim, #6b5a3e);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.spell-desc-header {
+  font-weight: 600;
+  color: var(--gold, #d4a952);
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+}
+
+.spell-desc-meta {
+  font-size: 0.72rem;
+  color: var(--text-dim, #8a8a9a);
+  margin-bottom: 2px;
+}
+
+.spell-desc-aoe {
+  color: var(--orange, #e0a050);
+}
+
+.spell-desc-body {
+  font-size: 0.78rem;
+  color: var(--text, #c8c8d4);
+  line-height: 1.4;
+  margin-top: 6px;
+  border-top: 1px solid rgba(107, 90, 62, 0.3);
+  padding-top: 6px;
+}
+
 /* Upcast arrow */
 .spell-selector-upcast {
   flex-shrink: 0;

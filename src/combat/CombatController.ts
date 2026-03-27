@@ -361,9 +361,14 @@ export class CombatController implements GameSystem {
       await this.spellAnimations.showCriticalHit();
     }
 
-    // Show dice rolls
+    // Show dice rolls — full-screen for player rolls, mini for NPC/companion saves
     for (const roll of result.rolls) {
-      await this.showRoll(roll);
+      if (roll.rollerEntityId && roll.rollerEntityId !== entityId) {
+        // This is an NPC/companion saving throw — show mini on their initiative icon
+        await this.showRollOnInitiative(roll.rollerEntityId, roll);
+      } else {
+        await this.showRoll(roll);
+      }
     }
 
     // Now flush deferred events (log, damage numbers, kill notifications)
@@ -577,9 +582,19 @@ export class CombatController implements GameSystem {
         await this.spellAnimations.showCriticalHit();
       }
 
-      // Show dice rolls as mini overlays on the NPC's initiative icon
+      // Show dice rolls — mini on NPC initiative icon, but full-screen if it's the player's save
       for (const roll of result.rolls) {
-        await this.showRollOnInitiative(entityId, roll);
+        if (roll.rollerEntityId) {
+          const roller = this.combatManager.getParticipant(roll.rollerEntityId);
+          if (roller?.isPlayer) {
+            // Player's saving throw — show full-screen
+            await this.showRoll(roll);
+          } else {
+            await this.showRollOnInitiative(roll.rollerEntityId, roll);
+          }
+        } else {
+          await this.showRollOnInitiative(entityId, roll);
+        }
         if (!this.active) return;
       }
 

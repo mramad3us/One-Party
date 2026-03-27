@@ -151,4 +151,6 @@ export type DiceRollResult = {
   description: string;
   /** Which die was rolled, for display (defaults to d20). */
   dieType?: DieType;
+  /** Entity who made this roll — used to decide full-screen vs mini dice display. */
+  rollerEntityId?: EntityId;
 };
