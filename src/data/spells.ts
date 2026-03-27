@@ -2728,25 +2728,7 @@ export const SRD_SPELLS: Spell[] = [
     ritual: false,
     classes: ['wizard', 'sorcerer', 'warlock'],
   },
-  {
-    id: 'spell_forcecage',
-    name: 'Forcecage',
-    level: 7,
-    school: 'evocation',
-    castingTime: '1 action',
-    range: 100,
-    components: ['V', 'S', 'M'],
-    materialComponent: 'ruby dust worth 1,500 gp',
-    duration: { type: 'hours', value: 1 },
-    description: 'An immobile, invisible, cube-shaped prison composed of magical force springs into existence around an area you choose within range. The prison can be a cage or a solid box.',
-    targetType: 'area',
-    effects: [{
-      condition: 'restrained',
-      areaSize: 10,
-    }],
-    ritual: false,
-    classes: ['wizard', 'sorcerer', 'bard', 'warlock'],
-  },
+  // Forcecage removed — too complex for grid-based combat
   {
     id: 'spell_plane_shift',
     name: 'Plane Shift',

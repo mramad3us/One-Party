@@ -667,6 +667,125 @@ export class CombatManager {
 
     const primaryTarget = affectedEntities[0] ? this.participants.get(affectedEntities[0]) : null;
 
+    // ── Special-case spells with unique mechanics ──
+
+    // Sleep / Color Spray: HP-pool mechanic (no save, affects weakest first)
+    if (spell.id === 'spell_sleep' || spell.id === 'spell_color_spray') {
+      const isSleep = spell.id === 'spell_sleep';
+      const dieFace = isSleep ? 8 : 10;
+      const baseDice = isSleep ? 5 : 6;
+      const extraDice = spell.higherLevelScaling?.extraDicePerLevel
+        ? spell.higherLevelScaling.extraDicePerLevel * Math.max(0, slotLevel - spell.level)
+        : 0;
+      const totalDice = baseDice + extraDice;
+
+      // Roll HP pool
+      const poolRoll = this.dice.rollDamage({ count: totalDice, die: dieFace as import('@/types').DieType, type: 'psychic' as import('@/types').DamageType });
+      const hpPool = poolRoll.total;
+      poolRoll.description = `${totalDice}d${dieFace} = ${hpPool} HP pool`;
+      rolls.push(poolRoll);
+
+      // Sort targets by current HP ascending
+      const sortedTargets = affectedEntities
+        .map(id => ({ id, hp: this.participants.get(id)?.stats.currentHp ?? Infinity }))
+        .filter(t => t.hp > 0 && !this.casualties.includes(t.id))
+        .sort((a, b) => a.hp - b.hp);
+
+      const affected: string[] = [];
+      let remaining = hpPool;
+      for (const t of sortedTargets) {
+        if (remaining <= 0) break;
+        if (t.hp > remaining) break; // Can't affect creatures with HP > remaining pool
+        remaining -= t.hp;
+        const target = this.participants.get(t.id);
+        if (target) {
+          const condition = isSleep ? 'unconscious' : 'blinded';
+          this.applyConditionToParticipant(target, condition as import('@/types').ConditionType, isSleep ? 100 : 1, entityId);
+          affected.push(target.npc?.name ?? t.id);
+          conditionsApplied.push(condition);
+        }
+      }
+
+      const conditionName = isSleep ? 'sleep' : 'blindness';
+      description = affected.length > 0
+        ? (isSleep
+          ? `A wave of magical drowsiness sweeps outward — ${affected.join(', ')} ${affected.length > 1 ? 'succumb' : 'succumbs'} to enchanted slumber. (${hpPool} HP pool)`
+          : `A dazzling burst of color erupts — ${affected.join(', ')} ${affected.length > 1 ? 'are' : 'is'} blinded by the kaleidoscope of light. (${hpPool} HP pool)`)
+        : `The ${conditionName} magic washes over the area, but no creature is weak enough to be affected. (${hpPool} HP pool)`;
+
+      const result: ActionResult = {
+        success: affected.length > 0, type: 'cast_spell', actorId: entityId,
+        targetId: affectedEntities[0], description, rolls,
+      };
+      this.emitOrDefer({ type: 'combat:spell', category: 'combat', data: { entityId, spellId, targets, result } });
+      this.emitOrDefer({ type: 'combat:action_result', category: 'combat', data: { result } });
+      this.checkCombatEnd();
+      return result;
+    }
+
+    // Power Word Stun: stun if HP ≤ 150, no save, 3 rounds
+    if (spell.id === 'spell_power_word_stun' && primaryTarget) {
+      if (primaryTarget.stats.currentHp <= 150) {
+        this.applyConditionToParticipant(primaryTarget, 'stunned', 3, entityId);
+        description = `A single word of absolute power reverberates through the air — the target is stunned, their mind overwhelmed. (HP ${primaryTarget.stats.currentHp} ≤ 150)`;
+        hit = true;
+      } else {
+        description = `The word of power echoes, but the target's vitality is too great to be overcome. (HP ${primaryTarget.stats.currentHp} > 150)`;
+        hit = false;
+      }
+      const result: ActionResult = {
+        success: hit, type: 'cast_spell', actorId: entityId,
+        targetId: affectedEntities[0], description, rolls,
+      };
+      this.emitOrDefer({ type: 'combat:spell', category: 'combat', data: { entityId, spellId, targets, result } });
+      this.emitOrDefer({ type: 'combat:action_result', category: 'combat', data: { result } });
+      return result;
+    }
+
+    // Power Word Kill: kill if HP ≤ 100, no save
+    if (spell.id === 'spell_power_word_kill' && primaryTarget) {
+      if (primaryTarget.stats.currentHp <= 100) {
+        this.applyDamageToParticipant(affectedEntities[0], primaryTarget.stats.currentHp, 'necrotic');
+        description = 'A single word of absolute power is spoken. The target simply... dies. No save. No resistance. Just silence.';
+        hit = true;
+      } else {
+        description = `The word of killing reverberates, but the target's life force burns too strongly to be snuffed out. (HP ${primaryTarget.stats.currentHp} > 100)`;
+        hit = false;
+      }
+      const result: ActionResult = {
+        success: hit, type: 'cast_spell', actorId: entityId,
+        targetId: affectedEntities[0], description, rolls,
+      };
+      this.emitOrDefer({ type: 'combat:spell', category: 'combat', data: { entityId, spellId, targets, result } });
+      this.emitOrDefer({ type: 'combat:action_result', category: 'combat', data: { result } });
+      this.checkCombatEnd();
+      return result;
+    }
+
+    // Contagion: simplified — poisoned for 10 rounds on melee spell attack hit
+    if (spell.id === 'spell_contagion' && primaryTarget) {
+      const attackBonus = castMod + prof;
+      const ac = primaryTarget.stats.armorClass;
+      const attackRoll = this.dice.rollD20({ modifier: attackBonus });
+      rolls.push(attackRoll);
+      hit = attackRoll.isCritical || (!attackRoll.isFumble && attackRoll.total >= ac);
+      if (hit) {
+        this.applyConditionToParticipant(primaryTarget, 'poisoned', 10, entityId);
+        description = `A diseased hand reaches out and touches the target — virulent plague seeps into their body, poisoning them from within. (${attackRoll.total} vs AC ${ac})`;
+      } else {
+        description = `The plague-bearing hand reaches out but misses — the disease finds no purchase. (${attackRoll.total} vs AC ${ac})`;
+      }
+      const result: ActionResult = {
+        success: hit, type: 'cast_spell', actorId: entityId,
+        targetId: affectedEntities[0], description, rolls,
+      };
+      this.emitOrDefer({ type: 'combat:spell', category: 'combat', data: { entityId, spellId, targets, result } });
+      this.emitOrDefer({ type: 'combat:action_result', category: 'combat', data: { result } });
+      return result;
+    }
+
+    // ── Standard spell paths ──
+
     if (hasSavingThrow && (primaryTarget || isAreaSpell)) {
       // ── Saving throw spell ──
       // Per-entity saves for area spells (D&D 5e: each creature rolls individually)
