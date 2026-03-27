@@ -2335,6 +2335,11 @@ export class CombatManager {
     return p.stats.conditions.some(c => c.type === condition);
   }
 
+  /** Check if a participant has a specific feature by ID. */
+  private participantHasFeature(p: CombatParticipant, featureId: string): boolean {
+    return p.stats.features.some(f => f.id === featureId);
+  }
+
   /**
    * Compute whether an attack roll has advantage and/or disadvantage
    * based on attacker/target conditions and dodge status (5e rules).
@@ -2397,6 +2402,11 @@ export class CombatManager {
       disadvantage = true;
     }
 
+    // Divine Oracle: any creature attacking Naelia does so with disadvantage
+    if (this.participantHasFeature(target, 'divine_oracle')) {
+      disadvantage = true;
+    }
+
     return { advantage, disadvantage };
   }
 
@@ -2439,6 +2449,17 @@ export class CombatManager {
     // Bestow Curse: disadvantage on all saves
     if (this.hasBuffSaveDisadvantage(participant.entityId)) {
       disadvantage = true;
+    }
+
+    // Divine Oracle: advantage on ALL saving throws
+    if (this.participantHasFeature(participant, 'divine_oracle')) {
+      advantage = true;
+    }
+
+    // Greater Magic Immunity: advantage on saves vs spells level 6+
+    // (This is checked here generically — the save is always from a spell in combat)
+    if (this.participantHasFeature(participant, 'greater_magic_immunity')) {
+      advantage = true;
     }
 
     return { advantage, disadvantage };
