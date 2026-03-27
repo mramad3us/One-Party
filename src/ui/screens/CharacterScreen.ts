@@ -88,11 +88,15 @@ export class CharacterScreen extends Component {
     const identity = el('div', { class: 'char-identity' });
     identity.appendChild(el('h2', { class: 'char-name font-heading' }, [character.name]));
     identity.appendChild(el('div', { class: 'char-race-class' }, [
-      `Level ${character.level} ${capitalize(character.race)} ${capitalize(character.class)}`,
+      character.level > 0
+        ? `Level ${character.level} ${capitalize(character.race)} ${capitalize(character.class)}`
+        : `${capitalize(character.race)} ${capitalize(character.class)}`,
     ]));
-    identity.appendChild(el('div', { class: 'char-xp font-mono' }, [
-      `XP: ${character.xp}`,
-    ]));
+    if (character.level > 0) {
+      identity.appendChild(el('div', { class: 'char-xp font-mono' }, [
+        `XP: ${character.xp}`,
+      ]));
+    }
     body.appendChild(identity);
 
     // ── Core Stats Row (AC, Initiative, Speed) ──

@@ -356,7 +356,7 @@ export class CharacterFactory {
       name: "Naelia An'Ohren",
       race: 'celestial',
       class: 'god',
-      level: 20,
+      level: 0,
       xp: 0,
       abilityScores: {
         strength: 13,

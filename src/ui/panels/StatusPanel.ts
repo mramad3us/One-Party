@@ -130,7 +130,9 @@ export class StatusPanel extends Component {
     this.nameEl.textContent = character.name;
     const className = character.class.charAt(0).toUpperCase() + character.class.slice(1);
     const raceName = character.race.charAt(0).toUpperCase() + character.race.slice(1);
-    this.infoEl.textContent = `Lvl ${character.level} ${raceName} ${className}`;
+    this.infoEl.textContent = character.level > 0
+      ? `Lvl ${character.level} ${raceName} ${className}`
+      : `${raceName} ${className}`;
 
     this.hpBar.setMax(character.maxHp);
     this.hpBar.setValue(character.currentHp);

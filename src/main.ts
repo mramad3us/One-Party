@@ -2552,7 +2552,8 @@ async function main(): Promise<void> {
     let healAmount = 0;
 
     if (result.victory) {
-      character.xp += xpEarned;
+      // Level 0 characters (e.g. Naelia) don't gain XP
+      if (character.level > 0) character.xp += xpEarned;
 
       for (const drop of loot) {
         const item = getItem(drop.itemId);
