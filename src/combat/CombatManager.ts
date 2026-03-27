@@ -426,6 +426,10 @@ export class CombatManager {
     return this.grid;
   }
 
+  getTargeting(): TargetingSystem | null {
+    return this.targeting;
+  }
+
   getCurrentTurnEntity(): EntityId {
     return this.initiative.getCurrentCombatant().entityId;
   }

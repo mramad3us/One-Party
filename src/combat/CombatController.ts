@@ -287,9 +287,42 @@ export class CombatController implements GameSystem {
       }
     }
 
-    const targets: SpellTargeting = targetId
-      ? { targetEntities: [targetId] }
-      : { targetEntities: [entityId] }; // self-target for healing
+    // Build targeting: for area spells, compute all entities within radius
+    let targets: SpellTargeting;
+    const isAreaSpell = spell && (spell.targetType === 'sphere' || spell.targetType === 'cone' ||
+      spell.targetType === 'line' || spell.targetType === 'cube' ||
+      spell.targetType === 'cylinder' || spell.targetType === 'area');
+
+    if (isAreaSpell && spell && grid && targetId) {
+      // Compute area cells around the target
+      const targetPos = grid.getEntityPosition(targetId);
+      if (targetPos) {
+        const areaSize = spell.effects.find(e => e.areaSize)?.areaSize ?? 20;
+        const radiusCells = Math.ceil(areaSize / 5); // Convert feet to grid cells (5ft per cell)
+        const areaCells: import('@/types').Coordinate[] = [];
+        for (let dy = -radiusCells; dy <= radiusCells; dy++) {
+          for (let dx = -radiusCells; dx <= radiusCells; dx++) {
+            const dist = Math.abs(dx) + Math.abs(dy); // Manhattan distance
+            if (dist <= radiusCells) {
+              areaCells.push({ x: targetPos.x + dx, y: targetPos.y + dy });
+            }
+          }
+        }
+        // Get all entities in the area (excluding the caster for offensive spells)
+        const entitiesInArea = this.combatManager.getTargeting()?.getEntitiesInArea(areaCells) ?? [];
+        const hasHealing = spell.effects.some(e => e.healing);
+        const filtered = hasHealing
+          ? entitiesInArea
+          : entitiesInArea.filter(eid => eid !== entityId); // Don't hit yourself
+        targets = { targetEntities: filtered.length > 0 ? filtered : [targetId], targetArea: areaCells };
+      } else {
+        targets = { targetEntities: [targetId] };
+      }
+    } else if (targetId) {
+      targets = { targetEntities: [targetId] };
+    } else {
+      targets = { targetEntities: [entityId] }; // self-target for healing
+    }
 
     // Defer events so dice animations play before log/damage visuals
     this.combatManager.deferEvents = true;
