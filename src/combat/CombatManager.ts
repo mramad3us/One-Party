@@ -46,6 +46,34 @@ import {
   narrateFeatureHealing,
 } from './CombatNarration';
 
+/** Active spell buff/debuff on a combat participant. */
+export type SpellBuff = {
+  spellId: string;
+  casterId: EntityId;
+  /** AC modifier (positive = buff, negative = debuff) */
+  acMod?: number;
+  /** AC floor (Barkskin: AC can't be less than this) */
+  acFloor?: number;
+  /** Attack roll modifier */
+  attackMod?: number;
+  /** Save roll modifier */
+  saveMod?: number;
+  /** Disadvantage on all saves (Bestow Curse) */
+  saveDisadvantage?: boolean;
+  /** Speed multiplier (2 = doubled, 0.5 = halved) */
+  speedMult?: number;
+  /** Attacks against this entity have disadvantage (Blur) */
+  attackDisadvantageAgainst?: boolean;
+  /** Mirror Image charges remaining */
+  mirrorImageCharges?: number;
+  /** Duration in rounds (decremented each turn start) */
+  duration: number;
+  /** Linked to concentration (removed when caster's concentration breaks) */
+  concentration?: boolean;
+  /** On removal, apply this condition for N rounds (Haste lethargy) */
+  onRemoveCondition?: { condition: import('@/types').ConditionType; duration: number };
+};
+
 /** Everything needed to add a participant to combat. */
 export interface CombatParticipant {
   entityId: EntityId;
@@ -107,6 +135,119 @@ export class CombatManager {
 
   /** Concentration spell remaining duration in rounds. Decremented each turn start. */
   private concentrationDurations: Map<EntityId, number> = new Map();
+
+  /** Active spell buffs/debuffs per entity. Keyed by entity ID. */
+  private spellBuffs: Map<EntityId, SpellBuff[]> = new Map();
+
+  /** Add a spell buff/debuff to a participant. */
+  private addSpellBuff(entityId: EntityId, buff: SpellBuff): void {
+    if (!this.spellBuffs.has(entityId)) this.spellBuffs.set(entityId, []);
+    this.spellBuffs.get(entityId)!.push(buff);
+  }
+
+  /** Remove all buffs from a specific caster (used when concentration breaks). */
+  private removeConcentrationBuffs(casterId: EntityId): void {
+    for (const [entityId, buffs] of this.spellBuffs) {
+      const remaining: SpellBuff[] = [];
+      for (const buff of buffs) {
+        if (buff.casterId === casterId && buff.concentration) {
+          // Trigger on-remove effects (e.g. Haste lethargy)
+          if (buff.onRemoveCondition) {
+            const target = this.participants.get(entityId);
+            if (target) {
+              this.applyConditionToParticipant(target, buff.onRemoveCondition.condition, buff.onRemoveCondition.duration, casterId);
+            }
+          }
+        } else {
+          remaining.push(buff);
+        }
+      }
+      this.spellBuffs.set(entityId, remaining);
+    }
+  }
+
+  /** Get total AC modifier from all active buffs on an entity. */
+  private getBuffACModifier(entityId: EntityId): number {
+    const buffs = this.spellBuffs.get(entityId) ?? [];
+    return buffs.reduce((sum, b) => sum + (b.acMod ?? 0), 0);
+  }
+
+  /** Get AC floor from buffs (Barkskin). Returns 0 if no floor. */
+  private getBuffACFloor(entityId: EntityId): number {
+    const buffs = this.spellBuffs.get(entityId) ?? [];
+    return Math.max(0, ...buffs.map(b => b.acFloor ?? 0));
+  }
+
+  /** Get total attack modifier from buffs. */
+  private getBuffAttackMod(entityId: EntityId): number {
+    const buffs = this.spellBuffs.get(entityId) ?? [];
+    return buffs.reduce((sum, b) => sum + (b.attackMod ?? 0), 0);
+  }
+
+  /** Get total save modifier from buffs. */
+  private getBuffSaveMod(entityId: EntityId): number {
+    const buffs = this.spellBuffs.get(entityId) ?? [];
+    return buffs.reduce((sum, b) => sum + (b.saveMod ?? 0), 0);
+  }
+
+  /** Check if any buff grants save disadvantage. */
+  private hasBuffSaveDisadvantage(entityId: EntityId): boolean {
+    const buffs = this.spellBuffs.get(entityId) ?? [];
+    return buffs.some(b => b.saveDisadvantage);
+  }
+
+  /** Get speed multiplier from buffs. */
+  private getBuffSpeedMult(entityId: EntityId): number {
+    const buffs = this.spellBuffs.get(entityId) ?? [];
+    let mult = 1;
+    for (const b of buffs) {
+      if (b.speedMult) mult *= b.speedMult;
+    }
+    return mult;
+  }
+
+  /** Check if attacks against this entity have disadvantage from buffs (Blur). */
+  private hasBuffAttackDisadvantageAgainst(entityId: EntityId): boolean {
+    const buffs = this.spellBuffs.get(entityId) ?? [];
+    return buffs.some(b => b.attackDisadvantageAgainst);
+  }
+
+  /** Try to absorb an attack with Mirror Image. Returns true if a duplicate was hit instead. */
+  private tryMirrorImageAbsorb(targetId: EntityId): boolean {
+    const buffs = this.spellBuffs.get(targetId) ?? [];
+    const mirror = buffs.find(b => b.mirrorImageCharges && b.mirrorImageCharges > 0);
+    if (!mirror) return false;
+    // Each remaining charge has 25% chance to intercept
+    const interceptChance = mirror.mirrorImageCharges! * 0.25;
+    if (Math.random() < interceptChance) {
+      mirror.mirrorImageCharges!--;
+      if (mirror.mirrorImageCharges! <= 0) {
+        // Remove exhausted mirror image buff
+        const idx = buffs.indexOf(mirror);
+        if (idx !== -1) buffs.splice(idx, 1);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /** Tick buff durations at turn start. Remove expired ones. */
+  private tickSpellBuffs(entityId: EntityId): void {
+    const buffs = this.spellBuffs.get(entityId);
+    if (!buffs) return;
+    for (let i = buffs.length - 1; i >= 0; i--) {
+      buffs[i].duration--;
+      if (buffs[i].duration <= 0) {
+        const removed = buffs.splice(i, 1)[0];
+        if (removed.onRemoveCondition) {
+          const target = this.participants.get(entityId);
+          if (target) {
+            this.applyConditionToParticipant(target, removed.onRemoveCondition.condition, removed.onRemoveCondition.duration, removed.casterId);
+          }
+        }
+      }
+    }
+  }
 
   /** Apply a condition to a combat participant's stats (bypasses Entity type requirement). */
   private applyConditionToParticipant(
@@ -180,6 +321,7 @@ export class CombatManager {
     this.casualties = [];
     this.dodgingEntities.clear();
     this.concentrationDurations.clear();
+    this.spellBuffs.clear();
 
     for (const p of participants) {
       this.participants.set(p.entityId, p);
@@ -467,13 +609,28 @@ export class CombatManager {
       this.computeAttackAdvantage(p, target, isMelee);
 
     if (attack) {
-      // Use raw attack data from stat block
+      // Mirror Image: check if a duplicate absorbs the attack
+      if (this.tryMirrorImageAbsorb(targetId)) {
+        const mirrorResult: ActionResult = {
+          success: false, type: 'attack', actorId: entityId, targetId,
+          description: 'The attack strikes an illusory duplicate, which shatters and vanishes!',
+          rolls: [],
+        };
+        this.emitOrDefer({ type: 'combat:action_result', category: 'combat', data: { result: mirrorResult } });
+        return mirrorResult;
+      }
+
+      // Use raw attack data from stat block + buff modifiers
+      const attackBuffMod = this.getBuffAttackMod(entityId);
       const rollResult = this.dice.rollD20({
-        modifier: attack.toHitBonus,
+        modifier: attack.toHitBonus + attackBuffMod,
         advantage: hasAdvantage,
         disadvantage: hasDisadvantage,
       });
-      const ac = target.stats.armorClass;
+      // AC includes buff modifiers (Shield, Shield of Faith, Haste, etc.)
+      const baseAC = target.stats.armorClass;
+      const buffedAC = Math.max(baseAC + this.getBuffACModifier(targetId), this.getBuffACFloor(targetId));
+      const ac = Math.max(baseAC, buffedAC);
       const hit = rollResult.isCritical || (!rollResult.isFumble && rollResult.total >= ac);
 
       let damage = 0;
@@ -819,7 +976,7 @@ export class CombatManager {
         const { advantage: saveAdv, disadvantage: saveDisadv } =
           this.computeSaveAdvantage(target, saveAbility);
         const saveRoll = this.dice.rollD20({
-          modifier: targetMod + saveProfBonus,
+          modifier: targetMod + saveProfBonus + this.getBuffSaveMod(targetId),
           advantage: saveAdv,
           disadvantage: saveDisadv,
         });
@@ -978,7 +1135,111 @@ export class CombatManager {
       }
 
     } else {
-      // ── Utility / buff spell (Bless, Shield, Mage Armor) ──
+      // ── Utility / buff spell — apply specific mechanics ──
+      const isConc = spell.duration.type === 'concentration';
+      const buffDuration = spell.duration.value ?? (isConc ? 100 : 1); // 100 rounds for long-duration concentration
+
+      switch (spell.id) {
+        case 'spell_bless': {
+          // +2 flat to attacks and saves for up to 3 allies
+          const targets = affectedEntities.length > 0 ? affectedEntities : [entityId];
+          for (const tid of targets.slice(0, 3)) {
+            this.addSpellBuff(tid, { spellId: spell.id, casterId: entityId, attackMod: 2, saveMod: 2, duration: buffDuration, concentration: isConc });
+          }
+          break;
+        }
+        case 'spell_bane': {
+          // -2 to attacks and saves (targets make CHA save)
+          for (const tid of affectedEntities.slice(0, 3)) {
+            const t = this.participants.get(tid);
+            if (!t) continue;
+            const chaMod = abilityModifier(t.stats.abilityScores.charisma);
+            const saveRoll = this.dice.rollD20({ modifier: chaMod });
+            if (saveRoll.total < spellSaveDC) {
+              this.addSpellBuff(tid, { spellId: spell.id, casterId: entityId, attackMod: -2, saveMod: -2, duration: buffDuration, concentration: isConc });
+            }
+          }
+          break;
+        }
+        case 'spell_shield': {
+          // +5 AC until start of next turn (1 round)
+          this.addSpellBuff(entityId, { spellId: spell.id, casterId: entityId, acMod: 5, duration: 1 });
+          break;
+        }
+        case 'spell_shield_of_faith': {
+          // +2 AC, concentration
+          const shieldTarget = affectedEntities[0] ?? entityId;
+          this.addSpellBuff(shieldTarget, { spellId: spell.id, casterId: entityId, acMod: 2, duration: buffDuration, concentration: isConc });
+          break;
+        }
+        case 'spell_mage_armor': {
+          // Set AC to 13 + DEX if higher
+          const maTarget = affectedEntities[0] ?? entityId;
+          const maParticipant = this.participants.get(maTarget);
+          if (maParticipant) {
+            const dexMod = abilityModifier(maParticipant.stats.abilityScores.dexterity);
+            const mageAC = 13 + dexMod;
+            if (mageAC > maParticipant.stats.armorClass) {
+              maParticipant.stats.armorClass = mageAC;
+            }
+          }
+          break;
+        }
+        case 'spell_barkskin': {
+          // AC floor of 16
+          const barkTarget = affectedEntities[0] ?? entityId;
+          this.addSpellBuff(barkTarget, { spellId: spell.id, casterId: entityId, acFloor: 16, duration: buffDuration, concentration: isConc });
+          break;
+        }
+        case 'spell_haste': {
+          // +2 AC, double speed. On removal: stunned 1 round
+          const hasteTarget = affectedEntities[0] ?? entityId;
+          this.addSpellBuff(hasteTarget, {
+            spellId: spell.id, casterId: entityId,
+            acMod: 2, speedMult: 2,
+            duration: buffDuration, concentration: isConc,
+            onRemoveCondition: { condition: 'stunned', duration: 1 },
+          });
+          break;
+        }
+        case 'spell_blur': {
+          // Attacks against caster have disadvantage
+          this.addSpellBuff(entityId, { spellId: spell.id, casterId: entityId, attackDisadvantageAgainst: true, duration: buffDuration, concentration: isConc });
+          break;
+        }
+        case 'spell_mirror_image': {
+          // 3 duplicates, each can absorb a hit
+          this.addSpellBuff(entityId, { spellId: spell.id, casterId: entityId, mirrorImageCharges: 3, duration: buffDuration });
+          break;
+        }
+        case 'spell_slow': {
+          // Halve speed, -2 AC (WIS save to resist)
+          for (const tid of affectedEntities.slice(0, 6)) {
+            const t = this.participants.get(tid);
+            if (!t) continue;
+            const wisMod = abilityModifier(t.stats.abilityScores.wisdom);
+            const saveRoll = this.dice.rollD20({ modifier: wisMod });
+            if (saveRoll.total < spellSaveDC) {
+              this.addSpellBuff(tid, { spellId: spell.id, casterId: entityId, acMod: -2, speedMult: 0.5, duration: buffDuration, concentration: isConc });
+            }
+          }
+          break;
+        }
+        case 'spell_bestow_curse': {
+          // Disadvantage on all saves (WIS save to resist)
+          if (primaryTarget) {
+            const wisMod = abilityModifier(primaryTarget.stats.abilityScores.wisdom);
+            const saveRoll = this.dice.rollD20({ modifier: wisMod });
+            if (saveRoll.total < spellSaveDC) {
+              this.addSpellBuff(affectedEntities[0], { spellId: spell.id, casterId: entityId, saveDisadvantage: true, duration: buffDuration, concentration: isConc });
+            }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+
       description = narrateBuff(spell.name);
     }
 
@@ -1674,11 +1935,12 @@ export class CombatManager {
 
     this.state.phase = 'turn_start';
 
-    // Apply speed from conditions
+    // Apply speed from conditions and spell buffs
     let speed = p.stats.speed;
     if (p.npc) {
       speed = Math.floor(speed * this.conditionRules.getSpeedMultiplier(p.npc));
     }
+    speed = Math.floor(speed * this.getBuffSpeedMult(current.entityId));
 
     this.turnManager.startTurn(current.entityId, speed);
 
@@ -1708,6 +1970,9 @@ export class CombatManager {
         }
       }
     }
+
+    // Tick spell buff durations
+    this.tickSpellBuffs(current.entityId);
 
     // Set max attacks based on Extra Attack feature
     const hasExtraAttack = p.stats.features.some(f => f.id === 'feature_extra_attack');
@@ -1810,6 +2075,9 @@ export class CombatManager {
         }
       }
     }
+
+    // Remove spell buffs from this caster's concentration (triggers on-remove effects like Haste lethargy)
+    this.removeConcentrationBuffs(entityId);
 
     this.emitOrDefer({
       type: 'combat:concentration_broken',
@@ -2100,6 +2368,11 @@ export class CombatManager {
       disadvantage = true;
     }
 
+    // Target has Blur active — attacks against them have disadvantage
+    if (this.hasBuffAttackDisadvantageAgainst(target.entityId)) {
+      disadvantage = true;
+    }
+
     return { advantage, disadvantage };
   }
 
@@ -2137,6 +2410,11 @@ export class CombatManager {
           break;
         }
       }
+    }
+
+    // Bestow Curse: disadvantage on all saves
+    if (this.hasBuffSaveDisadvantage(participant.entityId)) {
+      disadvantage = true;
     }
 
     return { advantage, disadvantage };
