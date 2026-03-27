@@ -332,6 +332,11 @@ export class ExplorationController implements GameSystem {
     return this.playerPosition ? { ...this.playerPosition } : null;
   }
 
+  /** Enable/disable input processing (e.g. during combat on the exploration map). */
+  setEnabled(enabled: boolean): void {
+    this.active = enabled;
+  }
+
   getGrid(): Grid | null {
     return this.grid;
   }

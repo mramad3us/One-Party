@@ -1532,6 +1532,46 @@ async function main(): Promise<void> {
 
     // Update all entities on the grid (player + NPCs + monsters)
     screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
+
+    // Narrative warning when monsters are present
+    if (explorationMonsters.length > 0) {
+      const DANGER_NARRATIVES: Record<string, string[]> = {
+        dungeon: [
+          'The air is thick with the stench of decay. Something stirs in the darkness ahead.',
+          'Faint scratching echoes through the corridors. You are not alone here.',
+          'A chill runs down your spine. This place reeks of danger.',
+        ],
+        cave: [
+          'Strange sounds echo from deeper within. Creatures lurk in the shadows.',
+          'The darkness seems to move. Something watches from the depths.',
+        ],
+        ruins: [
+          'The ruins are not as abandoned as they appear. Movement catches your eye.',
+          'Footprints in the dust. Recent ones. You tread carefully.',
+        ],
+        forest: [
+          'The forest grows unnervingly quiet. You sense you are not alone.',
+          'Branches snap in the underbrush nearby. Stay alert.',
+        ],
+        wilderness: [
+          'The wilds are untamed here. Predators roam freely.',
+          'You catch movement at the edge of your vision. Stay on guard.',
+        ],
+        temple: [
+          'Unholy energy permeates this place. Dark things have taken root here.',
+          'The sacred halls have been defiled. Something profane lingers.',
+        ],
+        default: [
+          'You sense danger nearby. Tread carefully.',
+          'The area feels hostile. Keep your guard up.',
+        ],
+      };
+
+      const pool = DANGER_NARRATIVES[location.locationType] ?? DANGER_NARRATIVES['default'];
+      const narrativeRng = new SeededRNG(seed + 999);
+      const warning = pool[narrativeRng.nextInt(0, pool.length - 1)];
+      screen.addNarrative({ text: warning, category: 'description' });
+    }
   }
 
   // ── Ambient Life System ──────────────────────────────────────
@@ -3299,12 +3339,144 @@ async function main(): Promise<void> {
     });
   });
 
+  // ── Exploration Combat — bump into a hostile monster on the exploration grid ──
+
+  /** Start combat when bumping a hostile monster on the exploration map. */
+  async function startExplorationCombat(bumpedMonster: NPC, monsterPos: Coordinate): Promise<void> {
+    if (!activeGameScreen || !activeGameState || !activeOverworld) return;
+    const character = engine.entities.getAll<Character>('character')[0];
+    if (!character) return;
+
+    // Find nearby hostiles within aggro radius (pull nearby pack members)
+    const AGGRO_RADIUS = 5;
+    const nearbyHostiles: NPC[] = [bumpedMonster];
+    for (const monster of explorationMonsters) {
+      if (monster.id === bumpedMonster.id) continue;
+      if (!monster.position) continue;
+      const dist = Math.abs(monster.position.x - monsterPos.x) + Math.abs(monster.position.y - monsterPos.y);
+      if (dist <= AGGRO_RADIUS) {
+        nearbyHostiles.push(monster);
+      }
+    }
+
+    // Build a ResolvedEvent for the combat system
+    const monsterDef = getMonster(bumpedMonster.templateId);
+    const monsterName = monsterDef?.name ?? bumpedMonster.name;
+    const plural = nearbyHostiles.length > 1;
+
+    const encounter: import('@/types').ResolvedEvent = {
+      templateId: `expl_${bumpedMonster.templateId}`,
+      type: 'encounter',
+      timestamp: activeGameState.world.time,
+      resolvedData: {
+        name: `${monsterName} Encounter`,
+        description: plural
+          ? `${nearbyHostiles.length} ${monsterName}s attack!`
+          : `A ${monsterName} attacks!`,
+        monsterIds: nearbyHostiles.map(h => h.templateId),
+        actualEnemyCount: nearbyHostiles.length,
+        encounterDifficulty: monsterDef ? (monsterDef.cr <= 1 ? 'easy' : monsterDef.cr <= 3 ? 'medium' : 'hard') : 'medium',
+      },
+      narrativeHints: [],
+    };
+
+    // Show narrative
+    activeGameScreen.addNarrative({
+      text: encounter.resolvedData['description'] as string,
+      category: 'action',
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 600));
+
+    // Determine terrain for combat map
+    let terrain: OverworldTerrain = 'plains';
+    if (activeGameState.overworldPosition && activeOverworld) {
+      const { x: tx, y: ty } = activeGameState.overworldPosition;
+      const tile = activeOverworld.tiles[ty]?.[tx];
+      if (tile) terrain = tile.terrain as OverworldTerrain;
+    }
+
+    // Pause exploration
+    explorationController.setEnabled(false);
+
+    // Start arena combat
+    const combatResult = await new Promise<CombatResult>((resolve) => {
+      combatController.startEncounter(character, encounter, terrain, resolve);
+    });
+
+    // Resume exploration
+    explorationController.setEnabled(true);
+
+    // Remove defeated monsters from the exploration grid
+    for (const hostile of nearbyHostiles) {
+      const idx = explorationMonsters.indexOf(hostile);
+      if (idx !== -1) explorationMonsters.splice(idx, 1);
+      try { explorationController.getGrid()?.removeEntity(hostile.id); } catch { /* ok */ }
+      engine.entities.remove(hostile.id);
+    }
+
+    // Refresh entity display on exploration grid
+    if (activeGameScreen && activeGameState) {
+      const grid = explorationController.getGrid();
+      if (grid) {
+        const playerPos = grid.getEntityPosition(character.id);
+        if (playerPos) {
+          const placements = new Map<string, import('@/types/grid').GridEntityPlacement>();
+          const entityInfos = new Map<string, EntityRenderInfo>();
+          placements.set(character.id, { entityId: character.id, position: playerPos, size: 1 });
+          entityInfos.set(character.id, {
+            name: character.name, color: '#2a2520', symbol: '@',
+            hp: character.currentHp, maxHp: character.maxHp,
+            isPlayer: true, isAlly: false, size: 1,
+            conditions: character.conditions.map(c => c.type),
+            spriteId: character.class,
+          });
+          // Re-add surviving monsters
+          for (const m of explorationMonsters) {
+            const mPos = grid.getEntityPosition(m.id);
+            if (!mPos) continue;
+            placements.set(m.id, { entityId: m.id, position: mPos, size: 1 });
+            const mDef = getMonster(m.templateId);
+            entityInfos.set(m.id, {
+              name: m.name,
+              color: '#8a3a3a',
+              symbol: m.name.charAt(0).toUpperCase(),
+              hp: m.stats.currentHp, maxHp: m.stats.maxHp,
+              isPlayer: false, isAlly: false, size: 1,
+              conditions: [],
+              spriteId: `monster_${mDef?.type ?? 'humanoid'}`,
+            });
+          }
+          activeGameScreen.updateCombatEntities(placements, (id) => entityInfos.get(id));
+        }
+      }
+    }
+
+    if (!combatResult.victory) {
+      // Player died — death screen handles transition
+      return;
+    }
+
+    // Victory — update character state
+    if (activeGameScreen) {
+      activeGameScreen.setCharacter(character);
+    }
+  }
+
   // ── NPC Interaction — bump into an NPC entity on the exploration grid ──
   let activeShopScreen: ShopScreen | null = null;
 
   engine.events.on('exploration:bump_entity', (event) => {
     if (!activeGameScreen || !activeGameState) return;
-    const { entityId } = event.data as { entityId: string; position: Coordinate };
+    const { entityId, position } = event.data as { entityId: string; position: Coordinate };
+
+    // Check if this is a hostile monster (exploration spawn)
+    const hostileNpc = engine.entities.get(entityId) as NPC | undefined;
+    if (hostileNpc?.role === 'hostile') {
+      startExplorationCombat(hostileNpc, position);
+      return;
+    }
+
     const npc = activeGameState.getNPC(entityId);
     if (!npc) return;
 
