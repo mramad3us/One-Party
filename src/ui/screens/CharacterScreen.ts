@@ -157,7 +157,8 @@ export class CharacterScreen extends Component {
       const isSavingProf = character.proficiencies.savingThrows.includes(ability);
       const saveMod = mod + (isSavingProf ? character.proficiencyBonus : 0);
 
-      const card = el('div', { class: 'char-ability-card' });
+      const abilityTooltip = `${capitalize(ability)}\nScore: ${score} | Modifier: ${formatModifier(mod)}\nSaving Throw: ${formatModifier(saveMod)}${isSavingProf ? ' (proficient)' : ''}`;
+      const card = el('div', { class: 'char-ability-card', 'data-tooltip': abilityTooltip });
       card.appendChild(el('div', { class: 'char-ability-label' }, [ABILITY_ABBR[ability]]));
       card.appendChild(el('div', { class: 'char-ability-score stat-value' }, [String(score)]));
       card.appendChild(el('div', { class: 'char-ability-mod stat-modifier' }, [formatModifier(mod)]));
@@ -181,15 +182,15 @@ export class CharacterScreen extends Component {
       const mod = abilityMod(character.abilityScores[ability]);
       const isProf = character.proficiencies.skills.includes(skill);
       const totalMod = mod + (isProf ? character.proficiencyBonus : 0);
+      const skillName = skill.replace(/_/g, ' ');
 
-      const skillRow = el('div', { class: 'char-skill-row' });
+      const skillTooltip = `${capitalize(skillName)}\n${ABILITY_ABBR[ability]} ${formatModifier(totalMod)}${isProf ? ' (proficient)' : ''}`;
+      const skillRow = el('div', { class: 'char-skill-row', 'data-tooltip': skillTooltip });
 
       const profDot = el('span', {
         class: `char-skill-prof ${isProf ? 'char-skill-prof--active' : ''}`,
       });
       skillRow.appendChild(profDot);
-
-      const skillName = skill.replace(/_/g, ' ');
       skillRow.appendChild(el('span', { class: 'char-skill-name' }, [capitalize(skillName)]));
       skillRow.appendChild(el('span', { class: 'char-skill-mod font-mono' }, [formatModifier(totalMod)]));
 
@@ -204,7 +205,8 @@ export class CharacterScreen extends Component {
       featSection.appendChild(el('h3', { class: 'char-section-title font-heading' }, ['Features & Traits']));
 
       for (const feat of character.features) {
-        const featEl = el('div', { class: 'char-feature' });
+        const featTooltip = `${feat.name}\nSource: ${feat.source}${feat.usesMax !== undefined ? `\nUses: ${feat.usesRemaining ?? 0}/${feat.usesMax}` : ''}`;
+        const featEl = el('div', { class: 'char-feature', 'data-tooltip': featTooltip });
         const nameRow = el('div', { class: 'char-feature-name' }, [feat.name]);
         // Tag features that are bonus actions
         const isBonusAction = CLASS_BONUS_ACTIONS.some(ba => ba.featureId === feat.id);

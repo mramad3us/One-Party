@@ -163,4 +163,6 @@ export interface Character extends Entity {
   survival: SurvivalState;
   /** Game round when the last long rest was completed (for 24-hour cooldown). */
   lastLongRestRound?: number;
+  /** Set of item IDs whose curse has been revealed to this character */
+  cursedItemsRevealed?: Record<EntityId, boolean>;
 }

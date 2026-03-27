@@ -714,6 +714,10 @@ async function main(): Promise<void> {
     if (data.preset === 'naelia') {
       // Special preset — bypasses normal creation
       character = factory.createNaelia();
+      // Equip Naelia's Gown of Power (cursed, permanent — cannot be removed)
+      // Set directly on equipment slot — NOT in inventory (equipped items aren't in the bag)
+      character.equipment.armor = 'item_dev_naelia_gown';
+      character.cursedItemsRevealed = { 'item_dev_naelia_gown': true };
     } else {
       const { name, race, class: classId, abilityScores, skills, selectedCantrips, selectedSpells } = data as {
         name: string;
@@ -773,8 +777,8 @@ async function main(): Promise<void> {
     const startLoc = gameState.getCurrentLocation();
     gameState.overworldPosition = { x: startLoc.coordinates.x, y: startLoc.coordinates.y };
 
-    // Dev mode: add Plot Armor and God's Sword
-    if (isDevMode()) {
+    // Dev mode: add Plot Armor and God's Sword (skip for Naelia — she has her own gear)
+    if (isDevMode() && data.preset !== 'naelia') {
       character.inventory.items.push({ itemId: 'item_dev_plot_armor', quantity: 1 });
       character.inventory.items.push({ itemId: 'item_dev_gods_sword', quantity: 1 });
       character.equipment.armor = 'item_dev_plot_armor';
@@ -851,7 +855,7 @@ async function main(): Promise<void> {
       }
     }
     invScreen.setInventory(character.inventory, itemMap);
-    invScreen.setEquipment(character.equipment, itemMap, character.equipmentCharges);
+    invScreen.setEquipment(character.equipment, itemMap, character.equipmentCharges, character.cursedItemsRevealed);
   }
 
   // ── Inventory interactions ──
@@ -869,6 +873,11 @@ async function main(): Promise<void> {
 
     const result = equipmentRules.equip(character, itemId, slot);
     if (result.ok) {
+      // Reveal curse on equip (D&D 5e: curse is hidden until attuned/equipped)
+      if (item.cursed) {
+        if (!character.cursedItemsRevealed) character.cursedItemsRevealed = {};
+        character.cursedItemsRevealed[itemId] = true;
+      }
       // Refresh the inventory screen
       const invScreen = activeInventoryScreen;
       if (invScreen) refreshInventoryScreen(invScreen);
@@ -887,6 +896,11 @@ async function main(): Promise<void> {
       const invScreen = activeInventoryScreen;
       if (invScreen) refreshInventoryScreen(invScreen);
       if (activeGameScreen) activeGameScreen.setCharacter(character);
+    } else {
+      // Show error (e.g. cursed item cannot be removed)
+      if (activeGameScreen) {
+        activeGameScreen.addNarrative({ text: result.error, category: 'action' });
+      }
     }
   });
 
@@ -1853,6 +1867,8 @@ async function main(): Promise<void> {
 
   /** Tick survival and emit narrative for threshold crossings. */
   function tickAndNarrate(character: Character, rounds: number): void {
+    // Celestial beings don't experience worldly needs
+    if (character.race === 'celestial') return;
     const result = SurvivalRules.tick(character.survival, rounds);
     if (!activeGameScreen) return;
 
@@ -2997,19 +3013,19 @@ async function main(): Promise<void> {
 
     // Standard action buttons
     const standardButtons = [
-      { label: 'Attack', key: 'a', group: 'actions', enabled: actions.canAction && hasTargets, isBonusAction: false, onClick: () => {
+      { label: 'Attack', key: 'a', group: 'actions', enabled: actions.canAction && hasTargets, isBonusAction: false, tooltip: 'Attack a target with your equipped weapon', onClick: () => {
         engine.events.emit({ type: 'input:combat_attack', category: 'ui', data: {} });
       }},
-      { label: 'Cast', key: 's', group: 'actions', enabled: spellEnabled, isBonusAction: false, onClick: () => {
+      { label: 'Cast', key: 's', group: 'actions', enabled: spellEnabled, isBonusAction: false, tooltip: 'Cast a spell from your spellbook', onClick: () => {
         engine.events.emit({ type: 'input:combat_cast_spell', category: 'ui', data: {} });
       }},
-      { label: 'Dash', key: 'd', group: 'actions', enabled: actions.canAction, isBonusAction: false, onClick: () => {
+      { label: 'Dash', key: 'd', group: 'actions', enabled: actions.canAction, isBonusAction: false, tooltip: 'Double your movement for this turn', onClick: () => {
         engine.events.emit({ type: 'input:combat_dash', category: 'ui', data: {} });
       }},
-      { label: 'Dodge', key: 'o', group: 'actions', enabled: actions.canAction, isBonusAction: false, onClick: () => {
+      { label: 'Dodge', key: 'o', group: 'actions', enabled: actions.canAction, isBonusAction: false, tooltip: 'Attackers have disadvantage against you\nuntil your next turn', onClick: () => {
         engine.events.emit({ type: 'input:combat_dodge', category: 'ui', data: {} });
       }},
-      { label: 'Disengage', key: 'g', group: 'actions', enabled: actions.canAction, isBonusAction: false, onClick: () => {
+      { label: 'Disengage', key: 'g', group: 'actions', enabled: actions.canAction, isBonusAction: false, tooltip: 'Move without provoking opportunity attacks', onClick: () => {
         engine.events.emit({ type: 'input:combat_disengage', category: 'ui', data: {} });
       }},
     ];
@@ -3038,7 +3054,7 @@ async function main(): Promise<void> {
 
     // End turn always last
     const endButton = {
-      label: 'End Turn', key: 'e', group: 'end', enabled: true, isBonusAction: false, onClick: () => {
+      label: 'End Turn', key: 'e', group: 'end', enabled: true, isBonusAction: false, tooltip: 'End your turn and pass to the next combatant', onClick: () => {
         engine.events.emit({ type: 'input:combat_end_turn', category: 'ui', data: {} });
       },
     };
@@ -4858,10 +4874,26 @@ async function main(): Promise<void> {
   engine.start();
 }
 
-/** Patch old saves missing equipmentCharges field. */
+/** Patch old saves for compatibility with newer versions. */
 function patchCharacterCompat(character: Character): void {
   if (!character.equipmentCharges) {
     character.equipmentCharges = {};
+  }
+  // v0.7.6: add Darkvision to races that should have it but were created before the trait existed
+  if (!character.features.some(f => f.name === 'Darkvision')) {
+    const darkvisionRaces = ['elf', 'dwarf', 'half-orc', 'half-elf', 'gnome', 'tiefling', 'celestial'];
+    if (darkvisionRaces.includes(character.race)) {
+      character.features.push({
+        id: 'darkvision',
+        name: 'Darkvision',
+        description: 'You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.',
+        source: character.race.charAt(0).toUpperCase() + character.race.slice(1),
+      });
+    }
+  }
+  // v0.7.7: initialize cursedItemsRevealed for old saves
+  if (!character.cursedItemsRevealed) {
+    character.cursedItemsRevealed = {};
   }
 }
 
@@ -5327,8 +5359,8 @@ function openRestMenu(
     // Reset fatigue
     SurvivalRules.rest(character.survival);
 
-    // If no food/water, add exhaustion
-    if (!hasFood || !hasWater) {
+    // If no food/water, add exhaustion (celestials are immune)
+    if ((!hasFood || !hasWater) && character.race !== 'celestial') {
       character.survival.exhaustionLevel = Math.min(6, character.survival.exhaustionLevel + 1);
     }
 

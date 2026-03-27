@@ -93,6 +93,12 @@ export class EquipmentRules {
       return { ok: false, error: `Slot '${slot}' is already empty.` };
     }
 
+    // Cursed items cannot be removed by normal means
+    const cursedCheck = getItem(itemId);
+    if (cursedCheck?.cursed) {
+      return { ok: false, error: `${cursedCheck.name} is cursed and cannot be removed!` };
+    }
+
     character.equipment[slot] = null;
 
     // Restore charges for charge-based items
@@ -111,6 +117,43 @@ export class EquipmentRules {
       } else {
         character.inventory.items.push({ itemId, quantity: 1 });
       }
+    }
+
+    return { ok: true, value: itemId };
+  }
+
+  /** Force-unequip a cursed item (via Remove Curse spell/priest service). Skips normal curse check but blocks permanent curses. */
+  forceUnequip(character: Character, slot: keyof EquipmentSlots): Result<EntityId, string> {
+    const itemId = character.equipment[slot];
+    if (itemId === null) {
+      return { ok: false, error: `Slot '${slot}' is already empty.` };
+    }
+
+    const itemDef = getItem(itemId);
+    if (itemDef?.cursePermanent) {
+      return { ok: false, error: `${itemDef.name}'s curse is beyond mortal power to remove.` };
+    }
+
+    // Same logic as unequip but bypasses the curse check
+    character.equipment[slot] = null;
+
+    const savedCharges = character.equipmentCharges[slot];
+    delete character.equipmentCharges[slot];
+
+    if (itemDef?.maxCharges != null) {
+      character.inventory.items.push({ itemId, quantity: 1, charges: savedCharges ?? 0 });
+    } else {
+      const existing = character.inventory.items.find((e) => e.itemId === itemId);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        character.inventory.items.push({ itemId, quantity: 1 });
+      }
+    }
+
+    // Clear revealed curse status since the item is no longer bonded
+    if (character.cursedItemsRevealed) {
+      delete character.cursedItemsRevealed[itemId];
     }
 
     return { ok: true, value: itemId };

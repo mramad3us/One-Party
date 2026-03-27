@@ -4,6 +4,7 @@ import { Component } from '@/ui/Component';
 import { ProgressBar } from '@/ui/widgets/ProgressBar';
 import { el } from '@/utils/dom';
 import { SurvivalRules } from '@/rules/SurvivalRules';
+import { TooltipSystem } from '@/ui/TooltipSystem';
 
 /**
  * CDDA-inspired dense status readout.
@@ -47,7 +48,7 @@ export class StatusPanel extends Component {
     const vitals = el('div', { class: 'status-section' });
 
     const hpRow = el('div', { class: 'status-row' });
-    this.hpLabel = el('span', { class: 'status-label font-mono' }, ['HP']);
+    this.hpLabel = el('span', { class: 'status-label font-mono', 'data-tooltip': 'Hit Points — reach 0 and you fall unconscious' }, ['HP']);
     const hpBarWrap = el('div', { class: 'status-bar-wrap' });
     this.hpBar = new ProgressBar(hpBarWrap, this.engine, {
       value: 0, max: 1, variant: 'hp', showLabel: true, animated: true,
@@ -57,8 +58,8 @@ export class StatusPanel extends Component {
     vitals.appendChild(hpRow);
 
     const statsRow = el('div', { class: 'status-stats font-mono' });
-    this.acEl = el('span', { class: 'status-stat' });
-    this.speedEl = el('span', { class: 'status-stat' });
+    this.acEl = el('span', { class: 'status-stat', 'data-tooltip': 'Armor Class — how hard you are to hit' });
+    this.speedEl = el('span', { class: 'status-stat', 'data-tooltip': 'Movement speed per turn in combat' });
     statsRow.appendChild(this.acEl);
     statsRow.appendChild(this.speedEl);
     vitals.appendChild(statsRow);
@@ -71,7 +72,7 @@ export class StatusPanel extends Component {
 
     // Hunger
     const hungerRow = el('div', { class: 'status-row' });
-    this.hungerLabel = el('span', { class: 'status-label status-label--hunger font-mono' }, ['Hunger']);
+    this.hungerLabel = el('span', { class: 'status-label status-label--hunger font-mono', 'data-tooltip': 'Hunger — eat food to restore.\nHigh hunger causes exhaustion.' }, ['Hunger']);
     const hungerBarWrap = el('div', { class: 'status-bar-wrap' });
     this.hungerBar = new ProgressBar(hungerBarWrap, this.engine, {
       value: 0, max: 100, variant: 'default', showLabel: false, animated: true,
@@ -82,7 +83,7 @@ export class StatusPanel extends Component {
 
     // Thirst
     const thirstRow = el('div', { class: 'status-row' });
-    this.thirstLabel = el('span', { class: 'status-label status-label--thirst font-mono' }, ['Thirst']);
+    this.thirstLabel = el('span', { class: 'status-label status-label--thirst font-mono', 'data-tooltip': 'Thirst — drink water to restore.\nHigh thirst causes exhaustion.' }, ['Thirst']);
     const thirstBarWrap = el('div', { class: 'status-bar-wrap' });
     this.thirstBar = new ProgressBar(thirstBarWrap, this.engine, {
       value: 0, max: 100, variant: 'default', showLabel: false, animated: true,
@@ -93,7 +94,7 @@ export class StatusPanel extends Component {
 
     // Fatigue
     const fatigueRow = el('div', { class: 'status-row' });
-    this.fatigueLabel = el('span', { class: 'status-label status-label--fatigue font-mono' }, ['Fatigue']);
+    this.fatigueLabel = el('span', { class: 'status-label status-label--fatigue font-mono', 'data-tooltip': 'Fatigue — rest at an inn to recover.\nHigh fatigue causes exhaustion.' }, ['Fatigue']);
     const fatigueBarWrap = el('div', { class: 'status-bar-wrap' });
     this.fatigueBar = new ProgressBar(fatigueBarWrap, this.engine, {
       value: 0, max: 100, variant: 'default', showLabel: false, animated: true,
@@ -121,6 +122,7 @@ export class StatusPanel extends Component {
     this.addChild(this.hungerBar);
     this.addChild(this.thirstBar);
     this.addChild(this.fatigueBar);
+    TooltipSystem.getInstance().registerContainer(this.el);
   }
 
   /** Full update from character data. */

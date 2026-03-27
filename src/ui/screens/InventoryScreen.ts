@@ -111,11 +111,11 @@ export class InventoryScreen extends Component {
     // Footer: gold + encumbrance
     const footer = el('div', { class: 'inventory-footer' });
 
-    this.goldDisplay = el('div', { class: 'inventory-gold' });
+    this.goldDisplay = el('div', { class: 'inventory-gold', 'data-tooltip': 'Gold coins — used to buy items from merchants', 'data-tooltip-pos': 'top' });
     footer.appendChild(this.goldDisplay);
 
     const encWrap = el('div', { class: 'inventory-encumbrance' });
-    encWrap.appendChild(el('span', { class: 'inventory-enc-label' }, ['Encumbrance']));
+    encWrap.appendChild(el('span', { class: 'inventory-enc-label', 'data-tooltip': 'Carrying weight — exceeding capacity slows movement', 'data-tooltip-pos': 'top' }, ['Encumbrance']));
     this.encumbranceBar = el('div', { class: 'inventory-enc-bar' });
     this.encumbranceFill = el('div', { class: 'inventory-enc-fill' });
     this.encumbranceBar.appendChild(this.encumbranceFill);
@@ -243,7 +243,7 @@ export class InventoryScreen extends Component {
     this.encumbranceLabel.textContent = `${inventory.currentWeight} / ${inventory.capacity} lb`;
   }
 
-  setEquipment(equipment: EquipmentSlots, items: Map<EntityId, Item>, equipmentCharges?: Partial<Record<keyof EquipmentSlots, number>>): void {
+  setEquipment(equipment: EquipmentSlots, items: Map<EntityId, Item>, equipmentCharges?: Partial<Record<keyof EquipmentSlots, number>>, cursedItemsRevealed?: Record<EntityId, boolean>): void {
     this.currentItems = items;
     this.equipmentEl.innerHTML = '';
 
@@ -257,6 +257,7 @@ export class InventoryScreen extends Component {
       if (itemId) {
         const item = items.get(itemId);
         if (item) {
+          const isCursedRevealed = item.cursed && cursedItemsRevealed?.[itemId];
           const rarityClass = `inventory-equip-item--${item.rarity}`;
           let displayName = item.name;
           // Show charges for charge-based equipped items
@@ -264,17 +265,29 @@ export class InventoryScreen extends Component {
             const charges = equipmentCharges[slot] ?? 0;
             displayName += ` (${charges}/${item.maxCharges})`;
           }
+          if (isCursedRevealed) {
+            displayName += ' ⛓';
+          }
+          const tooltip = isCursedRevealed
+            ? `${item.name}\n${item.description}\n⛓ Cursed — cannot be removed`
+            : `${item.name}\n${item.description}\nClick to unequip`;
           const itemEl = el('div', {
             class: `inventory-equip-item ${rarityClass}`,
-            'data-tooltip': `${item.name}\n${item.description}\nClick to unequip`,
+            'data-tooltip': tooltip,
           }, [displayName]);
           slotEl.appendChild(itemEl);
 
-          // Click to unequip
+          if (isCursedRevealed) {
+            slotEl.classList.add('inventory-equip-slot--cursed');
+          }
+
+          // Click to unequip (still emits event — EquipmentRules will reject cursed items)
           slotEl.classList.add('inventory-equip-slot--filled');
           slotEl.setAttribute('role', 'button');
           slotEl.setAttribute('tabindex', '0');
-          slotEl.setAttribute('aria-label', `Unequip ${item.name} from ${EQUIP_SLOT_LABELS[slot]}`);
+          slotEl.setAttribute('aria-label', isCursedRevealed
+            ? `${item.name} — cursed, cannot be removed`
+            : `Unequip ${item.name} from ${EQUIP_SLOT_LABELS[slot]}`);
           slotEl.addEventListener('click', () => {
             this.engine.events.emit({
               type: 'inventory:unequip',

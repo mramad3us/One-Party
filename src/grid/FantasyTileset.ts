@@ -1011,7 +1011,7 @@ export class FantasyTileset implements Tileset {
   readonly name = 'Fantasy';
   readonly id = 'fantasy';
   readonly squareCells = true;
-  readonly baseCellSize = 40;
+  readonly baseCellSize = 48;
 
   renderTerrain(rc: TilesetRenderContext, terrain: CellTerrain): void {
     const { ctx, px, py, cw, ch, gx, gy, hash, grid, dim } = rc;

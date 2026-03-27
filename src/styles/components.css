@@ -403,20 +403,22 @@
   position: fixed;
   z-index: var(--z-tooltip);
   padding: var(--space-sm) var(--space-md);
-  background: var(--bg-darkest);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0c0a08;
+  border: 1px solid rgba(180, 130, 50, 0.15);
   border-radius: var(--radius-sm);
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
-  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    0 0 24px rgba(0, 0, 0, 0.6),
+    0 0 1px rgba(180, 130, 50, 0.1);
   pointer-events: none;
   opacity: 0;
   transform: translateY(6px) scale(0.95);
   transition: opacity var(--duration-fast) var(--ease-smooth),
               transform var(--duration-fast) var(--ease-heavy);
-  max-width: 280px;
+  max-width: 320px;
 }
 
 .tooltip.visible {

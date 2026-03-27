@@ -52,7 +52,16 @@ export class TooltipSystem {
 
     // Set content
     if (typeof content === 'string') {
-      this.tooltipEl.textContent = content;
+      // Support multi-line tooltips via newline characters
+      if (content.includes('\n')) {
+        this.tooltipEl.innerHTML = '';
+        content.split('\n').forEach((line, i) => {
+          if (i > 0) this.tooltipEl.appendChild(document.createElement('br'));
+          this.tooltipEl.appendChild(document.createTextNode(line));
+        });
+      } else {
+        this.tooltipEl.textContent = content;
+      }
     } else {
       this.tooltipEl.innerHTML = '';
       this.tooltipEl.appendChild(content);

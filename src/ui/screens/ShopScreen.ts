@@ -6,6 +6,7 @@ import { IconSystem } from '@/ui/IconSystem';
 import { el } from '@/utils/dom';
 import { formatCoinHtml, formatCurrencyHtml } from '@/utils/format';
 import { getItem } from '@/data/items';
+import { TooltipSystem } from '@/ui/TooltipSystem';
 import {
   getBuyPrice,
   getSellPrice,
@@ -117,6 +118,8 @@ export class ShopScreen extends Component {
   }
 
   protected setupEvents(): void {
+    TooltipSystem.getInstance().registerContainer(this.el);
+
     // Close on backdrop click
     this.listen(this.el, 'click', (e: Event) => {
       if (e.target === this.el) this.close();
@@ -205,10 +208,13 @@ export class ShopScreen extends Component {
       const affordable = canAfford(this.playerInv, priceCopper);
       const shortcut = idx < 9 ? `${idx + 1}` : '';
 
+      const rarityLabel = item.rarity === 'common' ? '' : ` (${item.rarity.replace('_', ' ')})`;
+      const itemTooltip = `${item.name}${rarityLabel}\n${item.description}`;
       const row = el('div', {
         class: `shop-item-row ${!affordable ? 'shop-item-row--disabled' : ''}`,
         'data-index': String(idx),
         'data-panel': 'buy',
+        'data-tooltip': itemTooltip,
       });
 
       // Shortcut badge
@@ -273,10 +279,13 @@ export class ShopScreen extends Component {
       const merchantCanAfford = this.merchantInv.gold * 100 >= priceCopper;
       const shortcut = idx < 9 ? `${idx + 1}` : '';
 
+      const sellRarityLabel = item.rarity === 'common' ? '' : ` (${item.rarity.replace('_', ' ')})`;
+      const sellTooltip = `${item.name}${sellRarityLabel}\n${item.description}`;
       const row = el('div', {
         class: `shop-item-row ${!merchantCanAfford ? 'shop-item-row--disabled' : ''}`,
         'data-index': String(idx),
         'data-panel': 'sell',
+        'data-tooltip': sellTooltip,
       });
 
       if (shortcut) {

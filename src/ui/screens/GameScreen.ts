@@ -18,6 +18,7 @@ import { FogOfWar } from '@/grid/FogOfWar';
 import { TimeNarrator } from '@/narrative/TimeNarrator';
 import { SurvivalRules } from '@/rules/SurvivalRules';
 import { SunArc } from '@/ui/widgets/SunArc';
+import { TooltipSystem } from '@/ui/TooltipSystem';
 import { el } from '@/utils/dom';
 
 export interface GameScreenState {
@@ -87,15 +88,15 @@ export class GameScreen extends Component {
     const sunArcWrap = el('div', { class: 'game-statusbar-sun-arc' });
     this.sunArc = new SunArc(sunArcWrap, this.engine, 'compact');
     statusLeft.appendChild(sunArcWrap);
-    this.timeEl = el('span', { class: 'game-statusbar-time font-mono' }, ['Dawn, Day 1']);
-    this.lightEl = el('span', { class: 'game-statusbar-light font-mono' }, ['Pale dawn light']);
+    this.timeEl = el('span', { class: 'game-statusbar-time font-mono', 'data-tooltip': 'Current time of day', 'data-tooltip-pos': 'bottom' }, ['Dawn, Day 1']);
+    this.lightEl = el('span', { class: 'game-statusbar-light font-mono', 'data-tooltip': 'Ambient light level — affects visibility range', 'data-tooltip-pos': 'bottom' }, ['Pale dawn light']);
     statusLeft.appendChild(this.timeEl);
     statusLeft.appendChild(el('span', { class: 'game-statusbar-sep' }, ['\u2502']));
     statusLeft.appendChild(this.lightEl);
     statusBar.appendChild(statusLeft);
 
     // Center: location
-    this.locationEl = el('span', { class: 'game-statusbar-location font-heading' });
+    this.locationEl = el('span', { class: 'game-statusbar-location font-heading', 'data-tooltip': 'Current location', 'data-tooltip-pos': 'bottom' });
     statusBar.appendChild(this.locationEl);
 
     // Right group: survival summary + menu buttons
@@ -117,6 +118,7 @@ export class GameScreen extends Component {
     statusBar.appendChild(statusRight);
 
     screen.appendChild(statusBar);
+    TooltipSystem.getInstance().registerContainer(statusBar);
 
     // ── Two-Panel Layout ──
     const layout = el('div', { class: 'game-layout-local' });
@@ -150,6 +152,7 @@ export class GameScreen extends Component {
 
     // ── Combat action bar (hidden until combat) ──
     this.combatActionBar = el('div', { class: 'combat-action-bar combat-action-bar--hidden' });
+    TooltipSystem.getInstance().registerContainer(this.combatActionBar);
     screen.appendChild(this.combatActionBar);
 
     // Dice roll animation container (used by CombatController for initiative/attack/damage rolls)
@@ -297,7 +300,7 @@ export class GameScreen extends Component {
   }
 
   /** Set combat action buttons (Attack, Dash, Dodge, etc.) */
-  setCombatActions(actions: { label: string; key: string; enabled: boolean; isBonusAction?: boolean; group?: string; onClick: () => void }[]): void {
+  setCombatActions(actions: { label: string; key: string; enabled: boolean; isBonusAction?: boolean; group?: string; tooltip?: string; onClick: () => void }[]): void {
     this.combatActionBar.innerHTML = '';
     if (actions.length === 0) return;
 
@@ -350,7 +353,12 @@ export class GameScreen extends Component {
         if (action.isBonusAction) classes.push('combat-action-btn--bonus');
         if (group.name === 'end') classes.push('combat-action-btn--end');
         if (group.name === 'surge') classes.push('combat-action-btn--surge');
-        const btn = el('button', { class: classes.join(' ') });
+        const btnAttrs: Record<string, string> = { class: classes.join(' ') };
+        if (action.tooltip) {
+          btnAttrs['data-tooltip'] = action.tooltip;
+          btnAttrs['data-tooltip-pos'] = 'top';
+        }
+        const btn = el('button', btnAttrs);
         btn.innerHTML = `<span class="combat-action-btn-key">${action.key}</span><span class="combat-action-btn-label">${action.label}</span>`;
         if (action.enabled) {
           btn.addEventListener('click', action.onClick);

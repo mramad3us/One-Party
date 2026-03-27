@@ -118,7 +118,7 @@
 /* ── Body: two-column layout ── */
 .inventory-body {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 380px 1fr;
   gap: 0;
   flex: 1;
   min-height: 0;
@@ -205,6 +205,8 @@
   backdrop-filter: blur(2px);
   transition: all var(--duration-normal) var(--ease-smooth);
   min-height: 42px;
+  min-width: 0;
+  overflow: hidden;
   position: relative;
   z-index: 1;
   text-align: center;
@@ -214,6 +216,14 @@
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.02);
   box-shadow: none;
+  overflow: visible;
+  z-index: 10;
+}
+
+.inventory-equip-slot:hover .inventory-equip-item {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .inventory-equip-label {
@@ -446,6 +456,20 @@
 .inventory-equip-slot--filled:hover .inventory-equip-label {
   color: var(--red);
   opacity: 0.5;
+}
+
+/* ── Cursed equipped items ── */
+.inventory-equip-slot--cursed .inventory-equip-item {
+  color: var(--red-light, #e06060);
+}
+
+.inventory-equip-slot--cursed:hover {
+  border-color: rgba(160, 40, 40, 0.3) !important;
+  background: rgba(160, 40, 40, 0.05) !important;
+}
+
+.inventory-equip-slot--cursed:hover .inventory-equip-label {
+  color: var(--red-light, #e06060);
 }
 
 .item-card-attunement {

@@ -107,4 +107,8 @@ export interface Item extends Entity {
   charges?: number;
   /** Maximum charges capacity */
   maxCharges?: number;
+  /** Whether this item is cursed (hidden until equipped) */
+  cursed?: boolean;
+  /** If true, the curse cannot be removed even by Remove Curse */
+  cursePermanent?: boolean;
 }

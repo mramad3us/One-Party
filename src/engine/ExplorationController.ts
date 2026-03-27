@@ -887,6 +887,9 @@ export class ExplorationController implements GameSystem {
     const character = this.getCharacter?.();
     if (!character) return;
 
+    // Celestial beings don't experience worldly needs
+    if (character.race === 'celestial') return;
+
     const result = SurvivalRules.tick(character.survival, rounds);
 
     if (result.hungerCrossing) {
