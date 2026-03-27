@@ -392,6 +392,19 @@ export class CreationScreen extends Component {
       grid.appendChild(option);
     }
 
+    // ── Naelia An'Ohren — special preset character ──
+    const naeliaCard = el('div', { class: 'creation-option creation-option--naelia' });
+    naeliaCard.appendChild(el('div', { class: 'creation-option-name' }, ["\u2727 Naelia An'Ohren"]));
+    naeliaCard.appendChild(el('div', { class: 'creation-option-desc' }, [
+      'Daughter of a goddess. Celestial in an eladrin body, the Silver Queen carries the full powers of a god.',
+    ]));
+    const naeliaBadge = el('div', { class: 'creation-option-detail' });
+    naeliaBadge.appendChild(el('span', { class: 'badge badge-gold' }, ['Celestial God']));
+    naeliaBadge.appendChild(el('span', { class: 'badge' }, ['CR 100']));
+    naeliaCard.appendChild(naeliaBadge);
+    naeliaCard.addEventListener('click', () => this.createNaelia());
+    grid.appendChild(naeliaCard);
+
     // Dev mode: quick character cards
     if (isDevMode()) {
       const quickOptions: { label: string; desc: string; filter: 'any' | 'melee' | 'caster' }[] = [
@@ -465,6 +478,20 @@ export class CreationScreen extends Component {
       },
     });
 
+    this.engine.events.emit({
+      type: 'ui:navigate',
+      category: 'ui',
+      data: { screen: 'game', direction: 'left' },
+    });
+  }
+
+  /** Create Naelia An'Ohren — special preset that skips the creation wizard. */
+  private createNaelia(): void {
+    this.engine.events.emit({
+      type: 'character:created',
+      category: 'character',
+      data: { preset: 'naelia' },
+    });
     this.engine.events.emit({
       type: 'ui:navigate',
       category: 'ui',

@@ -325,6 +325,49 @@ export const SRD_RACES: RaceDefinition[] = [
       },
     ],
   },
+  // ── Special: Celestial ──
+  {
+    id: 'celestial',
+    name: 'Celestial',
+    description:
+      'A divine being of immense power, born of a goddess and her eladrin consort. Celestials carry the full might of godhood in a mortal-seeming form, their grace and beauty masking power beyond comprehension.',
+    abilityBonuses: {},
+    speed: 30,
+    size: 'medium',
+    languages: ['All'],
+    traits: [
+      {
+        name: 'Divine Oracle',
+        description:
+          'You can read the thoughts of any intelligent creature within 120 ft and see into the immediate future. You have advantage on all saving throws and ability checks. Attackers have disadvantage. You cannot be surprised.',
+      },
+      {
+        name: 'Greater Magic Immunity',
+        description:
+          'You have advantage on saving throws against spells of level 6 and above. You are immune to lesser magic and magical effects.',
+      },
+      {
+        name: 'Divine Wish',
+        description:
+          'You suffer no ill effects from the wish spell. You need only think a wish for reality to bend itself to accomplish it exactly as you meant it.',
+      },
+      {
+        name: 'Legendary Resistance',
+        description:
+          'If you fail a saving throw, you can choose to succeed instead. 5 uses per round.',
+      },
+      {
+        name: "Oracle's Burden",
+        description:
+          'During long rests, you experience vivid visions of past or future events through the minds of mortal creatures. These visions grant firsthand familiarity with the places explored.',
+      },
+      {
+        name: 'Communion with Seraphine',
+        description:
+          'Through the Gown of Power, you and Seraphine are the two faces of the same being — a being of unimaginable power, well past the threshold of greater godhood.',
+      },
+    ],
+  },
 ];
 
 export function getRace(id: string): RaceDefinition | undefined {

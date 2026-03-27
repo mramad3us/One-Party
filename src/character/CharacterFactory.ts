@@ -341,4 +341,164 @@ export class CharacterFactory {
       level,
     });
   }
+
+  /**
+   * Create Naelia An'Ohren — a special overpowered preset character.
+   * Bypasses normal character creation rules entirely.
+   */
+  createNaelia(): Character {
+    const cantrips = SRD_SPELLS.filter(s => s.level === 0).map(s => s.id);
+    const leveled = SRD_SPELLS.filter(s => s.level >= 1).map(s => s.id);
+
+    const character: Character = {
+      id: generateId(),
+      type: 'character',
+      name: "Naelia An'Ohren",
+      race: 'celestial',
+      class: 'god',
+      level: 20,
+      xp: 0,
+      abilityScores: {
+        strength: 13,
+        dexterity: 56,
+        constitution: 53,
+        intelligence: 67,
+        wisdom: 70,
+        charisma: 70,
+      },
+      maxHp: 2550,
+      currentHp: 2550,
+      tempHp: 0,
+      hitDice: { current: 20, max: 20, die: 8 },
+      armorClass: 55,
+      speed: 30,
+      proficiencyBonus: 26,
+      proficiencies: {
+        skills: [
+          'arcana', 'insight', 'history', 'investigation',
+          'medicine', 'perception', 'persuasion', 'sleight_of_hand',
+        ],
+        savingThrows: ['dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'],
+        armor: ['light', 'medium', 'heavy', 'shield'],
+        weapons: ['simple', 'martial'],
+        tools: [],
+        languages: ['All'],
+      },
+      features: [
+        {
+          id: 'divine_oracle',
+          name: 'Divine Oracle',
+          description: 'Read the thoughts of any intelligent creature within 120 ft. Advantage on all saving throws and ability checks. Attackers have disadvantage. Cannot be surprised.',
+          source: 'Celestial',
+        },
+        {
+          id: 'greater_magic_immunity',
+          name: 'Greater Magic Immunity',
+          description: 'Advantage on saves against spells of level 6+. Immune to lesser magic and magical effects.',
+          source: 'Celestial',
+        },
+        {
+          id: 'divine_wish',
+          name: 'Divine Wish',
+          description: 'You suffer no ill effects from Wish. Reality bends to your thoughts, ignoring mortal limitations.',
+          source: 'God',
+        },
+        {
+          id: 'divine_magic',
+          name: 'Divine Magic',
+          description: 'Spend divine points to cast spells at Epic Levels (10th-12th). 12 divine points, recharged on long rest.',
+          source: 'God',
+          usesRemaining: 12,
+          usesMax: 12,
+          rechargeOn: 'longRest',
+        },
+        {
+          id: 'legendary_resistance',
+          name: 'Legendary Resistance',
+          description: 'If you fail a saving throw, you can choose to succeed instead.',
+          source: 'Celestial',
+          usesRemaining: 5,
+          usesMax: 5,
+          rechargeOn: 'shortRest',
+        },
+        {
+          id: 'healing_touch',
+          name: 'Healing Touch',
+          description: 'Touch a creature to restore 8d8+4 HP and free them from curses, disease, poison, blindness, and deafness.',
+          source: 'God',
+          usesRemaining: 5,
+          usesMax: 5,
+          rechargeOn: 'shortRest',
+        },
+        {
+          id: 'slap',
+          name: 'Slap',
+          description: '+49 to hit, 1d4+23 necrotic damage. Target must succeed DC 64 CON save or be reduced to 0 HP.',
+          source: 'God',
+        },
+        {
+          id: 'superior_shield',
+          name: 'Superior Shield',
+          description: 'Create a 20-ft radius sphere absorbing up to 120 damage with full cover from outside attacks.',
+          source: 'God',
+        },
+        {
+          id: 'magical_superiority',
+          name: 'Magical Superiority',
+          description: 'Reaction: Counterspell (DC 64), Antimagic Area (30-ft), or Superior Shield.',
+          source: 'God',
+        },
+        {
+          id: 'teleport',
+          name: 'Teleport',
+          description: 'Teleport up to 120 feet to any unoccupied space you can see.',
+          source: 'God',
+        },
+        {
+          id: 'oracles_burden',
+          name: "Oracle's Burden",
+          description: 'During long rests, vivid visions of past or future events through mortal minds. Grants familiarity with places explored in visions.',
+          source: 'Celestial',
+        },
+        {
+          id: 'communion_seraphine',
+          name: 'Communion with Seraphine',
+          description: 'Through the Gown of Power, you and Seraphine are two faces of the same being — of unimaginable power, well past the threshold of greater godhood.',
+          source: 'Celestial',
+        },
+      ],
+      inventory: {
+        items: [],
+        currentWeight: 0,
+        capacity: 150,
+        gold: 156176,
+        silver: 0,
+        copper: 0,
+      },
+      equipment: {
+        mainHand: null, offHand: null, armor: null, helmet: null,
+        cloak: null, gloves: null, boots: null, ring1: null,
+        ring2: null, amulet: null, belt: null,
+      },
+      equipmentCharges: {},
+      spellcasting: {
+        ability: 'charisma',
+        spellSlots: Object.fromEntries(
+          Array.from({ length: 9 }, (_, i) => [i + 1, { current: 99, max: 99 }]),
+        ),
+        knownSpells: leveled,
+        preparedSpells: leveled,
+        cantripsKnown: cantrips,
+        concentration: null,
+      },
+      conditions: [],
+      deathSaves: { successes: 0, failures: 0 },
+      position: null,
+      initiative: null,
+      epicBoons: [],
+      survival: { hunger: 0, thirst: 0, fatigue: 0, exhaustionLevel: 0 },
+    };
+
+    return character;
+  }
 }

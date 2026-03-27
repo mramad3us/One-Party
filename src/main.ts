@@ -694,15 +694,7 @@ async function main(): Promise<void> {
 
   // 9. Wire up character creation -> game start flow
   engine.events.on('character:created', (event) => {
-    const { name, race, class: classId, abilityScores, skills, selectedCantrips, selectedSpells } = event.data as {
-      name: string;
-      race: string;
-      class: string;
-      abilityScores: AbilityScores;
-      skills: Skill[];
-      selectedCantrips?: string[];
-      selectedSpells?: string[];
-    };
+    const data = event.data as Record<string, unknown>;
 
     // Create RNG and dice
     const seed = Date.now();
@@ -713,15 +705,31 @@ async function main(): Promise<void> {
 
     // Create character via factory
     const factory = new CharacterFactory(dice);
-    const character: Character = factory.create({
-      name,
-      raceId: race,
-      classId: classId,
-      abilityScores,
-      skills,
-      selectedCantrips,
-      selectedSpells,
-    });
+    let character: Character;
+
+    if (data.preset === 'naelia') {
+      // Special preset — bypasses normal creation
+      character = factory.createNaelia();
+    } else {
+      const { name, race, class: classId, abilityScores, skills, selectedCantrips, selectedSpells } = data as {
+        name: string;
+        race: string;
+        class: string;
+        abilityScores: AbilityScores;
+        skills: Skill[];
+        selectedCantrips?: string[];
+        selectedSpells?: string[];
+      };
+      character = factory.create({
+        name,
+        raceId: race,
+        classId: classId,
+        abilityScores,
+        skills,
+        selectedCantrips,
+        selectedSpells,
+      });
+    }
 
     // Bridge overworld to World/Region/Location hierarchy
     if (!activeOverworld) {
@@ -783,7 +791,7 @@ async function main(): Promise<void> {
     // Auto-save is now triggered on each move, no interval needed
 
     console.log(
-      `[One Party] New game started: ${character.name} the ${race} ${classId} in ${world.name}`,
+      `[One Party] New game started: ${character.name} the ${character.race} ${character.class} in ${world.name}`,
     );
   });
 
@@ -3758,7 +3766,7 @@ async function main(): Promise<void> {
   });
 
   // Handle travel from overworld map (tile-based)
-  engine.events.on('overworld:travel', (event) => {
+  engine.events.on('overworld:travel', async (event) => {
     const { x, y } = event.data as { x: number; y: number };
     if (!activeGameScreen || !activeGameState || !activeOverworld) return;
 
@@ -3821,6 +3829,60 @@ async function main(): Promise<void> {
     const character = engine.entities.getAll<Character>('character')[0];
     if (character) {
       tickAndNarrate(character, travelRounds);
+    }
+
+    // ── Encounter check (non-settlement tiles only) ──────────────
+    if (character && !tile.settlement) {
+      const encounterResolver = new EncounterResolver(
+        new Resolver(templateRegistry, rng), rng,
+      );
+      const encounterDice = new DiceRoller(new SeededRNG(Date.now()));
+      // ~20% base chance, forced in dev mode
+      const encounterDC = isDevMode() ? 1 : 17;
+      const encounterRoll = encounterDice.rollD20();
+      const encounterTriggered = encounterRoll.total >= encounterDC;
+
+      const encounterRollDisplay: import('@/types').DiceRollResult = {
+        ...encounterRoll,
+        description: encounterTriggered
+          ? `Encounter! (DC ${encounterDC})`
+          : `Safe passage (DC ${encounterDC})`,
+      };
+      await DiceDisplay.showRollQuick(document.body, encounterRollDisplay, engine);
+
+      if (encounterTriggered) {
+        const encounter = encounterResolver.generateEncounter(dest, character.level, 1);
+        if (encounter) {
+          const encounterDesc = (encounter.resolvedData['description'] as string) ?? 'Enemies appear!';
+          activeGameScreen.addNarrative({
+            text: encounterDesc,
+            category: 'action',
+          });
+
+          await new Promise(resolve => setTimeout(resolve, 800));
+
+          // Close the world map for combat
+          activeGameScreen.hideWorldMap();
+          if (keyboardInput.getContext() === 'worldmap') {
+            keyboardInput.popContext();
+          }
+
+          // Wait for combat to finish
+          const combatResult = await new Promise<CombatResult>((resolve) => {
+            const terrain = tile.terrain as OverworldTerrain;
+            combatController.startEncounter(character, encounter, terrain, resolve);
+          });
+
+          if (!combatResult.victory) {
+            // Player died — death screen handles transition
+            return;
+          }
+
+          // Resume — reopen world map briefly so the arrival code can close it
+          activeGameScreen.showWorldMap();
+          keyboardInput.pushContext('worldmap');
+        }
+      }
     }
 
     activeGameScreen.addNarrative(narrator.describeLocation(dest));

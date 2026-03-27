@@ -2823,9 +2823,60 @@ const AMBIENT_RAT: SpriteDefinition = {
   ],
 };
 
+// ── Special Character Sprites ────────────────────────────────
+
+const NAELIA: SpriteDefinition = {
+  palette: {
+    // Silver-white hair (3 shades)
+    H: '#e8e8f4', // hair highlight
+    h: '#c0c0d8', // hair mid
+    J: '#9898b8', // hair shadow
+    // White/silver gown (4 shades)
+    W: '#f0f0f8', // gown highlight
+    w: '#d8d8e8', // gown mid-light
+    R: '#b8b8d0', // gown mid-shadow
+    r: '#9898b0', // gown deep shadow
+    // Teal/blue belt + gem (3 shades)
+    T: '#60d8e8', // gem bright
+    t: '#3898b0', // belt mid
+    D: '#206878', // belt dark
+    // Skin (2 shades — pale, luminous)
+    S: '#f8e8e0', // skin lit
+    s: '#e0c8b8', // skin shadow
+    // Eyes — bright blue
+    E: '#40a8f0', // eye color
+    // Cloak lining — deep midnight blue
+    C: '#283858', // cloak dark
+    c: '#384868', // cloak mid
+    // Gold necklace accent
+    G: '#f0d060', // gold
+  },
+  pixels: [
+    '....hHHHHHh.....',
+    '...JhHHHHHhJ....',
+    '...JhWSSWHhJ....',
+    '....wSEsSEs.....',
+    '....JsSGSsJ.....',
+    '...RWWWWWWWR....',
+    '..rRWWtTtWWRr...',
+    '.CrRWDtTtDWRrC..',
+    '.CcrRWWWWWRrcC..',
+    '..CcRWWWWWRcC...',
+    '...CrWWWWWrC....',
+    '...CrWW.WWrC....',
+    '...crRW.WRrc....',
+    '...crRW.WRrc....',
+    '..ccrR...Rrcc...',
+    '................',
+  ],
+};
+
 // ── Sprite Registry ──────────────────────────────────────────
 
 const SPRITE_REGISTRY: Record<string, SpriteDefinition> = {
+  // Special characters
+  naelia:           NAELIA,
+  god:              NAELIA,
   // Player classes
   fighter:          FIGHTER,
   wizard:           WIZARD,

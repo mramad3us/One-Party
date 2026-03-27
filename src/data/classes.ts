@@ -552,6 +552,47 @@ export const SRD_CLASSES: ClassDefinition[] = [
       },
     },
   },
+  // ── Special: God ──
+  {
+    id: 'god',
+    name: 'God',
+    description:
+      'A divine being whose powers have matured beyond mortal comprehension. Your magic transcends the nine circles of conventional spellcraft, drawing upon divine reserves that echo through the fabric of reality itself.',
+    hitDie: 8,
+    primaryAbility: 'charisma',
+    savingThrows: ['dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'],
+    armorProficiencies: ['light', 'medium', 'heavy', 'shield'],
+    weaponProficiencies: ['simple', 'martial'],
+    skillChoices: {
+      choose: 0,
+      from: [],
+    },
+    startingEquipment: [],
+    features: [
+      { level: 1, name: 'Slap', description: 'Melee Spell Attack: +49 to hit, reach 5 ft. Hit: 1d4 + 23 necrotic damage. Target must succeed on a DC 64 CON save or be reduced to 0 HP.' },
+      { level: 1, name: 'Healing Touch', description: 'Touch a creature to restore 8d8 + 4 HP and free them from any curse, disease, poison, blindness, or deafness. 5 uses per round.' },
+      { level: 1, name: 'Innate Spellcasting', description: 'At Will: Wish. 5/Round: True Resurrection, True Polymorph, Time Stop, Power Word Kill, Meteor Swarm, Mass Heal, Gate, Astral Projection.' },
+      { level: 1, name: 'Divine Magic', description: 'Spend divine points to cast spells at Epic Levels (10th-12th). You have 12 divine points, recharged on long rest.' },
+      { level: 1, name: 'Superior Shield', description: 'Create a 20-ft radius sphere that absorbs up to 120 damage of any kind and gives creatures inside full cover from outside attacks.' },
+      { level: 1, name: 'Magical Superiority', description: 'As a reaction when a creature casts a spell: Counterspell (DC 64 save or silenced), Antimagic Area (30-ft radius), or Superior Shield.' },
+      { level: 1, name: 'Teleport', description: 'Magically teleport up to 120 feet to an unoccupied space you can see. Usable as a legendary action.' },
+    ],
+    spellcasting: {
+      ability: 'charisma',
+      cantripsKnown: Array(20).fill(20),
+      spellSlots: {
+        1: Array(20).fill(99),
+        2: Array(20).fill(99),
+        3: Array(20).fill(99),
+        4: Array(20).fill(99),
+        5: Array(20).fill(99),
+        6: Array(20).fill(99),
+        7: Array(20).fill(99),
+        8: Array(20).fill(99),
+        9: Array(20).fill(99),
+      },
+    },
+  },
 ];
 
 export function getClass(id: string): ClassDefinition | undefined {

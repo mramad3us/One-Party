@@ -1088,6 +1088,9 @@ function buildOverworld(): OverworldData {
   setSettlement(tiles, 15, 35, 'ruins', 'Ruines de Valmort');
   setSettlement(tiles, 50, 42, 'temple', 'Sanctuaire de la Lune');
 
+  // Dungeon near Plassans — old catacombs beneath collapsed ruins
+  setSettlement(tiles, 12, 53, 'ruins', 'Catacombes de Saint-Auriel');
+
   // Add river: flows from NE mountains down to SW coast
   carveRiver(tiles, 55, 5, 8, 55);
 
@@ -1108,6 +1111,7 @@ function buildOverworld(): OverworldData {
       { year: -200, event: 'Construction of the Cathédrale Saint-Auriel begins, a monument to the patron saint of the coast.' },
       { year: -100, event: 'Montclair is established as a hill fortress to guard against raids from the eastern mountains.' },
       { year: -50, event: 'The Great Storm devastates the harbour. Plassans rebuilds stronger, with stone walls and deeper docks.' },
+      { year: -150, event: 'The old Aurielite monastery east of Plassans collapses during an earthquake, sealing the catacombs beneath. Strange sounds echo from below on moonless nights.' },
       { year: 0, event: 'Present day. Plassans thrives as the jewel of La Côte Dorée, a city of merchants, artisans, and dreamers.' },
     ],
     createdAt: Date.now(),
