@@ -2215,9 +2215,14 @@ export class CombatManager {
       const spell = getSpell(spellId);
       if (!spell) continue;
 
-      // Skip non-combat spells (no damage, no healing effects)
-      const hasCombatEffect = spell.effects.some(e => e.damage || e.healing);
-      if (!hasCombatEffect) continue;
+      // Skip non-combat spells (no damage, no healing, no conditions, no buff mechanics)
+      const hasCombatEffect = spell.effects.some(e => e.damage || e.healing || e.condition);
+      // Also allow known buff spells (Bless, Shield, Haste, etc.) and spells with duration
+      const isBuffSpell = spell.duration.type === 'concentration' || spell.duration.type === 'rounds';
+      const isKnownBuff = ['spell_bless', 'spell_bane', 'spell_shield', 'spell_shield_of_faith',
+        'spell_mage_armor', 'spell_barkskin', 'spell_haste', 'spell_blur', 'spell_mirror_image',
+        'spell_slow', 'spell_bestow_curse', 'spell_sleep', 'spell_color_spray'].includes(spell.id);
+      if (!hasCombatEffect && !isBuffSpell && !isKnownBuff) continue;
 
       const isCantrip = spell.level === 0;
       const isBonusAction = spell.castingTime === '1 bonus action';
@@ -2261,7 +2266,11 @@ export class CombatManager {
         }
       }
 
-      if (validTargets.length === 0 && !hasHealing) continue;
+      // Buff spells that target self are always valid
+      const isSelfBuff = spell.targetType === 'self' || spell.range === 0;
+      if (validTargets.length === 0 && !hasHealing && !isSelfBuff) continue;
+      // Self-targeting buffs without enemies: still valid
+      if (validTargets.length === 0 && isSelfBuff) validTargets.push(entityId);
 
       options.push({
         spellId,

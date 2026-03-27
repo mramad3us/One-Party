@@ -723,6 +723,254 @@
   text-transform: uppercase;
 }
 
+/* ── Grouped Spell Selector ── */
+.spell-selector-grouped {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.spell-group-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid rgba(180, 130, 50, 0.12);
+  margin-top: var(--space-sm);
+}
+
+.spell-group-header:first-child {
+  margin-top: 0;
+}
+
+.spell-group-level {
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  color: var(--gold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.spell-group-slots {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+.spell-group-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.spell-selector-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 6px var(--space-md);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  position: relative;
+}
+
+.spell-selector-btn:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.spell-selector-btn--dmg:hover {
+  background: rgba(200, 80, 40, 0.06);
+}
+
+.spell-selector-btn--heal:hover {
+  background: rgba(60, 180, 80, 0.06);
+}
+
+.spell-selector-btn--cc:hover {
+  background: rgba(120, 80, 200, 0.06);
+}
+
+.spell-selector-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.spell-selector-icon {
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.spell-selector-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.spell-selector-name {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spell-selector-btn:hover .spell-selector-name {
+  color: var(--text-primary);
+}
+
+.spell-selector-detail {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  opacity: 0.6;
+  letter-spacing: 0.02em;
+}
+
+/* Spell tags (BA, Concentration, Healing, CC) */
+.spell-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 2px;
+  vertical-align: middle;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.spell-tag--ba {
+  color: var(--gold);
+  background: rgba(180, 130, 50, 0.15);
+}
+
+.spell-tag--conc {
+  color: var(--blue-light, #68a8d8);
+  background: rgba(80, 140, 200, 0.12);
+}
+
+.spell-tag--heal {
+  color: var(--green-light, #68c868);
+  background: rgba(60, 160, 60, 0.12);
+}
+
+.spell-tag--cc {
+  color: var(--purple-light, #b080d0);
+  background: rgba(140, 80, 200, 0.12);
+}
+
+/* Upcast arrow */
+.spell-selector-upcast {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--gold-dim);
+  opacity: 0.4;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all var(--duration-fast);
+}
+
+.spell-selector-upcast:hover {
+  opacity: 1;
+  background: rgba(180, 130, 50, 0.15);
+  color: var(--gold);
+}
+
+/* ── Upcast Picker (inline slot selector) ── */
+.upcast-picker {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  background: #0c0a08;
+  border: 1px solid rgba(180, 130, 50, 0.2);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  min-width: 180px;
+}
+
+.upcast-header {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-xs);
+}
+
+.upcast-slots {
+  display: flex;
+  gap: 4px;
+}
+
+.upcast-slot-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  min-width: 36px;
+}
+
+.upcast-slot-btn:hover {
+  background: rgba(180, 130, 50, 0.12);
+  border-color: rgba(180, 130, 50, 0.3);
+  color: var(--gold);
+}
+
+.upcast-slot-btn--base {
+  border-color: rgba(180, 130, 50, 0.2);
+}
+
+.upcast-slot-btn--empty {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.upcast-slot-level {
+  font-family: var(--font-heading);
+  font-size: var(--text-base);
+}
+
+.upcast-slot-count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
 /* ── Critical Hit Overlay ── */
 .crit-hit-overlay {
   position: fixed;

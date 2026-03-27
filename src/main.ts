@@ -2881,61 +2881,110 @@ async function main(): Promise<void> {
     const spells = actions.validSpells;
     const character = engine.entities.getAll<Character>('character')[0];
 
-    // Build spell selection modal
-    const list = el('div', { class: 'target-selector-list' });
+    // Build spell selection modal — grouped by level, with upcast support
+    const list = el('div', { class: 'spell-selector-grouped' });
     let closed = false;
 
-    const doCast = (spellOpt: typeof spells[0], targetId: string | null) => {
-      combatController.playerCastSpell(spellOpt.spellId, targetId, spellOpt.slotLevel).then(() => {
+    const doCast = (spellOpt: typeof spells[0], targetId: string | null, overrideSlotLevel?: number) => {
+      const castLevel = overrideSlotLevel ?? spellOpt.slotLevel;
+      combatController.playerCastSpell(spellOpt.spellId, targetId, castLevel).then(() => {
         refreshCombatEntities();
         updateCombatActionButtons();
       });
     };
 
-    spells.forEach((spellOpt, i) => {
+    // School icons
+    const SCHOOL_ICONS: Record<string, string> = {
+      abjuration: '🛡', conjuration: '✦', divination: '👁', enchantment: '💫',
+      evocation: '🔥', illusion: '🌀', necromancy: '💀', transmutation: '⚗',
+    };
+
+    // Group spells by level
+    const spellsByLevel = new Map<number, { spellOpt: typeof spells[0]; spell: NonNullable<ReturnType<typeof getSpell>> }[]>();
+    for (const spellOpt of spells) {
       const spell = getSpell(spellOpt.spellId);
-      if (!spell) return;
+      if (!spell) continue;
+      const level = spell.level;
+      if (!spellsByLevel.has(level)) spellsByLevel.set(level, []);
+      spellsByLevel.get(level)!.push({ spellOpt, spell });
+    }
 
-      const isCantrip = spell.level === 0;
-      const isBonusAction = spell.castingTime === '1 bonus action';
-      const hasHealing = spell.effects.some(e => e.healing);
+    // Sort levels: cantrips first, then ascending
+    const sortedLevels = [...spellsByLevel.keys()].sort((a, b) => a - b);
+    let keyIndex = 0;
 
-      // Slot info
-      let slotInfo = 'cantrip';
-      if (!isCantrip && character?.spellcasting) {
-        const slot = character.spellcasting.spellSlots[spell.level];
-        slotInfo = slot ? `Lv${spell.level} ${slot.current}/${slot.max}` : `Lv${spell.level}`;
+    for (const level of sortedLevels) {
+      const group = spellsByLevel.get(level)!;
+
+      // Level header with slot count
+      const levelLabel = level === 0 ? 'Cantrips' : `Level ${level}`;
+      let slotStr = '';
+      if (level > 0 && character?.spellcasting) {
+        const slot = character.spellcasting.spellSlots[level];
+        if (slot) slotStr = ` — ${slot.current}/${slot.max} slots`;
       }
+      const header = el('div', { class: 'spell-group-header' });
+      header.innerHTML = `<span class="spell-group-level">${levelLabel}</span><span class="spell-group-slots">${slotStr}</span>`;
+      list.appendChild(header);
 
-      // Effect summary
-      let effectStr = '';
-      for (const eff of spell.effects) {
-        if (eff.damage) {
-          effectStr += `${eff.damage.count}d${eff.damage.die} ${eff.damage.type}`;
-          break;
+      const groupList = el('div', { class: 'spell-group-list' });
+
+      // Sort within group: damage spells first, then healing, then buff/control
+      group.sort((a, b) => {
+        const aHasDmg = a.spell.effects.some(e => e.damage) ? 0 : 1;
+        const bHasDmg = b.spell.effects.some(e => e.damage) ? 0 : 1;
+        if (aHasDmg !== bHasDmg) return aHasDmg - bHasDmg;
+        return a.spell.name.localeCompare(b.spell.name);
+      });
+
+      for (const { spellOpt, spell } of group) {
+        keyIndex++;
+        const isBonusAction = spell.castingTime === '1 bonus action';
+        const hasHealing = spell.effects.some(e => e.healing);
+        const hasCondition = spell.effects.some(e => e.condition);
+        const hasDamage = spell.effects.some(e => e.damage);
+        const isCantrip = spell.level === 0;
+        const schoolIcon = SCHOOL_ICONS[spell.school] ?? '✧';
+
+        // Effect summary
+        let effectStr = '';
+        for (const eff of spell.effects) {
+          if (eff.damage) { effectStr = `${eff.damage.count}d${eff.damage.die} ${eff.damage.type}`; break; }
+          if (eff.healing) { effectStr = `${eff.healing.count}d${eff.healing.die} heal`; break; }
+          if (eff.condition) { effectStr = eff.condition; break; }
         }
-        if (eff.healing) {
-          effectStr += `${eff.healing.count}d${eff.healing.die} healing`;
-          break;
-        }
-      }
+        if (!effectStr && spell.duration.type === 'concentration') effectStr = 'buff';
 
-      const rangeStr = spell.range > 0 ? `${spell.range}ft` : spell.range === 0 ? 'self' : 'touch';
-      const baTag = isBonusAction ? '<span class="spell-selector-ba">BA</span>' : '';
+        const rangeStr = spell.range > 0 ? `${spell.range}ft` : spell.range === 0 ? 'self' : 'touch';
+        const tags: string[] = [];
+        if (isBonusAction) tags.push('<span class="spell-tag spell-tag--ba">BA</span>');
+        if (spell.duration.type === 'concentration') tags.push('<span class="spell-tag spell-tag--conc">C</span>');
+        if (hasHealing) tags.push('<span class="spell-tag spell-tag--heal">♥</span>');
+        if (hasCondition) tags.push('<span class="spell-tag spell-tag--cc">CC</span>');
 
-      const btn = el('button', { class: 'target-selector-btn' });
-      btn.innerHTML = `<span class="target-selector-key">${i + 1}</span>`
-        + `<div class="spell-selector-row">`
-        + `<span class="target-selector-name">${spell.name} ${baTag}</span>`
-        + `<div class="spell-selector-meta"><span>${slotInfo}</span>`
-        + (effectStr ? `<span>${effectStr}</span>` : '')
-        + `<span>${rangeStr}</span></div>`
-        + `</div>`;
+        // Can this spell be upcast?
+        const canUpcast = !isCantrip && spellOpt.maxSlotLevel > spellOpt.minSlotLevel;
 
-      btn.addEventListener('click', () => {
-        if (closed) return;
-        closed = true;
-        spellModal.close();
+        const btn = el('button', { class: `spell-selector-btn${hasDamage ? ' spell-selector-btn--dmg' : ''}${hasHealing ? ' spell-selector-btn--heal' : ''}${hasCondition ? ' spell-selector-btn--cc' : ''}` });
+        btn.innerHTML = `<span class="spell-selector-key">${keyIndex <= 9 ? keyIndex : ''}</span>`
+          + `<span class="spell-selector-icon">${schoolIcon}</span>`
+          + `<div class="spell-selector-info">`
+          + `<span class="spell-selector-name">${spell.name}${tags.join('')}</span>`
+          + `<span class="spell-selector-detail">${effectStr ? effectStr + ' · ' : ''}${rangeStr} · ${spell.school}</span>`
+          + `</div>`
+          + (canUpcast ? `<span class="spell-selector-upcast" data-tooltip="Click to upcast at higher level">▲</span>` : '');
+
+        // Main click: cast at base level
+        btn.addEventListener('click', (e) => {
+          // If upcast arrow clicked, show slot picker instead
+          if ((e.target as HTMLElement).classList.contains('spell-selector-upcast')) {
+            e.stopPropagation();
+            showUpcastPicker(spellOpt, spell, btn);
+            return;
+          }
+          if (closed) return;
+          closed = true;
+          spellModal.close();
 
         // Healing spells target self — cast immediately
         if (hasHealing) {
@@ -3057,8 +3106,59 @@ async function main(): Promise<void> {
           document.addEventListener('keydown', onTKey, true);
         }
       });
-      list.appendChild(btn);
-    });
+      groupList.appendChild(btn);
+    }
+      list.appendChild(groupList);
+    }
+
+    // Upcast picker: inline slot level selector
+    function showUpcastPicker(spellOpt: typeof spells[0], spell: NonNullable<ReturnType<typeof getSpell>>, anchorBtn: HTMLElement) {
+      // Remove any existing upcast picker
+      document.querySelectorAll('.upcast-picker').forEach(p => p.remove());
+
+      const picker = el('div', { class: 'upcast-picker' });
+      picker.innerHTML = `<div class="upcast-header">Cast at level:</div>`;
+      const slotRow = el('div', { class: 'upcast-slots' });
+
+      for (let lvl = spellOpt.minSlotLevel; lvl <= spellOpt.maxSlotLevel; lvl++) {
+        const slot = character?.spellcasting?.spellSlots[lvl];
+        const available = slot ? slot.current > 0 : false;
+        const slotBtn = el('button', {
+          class: `upcast-slot-btn${lvl === spellOpt.minSlotLevel ? ' upcast-slot-btn--base' : ''}${!available ? ' upcast-slot-btn--empty' : ''}`,
+          ...(available ? {} : { disabled: 'true' }),
+        });
+        slotBtn.innerHTML = `<span class="upcast-slot-level">${lvl}</span><span class="upcast-slot-count">${slot ? `${slot.current}/${slot.max}` : '—'}</span>`;
+        slotBtn.addEventListener('click', () => {
+          picker.remove();
+          if (closed) return;
+          closed = true;
+          spellModal.close();
+          const hasHealing = spell.effects.some(e => e.healing);
+          if (hasHealing || spell.targetType === 'self' || spell.range === 0) {
+            doCast(spellOpt, spellOpt.validTargets[0] ?? null, lvl);
+          } else if (spellOpt.validTargets.length === 1) {
+            doCast(spellOpt, spellOpt.validTargets[0], lvl);
+          } else {
+            doCast(spellOpt, spellOpt.validTargets[0] ?? null, lvl);
+          }
+        });
+        slotRow.appendChild(slotBtn);
+      }
+      picker.appendChild(slotRow);
+
+      // Position below the anchor button
+      anchorBtn.style.position = 'relative';
+      anchorBtn.appendChild(picker);
+
+      // Close on escape or click outside
+      const closePicker = (e: Event) => {
+        if (!picker.contains(e.target as Node) && e.target !== anchorBtn) {
+          picker.remove();
+          document.removeEventListener('click', closePicker);
+        }
+      };
+      setTimeout(() => document.addEventListener('click', closePicker), 0);
+    }
 
     const spellModal = new Modal(document.body, engine, {
       title: 'Cast Spell',
