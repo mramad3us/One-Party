@@ -763,9 +763,10 @@ export class CombatManager {
         this.breakConcentration(entityId);
       }
       p.stats.spellcasting.concentration = spellId;
-      // Track concentration duration (rounds) so it expires naturally
+      // Track concentration duration (rounds) so it expires naturally.
+      // duration.value is in MINUTES for concentration spells (1 min = 10 rounds in D&D 5e).
       if (spell.duration.value) {
-        const durationRounds = spell.duration.value;
+        const durationRounds = spell.duration.value * 10; // minutes → rounds
         this.concentrationDurations.set(entityId, durationRounds);
       }
     }
@@ -1006,7 +1007,8 @@ export class CombatManager {
         if (!saved && hasCondition) {
           for (const effect of scaledEffects) {
             if (effect.condition) {
-              const condDuration = spell.duration.value ?? 10; // Default 10 rounds for concentration
+              const rawCondDuration = spell.duration.value ?? 1;
+              const condDuration = spell.duration.type === 'concentration' ? rawCondDuration * 10 : rawCondDuration;
               this.applyConditionToParticipant(target, effect.condition, condDuration, entityId);
               conditionsApplied.push(effect.condition);
             }
@@ -1132,7 +1134,8 @@ export class CombatManager {
         if (!saved) {
           for (const effect of scaledEffects) {
             if (effect.condition) {
-              const condDuration = spell.duration.value ?? 10;
+              const rawCondDur = spell.duration.value ?? 1;
+              const condDuration = spell.duration.type === 'concentration' ? rawCondDur * 10 : rawCondDur;
               this.applyConditionToParticipant(primaryTarget, effect.condition, condDuration, entityId);
               conditionsApplied.push(effect.condition);
             }
@@ -1163,7 +1166,9 @@ export class CombatManager {
     } else {
       // ── Utility / buff spell — apply specific mechanics ──
       const isConc = spell.duration.type === 'concentration';
-      const buffDuration = spell.duration.value ?? (isConc ? 100 : 1); // 100 rounds for long-duration concentration
+      // duration.value is in minutes for concentration spells (1 min = 10 rounds)
+      const rawDuration = spell.duration.value ?? (isConc ? 10 : 1);
+      const buffDuration = isConc ? rawDuration * 10 : rawDuration;
 
       switch (spell.id) {
         case 'spell_bless': {
