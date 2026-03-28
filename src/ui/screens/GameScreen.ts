@@ -298,6 +298,13 @@ export class GameScreen extends Component {
     // Clear any leftover dice roll elements
     this.combatDiceContainer.innerHTML = '';
 
+    // Clear grid highlights (movement range, targeting overlays)
+    this.gridPanel.clearHighlights();
+
+    // Remove combat overlay elements (spell animations, damage numbers)
+    const canvas = this.gridPanel.getCanvasContainer();
+    canvas.querySelectorAll('.combat-spell-anim-container, .combat-damage-container').forEach(el => el.remove());
+
     // Remove combat mode class
     this.el.classList.remove('game-screen--combat');
   }
