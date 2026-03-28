@@ -211,12 +211,9 @@ export class GridRenderer {
         // Render terrain
         this.tileset.renderTerrain(rc, cell.terrain);
 
-        // Features override terrain — doors always render at minimum brightness
+        // Features override terrain
         if (cell.features.length > 0) {
-          const feat = cell.features[0];
-          const isDoor = feat === 'door' || feat === 'door_locked';
-          const featureRc = isDoor && dim < 0.4 ? { ...rc, dim: Math.max(dim, 0.4) } : rc;
-          this.tileset.renderFeature(featureRc, feat, cell.terrain);
+          this.tileset.renderFeature(rc, cell.features[0], cell.terrain);
         }
       }
     }

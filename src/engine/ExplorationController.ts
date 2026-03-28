@@ -1158,12 +1158,15 @@ export class ExplorationController implements GameSystem {
       }
     }
 
-    // Interior = all passable tiles NOT reached by the flood
+    // Interior = all passable tiles NOT reached by the flood.
+    // Door cells are excluded from interior — they're boundary elements
+    // that should receive ambient light from the corridor side.
     const interior = new Set<string>();
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const cell = this.grid.getCell(x, y);
         if (!cell || cell.terrain === 'wall') continue;
+        if (cell.features.includes('door') || cell.features.includes('door_locked')) continue;
         const key = `${x},${y}`;
         if (!outdoor.has(key)) interior.add(key);
       }
