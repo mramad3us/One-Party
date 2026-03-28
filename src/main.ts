@@ -1353,6 +1353,44 @@ async function main(): Promise<void> {
   /** Tracking list of hostile NPCs placed on the current exploration map. */
   let explorationMonsters: NPC[] = [];
 
+  const MONSTER_COLORS: Record<string, string> = {
+    beast: '#6a8a3a', humanoid: '#9a4a3a', undead: '#5a6a7a', monstrosity: '#7a3a6a',
+    construct: '#6a6a7a', elemental: '#3a7a9a', aberration: '#6a3a8a', dragon: '#9a3a3a',
+    fey: '#3a9a5a', ooze: '#5a8a3a', plant: '#3a7a3a', fiend: '#8a2a2a', celestial: '#8a8a3a',
+  };
+
+  /** Build render info for a monster — shared across placement, ambient tick, and post-combat refresh. */
+  function buildMonsterRenderInfo(monsterDef: import('@/data/monsters').MonsterDefinition, npc?: NPC): EntityRenderInfo {
+    return {
+      name: npc?.name ?? monsterDef.name,
+      color: MONSTER_COLORS[monsterDef.type] ?? '#8a3a3a',
+      symbol: (npc?.name ?? monsterDef.name).charAt(0).toUpperCase(),
+      hp: npc?.stats.currentHp ?? monsterDef.stats.maxHp,
+      maxHp: npc?.stats.maxHp ?? monsterDef.stats.maxHp,
+      isPlayer: false,
+      isAlly: false,
+      size: monsterDef.size === 'large' ? 2 : monsterDef.size === 'huge' ? 3 : 1,
+      conditions: [],
+      spriteId: monsterDef.id,
+    };
+  }
+
+  /** Add all exploration monsters to a placements/entityInfos map. */
+  function addMonsterRenderInfos(
+    grid: Grid,
+    placements: Map<string, import('@/types/grid').GridEntityPlacement>,
+    entityInfos: Map<string, EntityRenderInfo>,
+  ): void {
+    for (const m of explorationMonsters) {
+      const mPos = grid.getEntityPosition(m.id);
+      if (!mPos) continue;
+      const mDef = getMonster(m.templateId);
+      if (!mDef) continue;
+      placements.set(m.id, { entityId: m.id, position: mPos, size: 1 });
+      entityInfos.set(m.id, buildMonsterRenderInfo(mDef, m));
+    }
+  }
+
   /**
    * Place hostile monsters on an exploration map based on spawn tables.
    * Monsters are placed away from the player and on passable cells.
@@ -1498,35 +1536,7 @@ async function main(): Promise<void> {
 
         placements.set(monsterId, { entityId: monsterId, position: pos, size: 1 });
 
-        // Monster render info — red-tinted for hostiles
-        const MONSTER_COLORS: Record<string, string> = {
-          beast: '#6a8a3a',
-          humanoid: '#9a4a3a',
-          undead: '#5a6a7a',
-          monstrosity: '#7a3a6a',
-          construct: '#6a6a7a',
-          elemental: '#3a7a9a',
-          aberration: '#6a3a8a',
-          dragon: '#9a3a3a',
-          fey: '#3a9a5a',
-          ooze: '#5a8a3a',
-          plant: '#3a7a3a',
-          fiend: '#8a2a2a',
-          celestial: '#8a8a3a',
-        };
-
-        entityInfos.set(monsterId, {
-          name: monsterDef.name,
-          color: MONSTER_COLORS[monsterDef.type] ?? '#8a3a3a',
-          symbol: monsterDef.name.charAt(0).toUpperCase(),
-          hp: monsterDef.stats.maxHp,
-          maxHp: monsterDef.stats.maxHp,
-          isPlayer: false,
-          isAlly: false,
-          size: monsterDef.size === 'large' ? 2 : monsterDef.size === 'huge' ? 3 : 1,
-          conditions: [],
-          spriteId: monsterDef.id,
-        });
+        entityInfos.set(monsterId, buildMonsterRenderInfo(monsterDef));
       }
     }
 
@@ -1697,9 +1707,10 @@ async function main(): Promise<void> {
       }
     }
 
-    // Update display — merge with existing entity info so monsters/NPCs remain visible
-    const prevInfoFn = screen.getGridPanel().getEntityInfoFn();
-    screen.updateCombatEntities(placements, (id) => entityInfos.get(id) ?? prevInfoFn?.(id));
+    // Include exploration monsters
+    addMonsterRenderInfos(grid, placements, entityInfos);
+
+    screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
   }
 
   /** Move ambient creatures + NPCs on a tick (called from exploration:moved handler) */
@@ -1823,9 +1834,10 @@ async function main(): Promise<void> {
         });
       }
 
-      // Merge with existing entity info so monsters remain visible
-      const prevInfoFn = screen.getGridPanel().getEntityInfoFn();
-      screen.updateCombatEntities(placements, (id) => entityInfos.get(id) ?? prevInfoFn?.(id));
+      // Include exploration monsters
+      addMonsterRenderInfos(grid, placements, entityInfos);
+
+      screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
     }
   }
 
@@ -3653,21 +3665,7 @@ async function main(): Promise<void> {
             spriteId: character.class,
           });
           // Re-add surviving monsters
-          for (const m of explorationMonsters) {
-            const mPos = grid.getEntityPosition(m.id);
-            if (!mPos) continue;
-            placements.set(m.id, { entityId: m.id, position: mPos, size: 1 });
-            const mDef = getMonster(m.templateId);
-            entityInfos.set(m.id, {
-              name: m.name,
-              color: '#8a3a3a',
-              symbol: m.name.charAt(0).toUpperCase(),
-              hp: m.stats.currentHp, maxHp: m.stats.maxHp,
-              isPlayer: false, isAlly: false, size: 1,
-              conditions: [],
-              spriteId: mDef?.id ?? m.templateId,
-            });
-          }
+          addMonsterRenderInfos(grid, placements, entityInfos);
           activeGameScreen.updateCombatEntities(placements, (id) => entityInfos.get(id));
         }
       }
