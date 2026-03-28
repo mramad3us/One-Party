@@ -2304,7 +2304,7 @@ async function main(): Promise<void> {
         const aggroGrid = explorationController.getGrid();
         const aggroFog = explorationController.getFog();
         if (aggroGrid && aggroFog) {
-          const DETECTION_RANGE = 6; // cells (~30ft)
+          const DETECTION_RANGE = 3; // cells (~15ft)
           for (const monster of explorationMonsters) {
             const mPos = aggroGrid.getEntityPosition(monster.id);
             if (!mPos) continue;
