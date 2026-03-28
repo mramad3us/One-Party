@@ -38,7 +38,6 @@ import { SeededRNG } from '@/utils/SeededRNG';
 import { isDevMode, setDevMode } from '@/utils/devmode';
 import { DiceRoller } from '@/rules/DiceRoller';
 import { addCoins, optimizeCoins, totalPlayerDenominations, coinCount, canAfford, deduct } from '@/rules/CurrencyRules';
-import { formatCoinHtml } from '@/utils/format';
 import { TextNarrativeEngine } from '@/narrative/NarrativeEngine';
 import { SurvivalRules } from '@/rules/SurvivalRules';
 import { SurvivalNarrator } from '@/narrative/SurvivalNarrator';
@@ -2589,8 +2588,9 @@ async function main(): Promise<void> {
     const character = engine.entities.getAll<Character>('character')[0];
     if (!character) return;
 
-    // Award XP and loot immediately (before modal)
-    const lootItems: { name: string; quantity: number }[] = [];
+    // Build resolved loot list (items with names) — don't add to inventory yet
+    const lootItems: { itemId: string; name: string; quantity: number }[] = [];
+    const lootCheckboxes: { checkbox: HTMLInputElement; type: 'item' | 'coin'; itemId?: string; coinType?: 'gold' | 'silver' | 'copper'; quantity: number; name: string }[] = [];
     let healAmount = 0;
 
     if (result.victory) {
@@ -2600,19 +2600,8 @@ async function main(): Promise<void> {
       for (const drop of loot) {
         const item = getItem(drop.itemId);
         if (item) {
-          const existing = character.inventory.items.find((e) => e.itemId === drop.itemId);
-          if (existing) {
-            existing.quantity += drop.quantity;
-          } else {
-            character.inventory.items.push({ itemId: drop.itemId, quantity: drop.quantity });
-          }
-          lootItems.push({ name: item.name, quantity: drop.quantity });
+          lootItems.push({ itemId: drop.itemId, name: item.name, quantity: drop.quantity });
         }
-      }
-
-      // Add coin rewards to purses (overflow to loose coins)
-      if (coinLoot && (coinLoot.gold > 0 || coinLoot.silver > 0 || coinLoot.copper > 0)) {
-        addCoins(character.inventory, coinLoot);
       }
 
       healAmount = Math.ceil(character.maxHp * 0.1);
@@ -2679,22 +2668,67 @@ async function main(): Promise<void> {
         }
       }
 
-      // Loot
+      // Loot picker — checkboxes for each item and coin type
       const hasCoins = coinLoot && (coinLoot.gold > 0 || coinLoot.silver > 0 || coinLoot.copper > 0);
+
       if (lootItems.length > 0 || hasCoins) {
         const lootSection = el('div', { class: 'combat-summary-section' });
-        lootSection.appendChild(el('h4', { class: 'combat-summary-label' }, ['Spoils']));
-        const lootList = el('ul', { class: 'combat-summary-list combat-summary-loot' });
+
+        // Header with Take All / Leave All toggle
+        const headerRow = el('div', { class: 'loot-picker-header' });
+        headerRow.appendChild(el('h4', { class: 'combat-summary-label' }, ['Spoils']));
+        const toggleBtn = el('button', { class: 'loot-picker-toggle' }, ['Deselect All']);
+        let allSelected = true;
+        toggleBtn.addEventListener('click', () => {
+          allSelected = !allSelected;
+          toggleBtn.textContent = allSelected ? 'Deselect All' : 'Select All';
+          for (const entry of lootCheckboxes) {
+            entry.checkbox.checked = allSelected;
+          }
+        });
+        headerRow.appendChild(toggleBtn);
+        lootSection.appendChild(headerRow);
+
+        const lootList = el('div', { class: 'loot-picker-list' });
+
+        // Coin rows
         if (hasCoins) {
-          const coinLi = el('li', {});
-          coinLi.innerHTML = formatCoinHtml(coinLoot.gold, coinLoot.silver, coinLoot.copper);
-          lootList.appendChild(coinLi);
+          const COIN_ICONS: Record<string, string> = {
+            gold: '<span class="coin coin--gold"></span>',
+            silver: '<span class="coin coin--silver"></span>',
+            copper: '<span class="coin coin--copper"></span>',
+          };
+          for (const coinType of ['gold', 'silver', 'copper'] as const) {
+            const amount = coinLoot[coinType];
+            if (amount <= 0) continue;
+            const row = el('label', { class: 'loot-picker-row' });
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = true;
+            cb.className = 'loot-picker-checkbox';
+            row.appendChild(cb);
+            const label = el('span', { class: 'loot-picker-name' });
+            label.innerHTML = `${amount} ${COIN_ICONS[coinType]}`;
+            row.appendChild(label);
+            lootList.appendChild(row);
+            lootCheckboxes.push({ checkbox: cb, type: 'coin', coinType, quantity: amount, name: `${amount} ${coinType}` });
+          }
         }
+
+        // Item rows
         for (const item of lootItems) {
-          lootList.appendChild(el('li', {}, [
-            item.quantity > 1 ? `${item.name} x${item.quantity}` : item.name,
-          ]));
+          const row = el('label', { class: 'loot-picker-row' });
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = true;
+          cb.className = 'loot-picker-checkbox';
+          row.appendChild(cb);
+          const nameStr = item.quantity > 1 ? `${item.name} x${item.quantity}` : item.name;
+          row.appendChild(el('span', { class: 'loot-picker-name' }, [nameStr]));
+          lootList.appendChild(row);
+          lootCheckboxes.push({ checkbox: cb, type: 'item', itemId: item.itemId, quantity: item.quantity, name: item.name });
         }
+
         lootSection.appendChild(lootList);
         content.appendChild(lootSection);
       }
@@ -2732,6 +2766,25 @@ async function main(): Promise<void> {
           }
 
           if (result.victory) {
+            // Grant only the loot the player selected
+            const takenItems: { name: string; quantity: number }[] = [];
+            for (const entry of lootCheckboxes) {
+              if (!entry.checkbox.checked) continue;
+              if (entry.type === 'coin' && entry.coinType) {
+                const coins: { gold: number; silver: number; copper: number } = { gold: 0, silver: 0, copper: 0 };
+                coins[entry.coinType] = entry.quantity;
+                addCoins(character.inventory, coins);
+              } else if (entry.type === 'item' && entry.itemId) {
+                const existing = character.inventory.items.find(e => e.itemId === entry.itemId);
+                if (existing) {
+                  existing.quantity += entry.quantity;
+                } else {
+                  character.inventory.items.push({ itemId: entry.itemId, quantity: entry.quantity });
+                }
+                takenItems.push({ name: entry.name, quantity: entry.quantity });
+              }
+            }
+
             // Add narrative after modal dismissed
             activeGameScreen?.addNarrative({
               text: character.level > 0
@@ -2739,7 +2792,7 @@ async function main(): Promise<void> {
                 : 'Victory! The battle is won.',
               category: 'action',
             });
-            for (const item of lootItems) {
+            for (const item of takenItems) {
               activeGameScreen?.addNarrative({
                 text: `Found: ${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ''}`,
                 category: 'system',

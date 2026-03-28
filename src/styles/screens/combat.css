@@ -1130,6 +1130,67 @@
   color: var(--gold, #d4aa3c);
 }
 
+/* ── Loot Picker ── */
+.loot-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.loot-picker-header .combat-summary-label {
+  margin: 0;
+}
+
+.loot-picker-toggle {
+  font-size: 0.7rem;
+  color: var(--text-dim, #8a8a9a);
+  background: none;
+  border: 1px solid rgba(138, 138, 154, 0.25);
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.loot-picker-toggle:hover {
+  color: var(--gold, #d4aa3c);
+  border-color: var(--gold-dim, #6b5a3e);
+}
+
+.loot-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.loot-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.loot-picker-row:hover {
+  background: rgba(212, 170, 60, 0.06);
+}
+
+.loot-picker-checkbox {
+  accent-color: var(--gold, #d4aa3c);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.loot-picker-name {
+  font-size: 0.82rem;
+  color: var(--gold, #d4aa3c);
+}
+
 .combat-summary-xp {
   display: flex;
   align-items: center;
