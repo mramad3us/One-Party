@@ -2693,10 +2693,11 @@ async function main(): Promise<void> {
 
         // Coin rows
         if (hasCoins) {
-          const COIN_ICONS: Record<string, string> = {
-            gold: '<span class="coin coin--gold"></span>',
-            silver: '<span class="coin coin--silver"></span>',
-            copper: '<span class="coin coin--copper"></span>',
+          const COIN_LABELS: Record<string, string> = { gold: 'gp', silver: 'sp', copper: 'cp' };
+          const COIN_SVG: Record<string, string> = {
+            gold: '<svg class="coin-icon coin-icon--gold" aria-hidden="true"><use href="#icon-coin-gold"/></svg>',
+            silver: '<svg class="coin-icon coin-icon--silver" aria-hidden="true"><use href="#icon-coin-silver"/></svg>',
+            copper: '<svg class="coin-icon coin-icon--copper" aria-hidden="true"><use href="#icon-coin-copper"/></svg>',
           };
           for (const coinType of ['gold', 'silver', 'copper'] as const) {
             const amount = coinLoot[coinType];
@@ -2708,10 +2709,10 @@ async function main(): Promise<void> {
             cb.className = 'loot-picker-checkbox';
             row.appendChild(cb);
             const label = el('span', { class: 'loot-picker-name' });
-            label.innerHTML = `${amount} ${COIN_ICONS[coinType]}`;
+            label.innerHTML = `<span class="coin-amount coin-amount--${coinType}">${amount}${COIN_SVG[coinType]}</span> ${COIN_LABELS[coinType]}`;
             row.appendChild(label);
             lootList.appendChild(row);
-            lootCheckboxes.push({ checkbox: cb, type: 'coin', coinType, quantity: amount, name: `${amount} ${coinType}` });
+            lootCheckboxes.push({ checkbox: cb, type: 'coin', coinType, quantity: amount, name: `${amount} ${COIN_LABELS[coinType]}` });
           }
         }
 
