@@ -1525,7 +1525,7 @@ async function main(): Promise<void> {
           isAlly: false,
           size: monsterDef.size === 'large' ? 2 : monsterDef.size === 'huge' ? 3 : 1,
           conditions: [],
-          spriteId: `monster_${monsterDef.type}`,
+          spriteId: monsterDef.id,
         });
       }
     }
@@ -1697,8 +1697,9 @@ async function main(): Promise<void> {
       }
     }
 
-    // Update display with new entities
-    screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
+    // Update display — merge with existing entity info so monsters/NPCs remain visible
+    const prevInfoFn = screen.getGridPanel().getEntityInfoFn();
+    screen.updateCombatEntities(placements, (id) => entityInfos.get(id) ?? prevInfoFn?.(id));
   }
 
   /** Move ambient creatures + NPCs on a tick (called from exploration:moved handler) */
@@ -1822,7 +1823,9 @@ async function main(): Promise<void> {
         });
       }
 
-      screen.updateCombatEntities(placements, (id) => entityInfos.get(id));
+      // Merge with existing entity info so monsters remain visible
+      const prevInfoFn = screen.getGridPanel().getEntityInfoFn();
+      screen.updateCombatEntities(placements, (id) => entityInfos.get(id) ?? prevInfoFn?.(id));
     }
   }
 
@@ -3662,7 +3665,7 @@ async function main(): Promise<void> {
               hp: m.stats.currentHp, maxHp: m.stats.maxHp,
               isPlayer: false, isAlly: false, size: 1,
               conditions: [],
-              spriteId: `monster_${mDef?.type ?? 'humanoid'}`,
+              spriteId: mDef?.id ?? m.templateId,
             });
           }
           activeGameScreen.updateCombatEntities(placements, (id) => entityInfos.get(id));
