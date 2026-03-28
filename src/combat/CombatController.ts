@@ -665,20 +665,26 @@ export class CombatController implements GameSystem {
           }
         }
 
-        // Coin drops based on CR
-        const cr = monsterDef.cr;
-        if (cr <= 4) {
-          coinLoot.copper += Math.floor(rng.next() * 50);
-          coinLoot.silver += Math.floor(rng.next() * 20);
-          coinLoot.gold += Math.floor(rng.next() * 8);
-        } else if (cr <= 10) {
-          coinLoot.copper += Math.floor(rng.next() * 50);
-          coinLoot.silver += Math.floor(rng.next() * 100);
-          coinLoot.gold += Math.floor(rng.next() * 200);
-        } else {
-          coinLoot.copper += Math.floor(rng.next() * 100);
-          coinLoot.silver += Math.floor(rng.next() * 500);
-          coinLoot.gold += Math.floor(rng.next() * 2000);
+        // Coin drops based on CR — only for creature types that plausibly carry money
+        const COIN_CARRYING_TYPES = new Set([
+          'humanoid', 'dragon', 'fiend', 'undead', 'giant', 'monstrosity', 'aberration', 'construct',
+        ]);
+        const monsterType = monsterDef.type.toLowerCase().split(' ')[0]; // e.g. "beast" from "beast (wolf)"
+        if (COIN_CARRYING_TYPES.has(monsterType)) {
+          const cr = monsterDef.cr;
+          if (cr <= 4) {
+            coinLoot.copper += Math.floor(rng.next() * 50);
+            coinLoot.silver += Math.floor(rng.next() * 20);
+            coinLoot.gold += Math.floor(rng.next() * 8);
+          } else if (cr <= 10) {
+            coinLoot.copper += Math.floor(rng.next() * 50);
+            coinLoot.silver += Math.floor(rng.next() * 100);
+            coinLoot.gold += Math.floor(rng.next() * 200);
+          } else {
+            coinLoot.copper += Math.floor(rng.next() * 100);
+            coinLoot.silver += Math.floor(rng.next() * 500);
+            coinLoot.gold += Math.floor(rng.next() * 2000);
+          }
         }
       }
     }
