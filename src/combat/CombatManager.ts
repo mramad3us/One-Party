@@ -314,8 +314,16 @@ export class CombatManager {
     gridDef: GridDefinition,
     placements: Map<EntityId, Coordinate>,
   ): void {
-    // Build grid
-    this.grid = new Grid(gridDef);
+    this.startCombatWithGrid(participants, new Grid(gridDef), placements);
+  }
+
+  /** Start combat using an existing Grid (e.g. exploration map — no new grid generated). */
+  startCombatWithGrid(
+    participants: CombatParticipant[],
+    grid: Grid,
+    placements: Map<EntityId, Coordinate>,
+  ): void {
+    this.grid = grid;
     this.targeting = new TargetingSystem(this.grid);
     this.combatAI = new CombatAI(this.grid, this.targeting);
 
@@ -330,8 +338,10 @@ export class CombatManager {
       this.participants.set(p.entityId, p);
     }
 
-    // Place entities on grid
+    // Place entities on grid (skip if already at the correct position — e.g. exploration combat)
     for (const [entityId, coord] of placements) {
+      const existing = this.grid.getEntityPosition(entityId);
+      if (existing && existing.x === coord.x && existing.y === coord.y) continue;
       const p = this.participants.get(entityId);
       const size = p ? this.getSizeInCells(p.stats.size) : 1;
       this.grid.placeEntity(entityId, coord, size);

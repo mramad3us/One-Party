@@ -2321,9 +2321,10 @@ async function main(): Promise<void> {
   // Combat UI: when combat starts, switch GameScreen to combat mode
   engine.events.on('combat:encounter_started', (event) => {
     if (!activeGameScreen) return;
-    const { grid, participants } = event.data as {
-      grid: import('@/types').GridDefinition;
+    const { grid, participants, explorationCombat } = event.data as {
+      grid?: import('@/types').GridDefinition;
       participants: import('@/combat/CombatManager').CombatParticipant[];
+      explorationCombat?: boolean;
     };
 
     // Build CombatantDisplay list for the HUD
@@ -2341,7 +2342,13 @@ async function main(): Promise<void> {
 
     keyboardInput.pushContext('combat');
     combatController.setDiceContainer(activeGameScreen.getCombatDiceContainer());
-    activeGameScreen.enterCombatMode(grid, displays);
+
+    if (explorationCombat) {
+      // Fight on the existing exploration grid — no grid swap
+      activeGameScreen.enterExplorationCombatMode(displays);
+    } else {
+      activeGameScreen.enterCombatMode(grid!, displays);
+    }
 
     // NOTE: fog is revealed in combat:start handler (grid doesn't exist yet here)
 
@@ -3562,20 +3569,31 @@ async function main(): Promise<void> {
 
     await new Promise(resolve => setTimeout(resolve, 600));
 
-    // Determine terrain for combat map
-    let terrain: OverworldTerrain = 'plains';
-    if (activeGameState.overworldPosition && activeOverworld) {
-      const { x: tx, y: ty } = activeGameState.overworldPosition;
-      const tile = activeOverworld.tiles[ty]?.[tx];
-      if (tile) terrain = tile.terrain as OverworldTerrain;
-    }
-
     // Pause exploration
     explorationController.setEnabled(false);
 
-    // Start arena combat
+    // Get the existing exploration grid — fight in-place, no throwaway combat map
+    const explorationGrid = explorationController.getGrid();
+    if (!explorationGrid) return;
+
+    const playerPos = explorationGrid.getEntityPosition(character.id);
+    if (!playerPos) return;
+
+    // Build enemy placement list from their exploration grid positions
+    const enemyNpcs = nearbyHostiles
+      .map(npc => {
+        const pos = explorationGrid.getEntityPosition(npc.id);
+        const mDef = getMonster(npc.templateId);
+        if (!pos || !mDef) return null;
+        return { npc, monsterDef: mDef, position: pos };
+      })
+      .filter((e): e is NonNullable<typeof e> => e !== null);
+
+    // Start in-place combat on the exploration grid
     const combatResult = await new Promise<CombatResult>((resolve) => {
-      combatController.startEncounter(character, encounter, terrain, resolve);
+      combatController.startExplorationEncounter(
+        character, encounter, explorationGrid, playerPos, enemyNpcs, resolve,
+      );
     });
 
     // Resume exploration

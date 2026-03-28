@@ -254,6 +254,26 @@ export class GameScreen extends Component {
     this.el.classList.add('game-screen--combat');
   }
 
+  /** Enter combat mode on the current exploration grid — no grid swap. */
+  enterExplorationCombatMode(participants: CombatantDisplay[]): void {
+    this.currentMode = 'combat';
+
+    // Do NOT call gridPanel.initGrid() — keep the exploration grid as-is
+
+    // Mount CombatHUD
+    if (this.combatHUD) {
+      this.combatHUD.destroy();
+    }
+    this.combatHUD = new CombatHUD(this.gridWrap, this.engine);
+    this.combatHUD.mount();
+    this.addChild(this.combatHUD);
+    this.combatHUD.setInitiativeOrder(participants);
+
+    this.combatActionBar.classList.remove('combat-action-bar--hidden');
+    this.actionWrap.classList.add('game-action-wrap--hidden');
+    this.el.classList.add('game-screen--combat');
+  }
+
   exitCombatMode(): void {
     this.currentMode = 'exploration';
     this.combatGrid = null;

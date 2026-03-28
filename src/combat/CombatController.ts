@@ -237,6 +237,68 @@ export class CombatController implements GameSystem {
     this.showInitiativeRolls();
   }
 
+  /**
+   * Start combat on an existing exploration grid (no throwaway combat map).
+   * Enemies are already placed on the grid — we just need to register them
+   * as combat participants and start the fight.
+   */
+  startExplorationEncounter(
+    character: Character,
+    encounter: ResolvedEvent,
+    existingGrid: import('@/grid/Grid').Grid,
+    playerPos: Coordinate,
+    enemyNpcs: { npc: NPC; monsterDef: MonsterDefinition; position: Coordinate }[],
+    onComplete: (result: CombatResult) => void,
+  ): void {
+    this.currentEncounter = encounter;
+    this.onComplete = onComplete;
+    this.spawnedMonsters = [];
+    this.monsterMap.clear();
+    this.ready = false;
+    this.pendingNPCTurns = [];
+    this.active = true;
+
+    const placements = new Map<EntityId, Coordinate>();
+    const playerParticipant = this.buildPlayerParticipant(character);
+    placements.set(character.id, playerPos);
+
+    const npcParticipants: CombatParticipant[] = [];
+    for (const { npc, monsterDef, position } of enemyNpcs) {
+      this.spawnedMonsters.push(monsterDef);
+      this.monsterMap.set(npc.id, monsterDef);
+
+      const participant: CombatParticipant = {
+        entityId: npc.id,
+        isPlayer: false,
+        isAlly: false,
+        stats: { ...npc.stats },
+        initiative: 0,
+        npc,
+      };
+      npcParticipants.push(participant);
+      placements.set(npc.id, position);
+    }
+
+    const allParticipants = [playerParticipant, ...npcParticipants];
+
+    // Emit with explorationCombat flag so UI keeps the current grid
+    this.engine.events.emit({
+      type: 'combat:encounter_started',
+      category: 'combat',
+      data: {
+        encounter,
+        explorationCombat: true,
+        participants: allParticipants,
+        placements,
+      },
+    });
+
+    // Start combat using the existing exploration grid
+    this.combatManager.startCombatWithGrid(allParticipants, existingGrid, placements);
+
+    this.showInitiativeRolls();
+  }
+
   // ── Player actions (called from UI) ───────────────────────────
 
   playerMove(path: Coordinate[]): void {
