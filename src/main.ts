@@ -2299,6 +2299,24 @@ async function main(): Promise<void> {
         activeGameScreen.updateTime(activeGameState.world.time);
       }
 
+      // Proximity aggro — monsters in LoS within detection range trigger combat
+      if (explorationMonsters.length > 0 && !combatController.isActive()) {
+        const aggroGrid = explorationController.getGrid();
+        const aggroFog = explorationController.getFog();
+        if (aggroGrid && aggroFog) {
+          const DETECTION_RANGE = 6; // cells (~30ft)
+          for (const monster of explorationMonsters) {
+            const mPos = aggroGrid.getEntityPosition(monster.id);
+            if (!mPos) continue;
+            const dist = Math.abs(position.x - mPos.x) + Math.abs(position.y - mPos.y);
+            if (dist <= DETECTION_RANGE && aggroFog.isVisible(mPos.x, mPos.y)) {
+              startExplorationCombat(monster, mPos);
+              break; // one aggro at a time
+            }
+          }
+        }
+      }
+
       // Tick ambient creature + NPC idle movement
       const ambientGrid = explorationController.getGrid();
       if (ambientGrid) {
@@ -3662,9 +3680,9 @@ async function main(): Promise<void> {
     if (!activeGameScreen || !activeGameState) return;
     const { entityId, position } = event.data as { entityId: string; position: Coordinate };
 
-    // Check if this is a hostile monster (exploration spawn)
+    // Check if this is a hostile monster (exploration spawn) — skip if combat already active
     const hostileNpc = engine.entities.get(entityId) as NPC | undefined;
-    if (hostileNpc?.role === 'hostile') {
+    if (hostileNpc?.role === 'hostile' && !combatController.isActive()) {
       startExplorationCombat(hostileNpc, position);
       return;
     }
