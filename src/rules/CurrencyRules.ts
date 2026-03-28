@@ -85,9 +85,9 @@ export function purseSpace(entry: InventoryEntry): number {
 
 // ── Inventory-wide coin totals ──────────────────────────────────────
 
-/** Total copper value of ALL coins the player holds (purses + loose). */
+/** Total copper value of ALL coins the player holds (purses only). */
 export function totalPlayerCopper(inventory: Inventory): number {
-  let total = totalInCopper(inventory.gold, inventory.silver, inventory.copper);
+  let total = 0;
   for (const purse of getPurses(inventory)) {
     const c = purse.coins ?? { gold: 0, silver: 0, copper: 0 };
     total += totalInCopper(c.gold, c.silver, c.copper);
@@ -95,11 +95,11 @@ export function totalPlayerCopper(inventory: Inventory): number {
   return total;
 }
 
-/** Total coins across all purses + loose, broken out by denomination. */
+/** Total coins across all purses, broken out by denomination. */
 export function totalPlayerDenominations(inventory: Inventory): PurseContents {
-  let gold = inventory.gold;
-  let silver = inventory.silver;
-  let copper = inventory.copper;
+  let gold = 0;
+  let silver = 0;
+  let copper = 0;
   for (const purse of getPurses(inventory)) {
     const c = purse.coins ?? { gold: 0, silver: 0, copper: 0 };
     gold += c.gold;
@@ -107,6 +107,15 @@ export function totalPlayerDenominations(inventory: Inventory): PurseContents {
     copper += c.copper;
   }
   return { gold, silver, copper };
+}
+
+/** Total remaining coin space across all purses. */
+export function totalPurseSpace(inventory: Inventory): number {
+  let space = 0;
+  for (const purse of getPurses(inventory)) {
+    space += purseSpace(purse);
+  }
+  return space;
 }
 
 // ── Affordability ───────────────────────────────────────────────────
@@ -122,14 +131,14 @@ export function canAfford(inventory: Inventory, costInCopper: number): boolean {
 // ── Adding coins ────────────────────────────────────────────────────
 
 /**
- * Add coins to inventory — fills purses first, overflow goes to loose coins.
+ * Add coins to inventory — fills purses only. Returns any overflow that didn't fit.
  * Coins are added in their given denomination (no auto-conversion).
  * Mutates the inventory in place.
  */
 export function addCoins(
   inventory: Inventory,
   amount: { gold?: number; silver?: number; copper?: number },
-): void {
+): PurseContents {
   let goldToAdd = amount.gold ?? 0;
   let silverToAdd = amount.silver ?? 0;
   let copperToAdd = amount.copper ?? 0;
@@ -162,10 +171,8 @@ export function addCoins(
     if (goldToAdd === 0 && silverToAdd === 0 && copperToAdd === 0) break;
   }
 
-  // Overflow goes to loose coins
-  inventory.gold += goldToAdd;
-  inventory.silver += silverToAdd;
-  inventory.copper += copperToAdd;
+  // Return overflow — callers decide what to do with coins that didn't fit
+  return { gold: goldToAdd, silver: silverToAdd, copper: copperToAdd };
 }
 
 /**
@@ -200,12 +207,11 @@ interface CoinSource {
 export function deduct(inventory: Inventory, costInCopper: number): boolean {
   if (!canAfford(inventory, costInCopper)) return false;
 
-  // Build ordered list of coin sources: purses first, then loose
+  // Build ordered list of coin sources (purses only)
   const sources: CoinSource[] = [];
   for (const purse of getPurses(inventory)) {
     sources.push({ coins: ensureCoins(purse) });
   }
-  sources.push({ coins: inventory as PurseContents });
 
   let remaining = costInCopper;
 
@@ -279,10 +285,7 @@ export function optimizeCoins(inventory: Inventory): {
   const after = fromCopper(totalCopper);
   const coinsSaved = coinCount(before) - coinCount(after);
 
-  // Zero out everything
-  inventory.gold = 0;
-  inventory.silver = 0;
-  inventory.copper = 0;
+  // Zero out purses
   for (const purse of getPurses(inventory)) {
     purse.coins = { gold: 0, silver: 0, copper: 0 };
   }

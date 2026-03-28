@@ -232,11 +232,7 @@ export class CharacterFactory {
       features,
       inventory: {
         items: inventoryItems,
-        capacity: abilityScores.strength * 15,
-        currentWeight: 0,
-        gold: 0,
-        silver: 0,
-        copper: 0,
+        maxSlots: 16,
       },
       equipment: {
         mainHand: null,
@@ -474,12 +470,8 @@ export class CharacterFactory {
         },
       ],
       inventory: {
-        items: [],
-        currentWeight: 0,
-        capacity: 150,
-        gold: 0,
-        silver: 0,
-        copper: 0,
+        items: [{ itemId: 'item_money_bag', quantity: 1, coins: { gold: 0, silver: 0, copper: 0 } }],
+        maxSlots: 16,
       },
       equipment: {
         mainHand: null, offHand: null, armor: null, helmet: null,

@@ -7,7 +7,7 @@ import type {
   Result,
 } from '@/types';
 import { getItem } from '@/data/items';
-import { canAfford, coinValueToCopper, deduct, addGold, fromCopper } from '@/rules/CurrencyRules';
+import { canAfford, coinValueToCopper, deduct, addCoins, fromCopper, totalPurseSpace } from '@/rules/CurrencyRules';
 
 // ── Stock tables by merchant role ──────────────────────────────────────
 
@@ -347,9 +347,14 @@ export function sellItem(
   // Deduct from merchant gold
   merchantInv.gold -= totalRevenue / 100;
 
-  // Give coins to player
+  // Give coins to player — check purse space first
   const coins = fromCopper(totalRevenue);
-  addGold(playerInv, coins);
+  const totalCoinsToAdd = (coins.gold ?? 0) + (coins.silver ?? 0) + (coins.copper ?? 0);
+  const available = totalPurseSpace(playerInv);
+  if (available < totalCoinsToAdd) {
+    return { ok: false, error: 'Your purses are full — no room for the coins.' };
+  }
+  addCoins(playerInv, coins);
 
   // Remove from player inventory
   playerEntry.quantity -= quantity;

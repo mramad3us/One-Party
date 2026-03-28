@@ -37,7 +37,7 @@ import type { OverworldData } from '@/types/overworld';
 import { SeededRNG } from '@/utils/SeededRNG';
 import { isDevMode, setDevMode } from '@/utils/devmode';
 import { DiceRoller } from '@/rules/DiceRoller';
-import { addCoins, optimizeCoins, totalPlayerDenominations, coinCount, canAfford, deduct } from '@/rules/CurrencyRules';
+import { addCoins, optimizeCoins, totalPlayerDenominations, totalPurseSpace, coinCount, canAfford, deduct } from '@/rules/CurrencyRules';
 import { TextNarrativeEngine } from '@/narrative/NarrativeEngine';
 import { SurvivalRules } from '@/rules/SurvivalRules';
 import { SurvivalNarrator } from '@/narrative/SurvivalNarrator';
@@ -2691,7 +2691,7 @@ async function main(): Promise<void> {
 
         const lootList = el('div', { class: 'loot-picker-list' });
 
-        // Coin rows
+        // Coin rows — disabled if purses are full
         if (hasCoins) {
           const COIN_LABELS: Record<string, string> = { gold: 'gp', silver: 'sp', copper: 'cp' };
           const COIN_SVG: Record<string, string> = {
@@ -2699,19 +2699,25 @@ async function main(): Promise<void> {
             silver: '<svg class="coin-icon coin-icon--silver" aria-hidden="true"><use href="#icon-coin-silver"/></svg>',
             copper: '<svg class="coin-icon coin-icon--copper" aria-hidden="true"><use href="#icon-coin-copper"/></svg>',
           };
+          const availableSpace = totalPurseSpace(character.inventory);
+          let spaceUsed = 0;
           for (const coinType of ['gold', 'silver', 'copper'] as const) {
             const amount = coinLoot[coinType];
             if (amount <= 0) continue;
-            const row = el('label', { class: 'loot-picker-row' });
+            const canFit = amount <= (availableSpace - spaceUsed);
+            const row = el('label', { class: `loot-picker-row${canFit ? '' : ' loot-picker-row--disabled'}` });
             const cb = document.createElement('input');
             cb.type = 'checkbox';
-            cb.checked = true;
+            cb.checked = canFit;
+            cb.disabled = !canFit;
             cb.className = 'loot-picker-checkbox';
             row.appendChild(cb);
             const label = el('span', { class: 'loot-picker-name' });
-            label.innerHTML = `<span class="coin-amount coin-amount--${coinType}">${amount}${COIN_SVG[coinType]}</span> ${COIN_LABELS[coinType]}`;
+            const fullNote = canFit ? '' : ' <span class="loot-picker-full">(purse full)</span>';
+            label.innerHTML = `<span class="coin-amount coin-amount--${coinType}">${amount}${COIN_SVG[coinType]}</span> ${COIN_LABELS[coinType]}${fullNote}`;
             row.appendChild(label);
             lootList.appendChild(row);
+            if (canFit) spaceUsed += amount;
             lootCheckboxes.push({ checkbox: cb, type: 'coin', coinType, quantity: amount, name: `${amount} ${COIN_LABELS[coinType]}` });
           }
         }

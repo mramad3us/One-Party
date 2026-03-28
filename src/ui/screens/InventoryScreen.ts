@@ -232,15 +232,17 @@ export class InventoryScreen extends Component {
     const focusableItems = Array.from(this.inventoryGrid.querySelectorAll('.item-card')) as HTMLElement[];
     this.focusNav.setItems(focusableItems);
 
-    // Encumbrance
-    const pct = inventory.capacity > 0 ? (inventory.currentWeight / inventory.capacity) * 100 : 0;
+    // Slot usage
+    const usedSlots = inventory.items.length;
+    const maxSlots = inventory.maxSlots ?? 16;
+    const pct = maxSlots > 0 ? (usedSlots / maxSlots) * 100 : 0;
     this.encumbranceFill.style.width = `${Math.min(pct, 100)}%`;
-    if (pct > 100) {
+    if (usedSlots >= maxSlots) {
       this.encumbranceFill.classList.add('inventory-enc-fill--over');
     } else {
       this.encumbranceFill.classList.remove('inventory-enc-fill--over');
     }
-    this.encumbranceLabel.textContent = `${inventory.currentWeight} / ${inventory.capacity} lb`;
+    this.encumbranceLabel.textContent = `${usedSlots} / ${maxSlots} slots`;
   }
 
   setEquipment(equipment: EquipmentSlots, items: Map<EntityId, Item>, equipmentCharges?: Partial<Record<keyof EquipmentSlots, number>>, cursedItemsRevealed?: Record<EntityId, boolean>): void {

@@ -1191,6 +1191,21 @@
   color: var(--gold, #d4aa3c);
 }
 
+.loot-picker-row--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.loot-picker-row--disabled .loot-picker-checkbox {
+  cursor: not-allowed;
+}
+
+.loot-picker-full {
+  font-size: 0.7rem;
+  color: var(--red-light, #c04040);
+  font-style: italic;
+}
+
 .combat-summary-xp {
   display: flex;
   align-items: center;

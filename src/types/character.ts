@@ -81,14 +81,22 @@ export type InventoryEntry = {
   coins?: PurseContents;
 };
 
-/** Full inventory state */
+/** Full inventory state — slot-based, coins only in purses */
 export type Inventory = {
   items: InventoryEntry[];
-  capacity: number;
-  currentWeight: number;
-  gold: number;
-  silver: number;
-  copper: number;
+  /** Maximum number of item slots */
+  maxSlots: number;
+  // Legacy fields kept optional for save migration
+  /** @deprecated Use purses instead */
+  capacity?: number;
+  /** @deprecated Use purses instead */
+  currentWeight?: number;
+  /** @deprecated Loose coins — migrate to purses */
+  gold?: number;
+  /** @deprecated Loose coins — migrate to purses */
+  silver?: number;
+  /** @deprecated Loose coins — migrate to purses */
+  copper?: number;
 };
 
 /** Spellcasting state for caster classes */
