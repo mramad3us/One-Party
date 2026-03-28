@@ -2300,7 +2300,7 @@ async function main(): Promise<void> {
       }
 
       // Proximity aggro — monsters in LoS within detection range trigger combat
-      if (explorationMonsters.length > 0 && !combatController.isActive()) {
+      if (explorationMonsters.length > 0 && !combatController.isActive() && !explorationCombatPending) {
         const aggroGrid = explorationController.getGrid();
         const aggroFog = explorationController.getFog();
         if (aggroGrid && aggroFog) {
@@ -3540,11 +3540,19 @@ async function main(): Promise<void> {
 
   // ── Exploration Combat — bump into a hostile monster on the exploration grid ──
 
+  /** Guard flag to prevent multiple aggro triggers during the async combat setup. */
+  let explorationCombatPending = false;
+
   /** Start combat when bumping a hostile monster on the exploration map. */
   async function startExplorationCombat(bumpedMonster: NPC, monsterPos: Coordinate): Promise<void> {
+    if (explorationCombatPending) return;
     if (!activeGameScreen || !activeGameState || !activeOverworld) return;
     const character = engine.entities.getAll<Character>('character')[0];
     if (!character) return;
+
+    // Lock immediately to prevent re-entry during async setup
+    explorationCombatPending = true;
+    explorationController.setEnabled(false);
 
     // Find nearby hostiles within aggro radius (pull nearby pack members)
     const AGGRO_RADIUS = 5;
@@ -3587,12 +3595,9 @@ async function main(): Promise<void> {
 
     await new Promise(resolve => setTimeout(resolve, 600));
 
-    // Pause exploration
-    explorationController.setEnabled(false);
-
     // Get the existing exploration grid — fight in-place, no throwaway combat map
     const explorationGrid = explorationController.getGrid();
-    if (!explorationGrid) return;
+    if (!explorationGrid) { explorationCombatPending = false; explorationController.setEnabled(true); return; }
 
     const playerPos = explorationGrid.getEntityPosition(character.id);
     if (!playerPos) return;
@@ -3615,6 +3620,7 @@ async function main(): Promise<void> {
     });
 
     // Resume exploration
+    explorationCombatPending = false;
     explorationController.setEnabled(true);
 
     // Remove defeated monsters from the exploration grid
@@ -3682,7 +3688,7 @@ async function main(): Promise<void> {
 
     // Check if this is a hostile monster (exploration spawn) — skip if combat already active
     const hostileNpc = engine.entities.get(entityId) as NPC | undefined;
-    if (hostileNpc?.role === 'hostile' && !combatController.isActive()) {
+    if (hostileNpc?.role === 'hostile' && !combatController.isActive() && !explorationCombatPending) {
       startExplorationCombat(hostileNpc, position);
       return;
     }
