@@ -2304,12 +2304,14 @@ async function main(): Promise<void> {
         const aggroGrid = explorationController.getGrid();
         const aggroFog = explorationController.getFog();
         if (aggroGrid && aggroFog) {
-          const DETECTION_RANGE = 3; // cells (~15ft)
+          const DETECTION_RADIUS = 3; // cells (~15ft), Euclidean
           for (const monster of explorationMonsters) {
             const mPos = aggroGrid.getEntityPosition(monster.id);
             if (!mPos) continue;
-            const dist = Math.abs(position.x - mPos.x) + Math.abs(position.y - mPos.y);
-            if (dist <= DETECTION_RANGE && aggroFog.isVisible(mPos.x, mPos.y)) {
+            const dx = position.x - mPos.x;
+            const dy = position.y - mPos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= DETECTION_RADIUS && aggroFog.isVisible(mPos.x, mPos.y)) {
               startExplorationCombat(monster, mPos);
               break; // one aggro at a time
             }
